@@ -14,19 +14,19 @@ include("regression.jl")
 include("plot_utils.jl")
 
 get_functions(;kvs...) = AttractorModels.get_attractors2(;w1=sqrt(10.0/2), w2=sqrt(45.0/2.0), wf=sqrt(5.0/2),
-                                                        b=-4.5, ϵ2=2.5, A0=7.0, A2=7.0, zmin=-3.7,
+                                                        b=-4.5, ϵ2=2.5, A0=7.0, A2=7.0, zmin=-3.5,
                                                         ϕ=3π/4,kvs...)
 
 function generate_trajectories(;do_record=true)
     GLMakie.activate!()
     func,gfunc,ifunc = get_functions()
     fig = AttractorModels.animate_manifold(func, gfunc, ifunc;bump_dur=3, nframes=300, bump_amp=0.0,
-                                                              σn=0.012, dt=0.5, max_width_scale=1.0,
+                                                              σn=0.0525, dt=0.5, max_width_scale=1.0,
                                                               rebound=false, ntrials=500,
                                                               freeze_before_bump=false, r0=1.0,
                                                               b20=7.0, well_min=7.0, basin_scale_min=1.0,
                                                               bump_time=50, do_save=true, zmin_f=0.001,
-                                                              zf0=3.7, b0=4.5, ϵ0=2.5, ϵf=1.0,
+                                                              zf0=3.5, b0=4.5, ϵ0=2.5, ϵf=1.0,
                                                               do_record=do_record,animation_filename="test_movie.mp4",
                                                               fps=60.0,
                                                               fname="model_output_more_trials_longer.jld2")
@@ -378,7 +378,7 @@ function plot()
 	Xe = [7.0, -13.0]
 	w2 = 35.0
 	do_interpolation = false
-	results = run_model(;redo=false,σ²0=1.0,τ=1.0,σ²n=0.0,nd=ncells["whiskey"],
+	results = run_model(;redo=false,σ²0=1.125,τ=1.0,σ²n=0.0,nd=ncells["whiskey"],
                                           n_init_points=1, curve_data_file="model_output_more_trials_longer.jld2",
                                           idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["whiskey"],
                                           path_length_method=:normal, remove_outliers=true,
@@ -448,7 +448,7 @@ function plot()
 
 	single_cell_responses = Vector{Vector{Point2f}}(undef, 3)
 	response_colors = Vector{Vector{eltype(colors)}}(undef, 3)
-	for (jj,cidx) in enumerate([1,10,15])
+	for (jj,cidx) in enumerate([1,7,15])
 		single_cell_responses[jj] = Point2f[]
 		response_colors[jj] = eltype(colors)[]
 		for i in 1:size(results.Y,3)
