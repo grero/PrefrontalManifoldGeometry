@@ -190,7 +190,19 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
     cellidx = findall(cellidx)
-	args = [[sessions_j;sessions_w], [1:8;], cellidx]
+    if subject == "ALL"
+        sessions = [sessions_j;sessions_w]
+        locations = [1:8;]
+    elseif subject == "W"
+        sessions = sessions_w
+        locations = [1:4;]
+    elseif subject == "J"
+        sessions = sessions_j
+        locations = [1:8;]
+    else
+        error("Unknown subject $(subject). Should be one of ALL, W, or J")
+    end
+	args = [sessions, locations, cellidx]
 	latencies = range(100.0, step=-10.0, stop=0.0)
 	windows = [range(5.0, step=10.0, stop=50.0);]
 	kvs = [:nruns=>nruns, :difference_decoder=>true, :windows=>windows,
