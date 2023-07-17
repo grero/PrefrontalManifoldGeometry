@@ -264,6 +264,18 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=
     cellidx = get_area_index(ppsth_mov.cellnames, area)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
+    h = zero(UInt32)
+    if remove_window !== nothing
+        h = crc32c("remove_window=$(remove_window)",h)
+        h = crc32c("window_ref=$(window_ref)")
+        if window_ref == :cue
+            remove_window!(ppsth_cue, remove_window)
+            remove_window!(ppsth_mov, trialidx_mov, remove_window, rtimes_mov, -1.0)
+        else
+            remove_window!(ppsth_mov, remove_window)
+            remove_window!(ppsth_cue, trialidx_cue, remove_window, rtimes_cue, 1.0)
+        end
+    end
     cellidx = findall(cellidx)
     if subject == "ALL"
         sessions = [sessions_j;sessions_w]
