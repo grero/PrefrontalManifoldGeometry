@@ -183,7 +183,82 @@ function get_rtime_var_per_time(;redo=false, do_save=true,kvs...)
     plot_data
 end
 
-function get_event_subspaces(;nruns=100,area="FEF",redo=false)
+"""
+    remove_window!(ppsth, window::Tuple{Float64, Float64}, t0::Float64=0.0)
+
+Remov the responses in the specified window by replacing them with responses from the
+previous window.
+
+#Examples
+```jldoctest
+ppsth = (counts=repeat([0 1;1 1;1 0;0 0],1,1,1), bins=[1.0,2.0,3.0,4.0],
+         cellname=["A/2014094/session01/array01/channel001/cell01"])
+remove_window!(ppsth, (3.0, 4.0))
+ppsth.counts
+
+# output
+
+4×2×1 Array{Int64, 3}:
+[:, :, 1] =
+ 0  1
+ 1  1
+ 0  1
+ 1  1
+```
+"""
+function remove_window!(ppsth, window::Tuple{Float64, Float64}, t0::Float64=0.0)
+    bins = ppsth.bins
+    idx1 = searchsortedfirst(bins, t0+window[1])
+    idx2 = searchsortedlast(bins, t0+window[2])
+    w = idx2-idx1+1
+    ppsth.counts[idx1:idx2,:,:] .= ppsth.counts[idx1-w:idx1-1,:,:]
+    ppsth
+end
+
+"""
+    remove_window!(ppsth,trialidx::Vector{Vector{Int64}}, window::Tuple{Float64, Float64}, t0::Dict{String, Vector{Float64}},ss::Float64=1.0)
+
+Remove responses in the specified window using the reference `t0`.
+
+# Examples
+```jldoctest
+ppsth = (counts=repeat([0 0;1 1;0 0;1 1;0 0],1,1,1), bins=[1.0,2.0,3.0,4.0,5.0],
+         cellname=["A/20140904/session01/array01/channel001/cell01"])
+rtime = Dict("A/20140904/session01"=>[1.0, 2.0])
+
+remove_window!((ppsth, [[1,2]], (5.0, 5.0), rtime, -1.0)
+ppsth.counts
+
+# output
+
+5×2×1 Array{Int64, 3}:
+[:, :, 1] =
+ 0  0
+ 1  1
+ 0  1
+ 0  1
+ 0  0
+ ```
+"""
+function remove_window!(ppsth,trialidx::Vector{Vector{Int64}}, window::Tuple{Float64, Float64}, t0::Dict{String, Vector{Float64}},ss::Float64=1.0)
+    bins = ppsth.bins
+    cells = EventOnsetDecoding.get_cellnames(ppsth)
+    for (ic,cell) in enumerate(cells)
+        session = DPHT.get_level_path("session", cell)
+        for (i,_t0) in enumerate(t0[session][trialidx[ic]])
+            idx1 = searchsortedfirst(bins, ss*_t0+window[1])
+            idx2 = searchsortedlast(bins, ss*_t0+window[2])
+            w = idx2-idx1+1
+            if idx1-w > 0
+                ppsth.counts[idx1:idx2,i,ic] .= ppsth.counts[idx1-w:idx1-1,i,ic]
+            end
+        end
+    end
+    ppsth
+end
+
+function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=true,subject="ALL",
+                              rtime_min=120.0, remove_window=nothing,window_ref::Symbol=:cue)
     ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_mov.jld2","ppsth", "labels","trialidx","rtimes")
     ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_cue.jld2","ppsth", "labels","trialidx","rtimes")
     cellidx = get_area_index(ppsth_mov.cellnames, area)
