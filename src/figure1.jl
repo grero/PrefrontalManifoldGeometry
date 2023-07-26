@@ -332,8 +332,9 @@ function plot_orthogonal_subspaces!(lg;windowsize=40.0, add_label=true, kvs...)
     lg
 end
 
-function plot()
-	img = load(joinpath("figures","james_whiskey_implant_on_brain.png"))
+function plot(;do_save=true)
+	#img = load(joinpath("figures","james_whiskey_implant_on_brain.png"))
+    img = load(joinpath("figures","manuscript","electrodes_on_brain.png"))
 	# grap the width and heigth from the QUARTO ENV variable
 	width = parse(Float64, get(ENV, "QUARTO_FIG_WIDTH", "15"))*72
 	height = parse(Float64, get(ENV, "QUARTO_FIG_HEIGHT","25"))*72
@@ -358,7 +359,9 @@ function plot()
 				  Label(lg2[1,1,TopLeft()], "B",fontsize=label_fontsize),
 				  Label(lg3[1,1,TopLeft()], "C",fontsize=label_fontsize)]
 		fname = joinpath("figures","manuscript","task_implants_and_spaces.pdf")
-		save(fname, fig;pt_per_unit=1)
+        if do_save
+            save(fname, fig;pt_per_unit=1)
+        end
 		fig
 	end
 end
