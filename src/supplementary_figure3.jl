@@ -194,6 +194,46 @@ function get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbo
 	f1score, train, test, window, latency;
 end
 
+function plot(window, latency;do_save=true)
+    fname_cue, fname_mov = get_event_subspaces(;subject="ALL", rtime_min=120.0,area="FEF",save_sample_indices=true,nruns=100)
+    f1score_cue = h5open(fname_cue) do fid
+        read(fid,"f1score")
+    end
+    f1score_mov = h5open(fname_mov) do fid
+        read(fid, "f1score")
+    end
+    with_theme(plot_theme)  do
+        fig = Figure(resolution=(500,400))
+        ax = Axis(fig[1,1])
+        # train on cue, test on mov 
+        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :cue, :mov;redo=false,baseline_end=-250.0)
+        iw = searchsortedfirst(windows, window.cue)
+        il = searchsortedfirst(latencies, latency.cue, rev=true)
+        y11 = f1score_cue[iw,il,1,:]
+        y12 = f1score[iw, il,:]
+        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :mov, :cue;redo=false,baseline_end=-300.0)
+        iw = searchsortedfirst(windows, window.mov)
+        il = searchsortedfirst(latencies, latency.mov, rev=true)
+        y21 = f1score[iw, il,:]
+        y22 = f1score_mov[iw,il,1,:]
+        yy = [y11,y12,y22,y21]
+        ll,mm,uu = [fill(0.0, 4) for _ in 1:3]
+        for i in 1:4
+            y = yy[i]
+            pp = fit(Beta, y)
+            ll[i],mm[i],uu[i] = quantile.(pp, [0.05, 0.5, 0.95])
+        end
+        #ll = percentile.(yy, 5)
+        #uu = percentile.(yy, 95)
+        barplot!(ax, [1:4;], mm)
+        rangebars!(ax, [1:4;], ll, uu)
+        ax.xticks = ([1:4;],["train on cue\ntest on cue", "train on cue\ntest on mov","train on mov\ntest on mov", "train on mov\ntest on cue"])
+        ax.ylabel = "F₁ score"
+        fig
+    end
+        
+end
+
 function plot(;do_save=true)
     with_theme(plot_theme)  do
         fig = Figure(resolution=(700,400))
