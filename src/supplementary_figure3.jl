@@ -193,3 +193,31 @@ function get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbo
 	end
 	f1score, train, test, window, latency;
 end
+
+function plot(;do_save=true)
+    with_theme(plot_theme)  do
+        fig = Figure(resolution=(700,400))
+        # train on cue, test on mov 
+        lg1 = GridLayout()
+        fig[1,1] = lg1
+        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :cue, :mov;redo=false,baseline_end=-250.0)
+        h1,ax1 = plot_performance!(lg1, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72))
+        ax1.title = "Trained on go-cue,\ntested on movement"
+        ax1.ylabel = "Latency [ms]"
+        ax1.xlabel = "Window [ms]"
+
+        # train on mov test on cue 
+        lg2 = GridLayout()
+        fig[1,2] = lg2
+        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :mov, :cue;redo=false,baseline_end=-300.0)
+        h2,ax2 = plot_performance!(lg2, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72))
+        ax2.title = "Trained on movement,\ntested on go-cue"
+        ax2.yticklabelsvisible = false
+        Colorbar(fig[1,3], h2, label="F₁ sccore")
+        if do_save
+            fname = joinpath("figures","manuscript","supplementary_figure4.pdf")
+            save(fname, fig;pt_per_unit=1)
+        end
+        fig
+   end
+end
