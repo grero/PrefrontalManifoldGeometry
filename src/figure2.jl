@@ -254,6 +254,69 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
 end
 
 """
+    plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, windowsize=1.0;xlabel="") where T <: Real
+
+Plot the PSTH for each location in a single panel, followed by a stacking of the rasters for each location, color-coded
+    similarly to the PSTH
+"""
+function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, windowsize=1.0;xlabel="") where T <: Real
+    X2,bins2 = rebin2(X,bins,windowsize)
+    binsize = bins[2] - bins[1]
+    nb,nt = size(X)
+    ulabel = unique(tlabel)
+    sort!(ulabel)
+    nl = length(ulabel)
+    μ = fill(0.0, length(bins2),nl)
+    nq = fill(0,1, nl)
+    for j in axes(X,2)
+        lidx = findfirst(ulabel.==tlabel[j])
+        μ[:,lidx] += X2[1:length(bins2),j]
+        nq[lidx] += 1
+    end
+    μ ./= nq
+    μ ./= (windowsize*binsize/1000.0)
+
+    # raster
+    qidx = findall(X .> minimum(X))
+    with_theme(plot_theme) do
+        fig = Figure(resolution=(500,500))
+        axp = Axis(fig[1,1])
+        vlines!(axp, 0.0, color="black",linestyle=:dot)
+        for i in axes(μ,2)
+            lines!(axp, bins2, μ[:,i])
+        end
+        axp.xticklabelsvisible = false
+        axp.xticksvisible = false
+        axp.bottomspinevisible = false
+        axp.ylabel = "Firing rate [Hz]"
+        axp.xlabel = xlabel
+        _colors = axp.palette.color[]
+        axesr = [Axis(fig[1+i,1]) for i in 1:nl]
+        linkxaxes!(axesr..., axp)
+        # raster
+        for (ll, ax) in enumerate(axesr)
+            # grab all trials with this label
+            tidx = findall(tlabel.==ulabel[ll])
+            # grap the spikes for this trial
+            vlines!(ax, 0.0, color="black",linestyle=:dot)
+            spidx = findall(in(tidx), [qq.I[2] for qq in qidx])
+            scatter!(ax, bins[[I.I[1] for I in qidx[spidx]]], [I.I[2] for I in qidx[spidx]], markersize=10px, color=_colors[ll], marker='|')
+            ax.xticklabelsvisible = false 
+            ax.bottomspinevisible = false
+            ax.xticksvisible = false
+            rowgap!(fig.layout, ll, 5.0)
+        end
+
+        ax = axesr[end]
+        ax.xticksvisible = true
+        ax.xticklabelsvisible = true
+        ax.bottomspinevisible = true
+        ax.xlabel = xlabel
+        fig
+    end
+end
+
+"""
 Get the explained reaction time variance as a function of time
 """
 function get_rtime_var_per_time(;redo=false, do_save=true,kvs...)
