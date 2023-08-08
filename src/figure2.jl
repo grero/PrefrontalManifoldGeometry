@@ -259,7 +259,7 @@ end
 Plot the PSTH for each location in a single panel, followed by a stacking of the rasters for each location, color-coded
     similarly to the PSTH
 """
-function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, windowsize=1.0;xlabel="") where T <: Real
+function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, rtime::Vector{Float64}, windowsize=1.0;xlabel="") where T <: Real
     X2,bins2 = rebin2(X,bins,windowsize)
     binsize = bins[2] - bins[1]
     nb,nt = size(X)
@@ -277,7 +277,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
     μ ./= (windowsize*binsize/1000.0)
 
     # raster
-    qidx = findall(X .> minimum(X))
+    Xmin = minimum(X)
     with_theme(plot_theme) do
         fig = Figure(resolution=(500,500))
         axp = Axis(fig[1,1])
@@ -297,13 +297,18 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
         for (ll, ax) in enumerate(axesr)
             # grab all trials with this label
             tidx = findall(tlabel.==ulabel[ll])
+            sidx = sortperm(rtimes[tidx])
+            qidx = findall(X[:,tidx[sidx]] .> Xmin)
             # grap the spikes for this trial
             vlines!(ax, 0.0, color="black",linestyle=:dot)
-            spidx = findall(in(tidx), [qq.I[2] for qq in qidx])
-            scatter!(ax, bins[[I.I[1] for I in qidx[spidx]]], [I.I[2] for I in qidx[spidx]], markersize=10px, color=_colors[ll], marker='|')
+            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=10px, color=_colors[ll], marker='|')
+            # show rtime
+            scatter!(ax, rtime[tidx[sidx]], 1:length(sidx), color="black", marker='|')
             ax.xticklabelsvisible = false 
             ax.bottomspinevisible = false
             ax.xticksvisible = false
+            ax.yticksvisible = false
+            ax.yticklabelsvisible = false
             rowgap!(fig.layout, ll, 5.0)
         end
 
