@@ -5,6 +5,7 @@ using DataProcessingHierarchyTools
 using JLD2
 using HDF5
 using CRC32c
+using ColorSchemes
 const DPHT = DataProcessingHierarchyTools
 
 include("regression.jl")
@@ -278,19 +279,23 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
 
     # raster
     Xmin = minimum(X)
+    _colors = ColorSchemes.Paired_10.colors
+    # since this scheme has 10 colors, index using number from 1 to 8
+    # for W, the locations are the 4 corners
+    # for J, the locations are the 4 corners plus the cardinals
+    height = nl*500/4 
     with_theme(plot_theme) do
         fig = Figure(resolution=(500,500))
         axp = Axis(fig[1,1])
         vlines!(axp, 0.0, color="black",linestyle=:dot)
         for i in axes(μ,2)
-            lines!(axp, bins2, μ[:,i])
+            lines!(axp, bins2, μ[:,i], color=_colors[ulabel[i]])
         end
         axp.xticklabelsvisible = false
         axp.xticksvisible = false
         axp.bottomspinevisible = false
         axp.ylabel = "Firing rate [Hz]"
         axp.xlabel = xlabel
-        _colors = axp.palette.color[]
         axesr = [Axis(fig[1+i,1]) for i in 1:nl]
         linkxaxes!(axesr..., axp)
         # raster
@@ -301,7 +306,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
             qidx = findall(X[:,tidx[sidx]] .> Xmin)
             # grap the spikes for this trial
             vlines!(ax, 0.0, color="black",linestyle=:dot)
-            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=10px, color=_colors[ll], marker='|')
+            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=10px, color=_colors[ulabel[ll]], marker='|')
             # show rtime
             scatter!(ax, rtime[tidx[sidx]], 1:length(sidx), color="black", marker='|')
             ax.xticklabelsvisible = false 
@@ -309,6 +314,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
             ax.xticksvisible = false
             ax.yticksvisible = false
             ax.yticklabelsvisible = false
+            ax.leftspinevisible = false
             rowgap!(fig.layout, ll, 5.0)
         end
 
@@ -317,6 +323,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
         ax.xticklabelsvisible = true
         ax.bottomspinevisible = true
         ax.xlabel = xlabel
+        ax.ylabel = "TrialID"
         fig
     end
 end
