@@ -88,7 +88,7 @@ function get_cell_data(ppsth, trialidx::Vector{Vector{Int64}}, tlabel::Vector{Ve
     rtidx = findall(rtime_min .< _rtimes .< rtime_max)
     _rtimes = _rtimes[rtidx]
     X = ppsth.counts[:,rtidx,cellidx]
-    X, ppsth.bins, tlabel[cellidx][rtidx]
+    X, ppsth.bins, tlabel[cellidx][rtidx], _rtimes
 end
 
 function get_cell_data(alignment::String, args...;suffix="", kvs...)
@@ -102,6 +102,7 @@ end
 
 function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="")
+    #TODO: Plot all PSTH in one panel, with the raster per location stacked below
     #movement aligned
     fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
     ppsths = JLD2.load(fnames, "ppsth")
@@ -254,13 +255,100 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     end
 end
 
+function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float64;rtime_min=120.0, rtime_max=300.0, suffix="", locations::Union{Nothing, Vector{Int64}}=nothing, 
+                                                                                    tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf),kvs...)
+    #movement aligned
+    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    ppsths = JLD2.load(fnames, "ppsth")
+    rtimess = JLD2.load(fnames, "rtimes")
+    trialidxs = JLD2.load(fnames, "trialidx")
+    tlabels = JLD2.load(fnames, "labels")
+    binss = ppsths.bins
+
+
+    # cue aligned
+    fnamec = joinpath("data","ppsth_fef_cue_raw$(suffix).jld2")
+    ppsthc = JLD2.load(fnamec, "ppsth")
+    rtimesc = JLD2.load(fnamec, "rtimes")
+    trialidxc = JLD2.load(fnamec, "trialidx")
+    tlabelc = JLD2.load(fnamec, "labels")
+    binsc = ppsthc.bins
+
+    # add target aligned here
+    fnamet = joinpath("data","ppsth_fef_target_raw$(suffix).jld2")
+    ppstht = JLD2.load(fnamet, "ppsth")
+    rtimest = JLD2.load(fnamet, "rtimes")
+    trialidxt = JLD2.load(fnamet, "trialidx")
+    tlabelt = JLD2.load(fnamet, "labels")
+    binst = ppstht.bins
+
+    subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsths.cellnames)
+    if cellidx > length(subject_idx)
+        return nothing
+    end
+    cellidx = subject_idx[cellidx]
+    @assert ppsths.cellnames == ppsthc.cellnames
+    # we have more cells for target aligned, so grab the subset that is also in ppsthc
+    cellidxt = findfirst(ppstht.cellnames.==ppsthc.cellnames[cellidx])
+    @assert trialidxs[cellidx] == trialidxc[cellidx]
+
+    @assert length(trialidxt[cellidxt]) >= length(trialidxc[cellidx])
+    ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
+    @assert trialidxt[cellidxt][ttidx] == trialidxc[cellidx]
+    session = DPHT.get_level_path("session", ppsths.cellnames[cellidx])
+
+    _rtimes = rtimess[session][trialidxs[cellidx]]
+    rtidx = findall(rtime_min .< _rtimes .< rtime_max)
+    _rtimes = _rtimes[rtidx]
+    if locations === nothing
+        locations = unique(tlabels[cellidx][rtidx])
+        sort!(locations)
+    end
+    tidx = findall(in(locations).(tlabels[cellidx][rtidx]))
+    Xs = ppsths.counts[:,rtidx[tidx],cellidx]
+    Xc = ppsthc.counts[:,rtidx[tidx],cellidx]
+    Xt = ppstht.counts[:,ttidx[rtidx[tidx]],cellidxt]
+
+    ulabel = unique(tlabels)
+    nl = length(ulabel)
+    height = nl*100 
+    fig = Figure(resolution=(1500,height))
+    # one column for each alignment
+    lgt = GridLayout()
+    fig[1,1] = lgt
+    lgc = GridLayout()
+    fig[1,2] = lgc
+    lgs = GridLayout()
+    fig[1,3] = lgs
+    tridx = rtidx[tidx]
+    bidxt = searchsortedfirst(binst, tmin.target):searchsortedlast(binst, tmax.target)
+    bidxc = searchsortedfirst(binsc, tmin.cue):searchsortedlast(binsc, tmax.cue)
+    bidxs = searchsortedfirst(binss, tmin.mov):searchsortedlast(binss, tmax.mov)
+    axt = plot_psth_and_raster!(lgt, Xt[bidxt, :], binst[bidxt], location_idx[subject][tlabelt[cellidxt][ttidx[tridx]]],_rtimes, windowsize;multiplier=nothing, xlabel="Target onset[ms]", kvs...)
+    axc = plot_psth_and_raster!(lgc, Xc[bidxc, :], binsc[bidxc], location_idx[subject][tlabelc[cellidx][tridx]],_rtimes, windowsize;multiplier=1.0, ylabelvisible=false, yticklabelsvisible=false, xlabel="Go-cue onset[ms]", kvs...)
+    axs = plot_psth_and_raster!(lgs, Xs[bidxs,:], binss[bidxs], location_idx[subject][tlabels[cellidx][tridx]],_rtimes, windowsize;multiplier=-1.0, ylabelvisible=false, yticklabelsvisible=false, xlabel="Movement onset [ms]", kvs...)
+    linkyaxes!(axt, axc, axs)
+    fig
+end
+
 """
     plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, windowsize=1.0;xlabel="") where T <: Real
 
 Plot the PSTH for each location in a single panel, followed by a stacking of the rasters for each location, color-coded
     similarly to the PSTH
 """
-function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, rtime::Vector{Float64}, windowsize=1.0;xlabel="") where T <: Real
+function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, rtime::Vector{Float64}, windowsize=1.0;kvs...) where T <: Real
+    ulabel = unique(tlabel)
+    nl = length(ulabel)
+    height = nl*500/4 
+    fig = Figure(resolution=(500,height))
+    lg = GridLayout()
+    fig[1,1] = lg
+    plot_psth_and_raster!(lg, X, bins, tlabel, rtime, windowsize;kvs...)
+    fig
+end
+
+function plot_psth_and_raster!(lg, X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, rtime::Vector{Float64}, windowsize=1.0;xlabel="", multiplier=1.0, ylabelvisible=true, yticklabelsvisible=true) where T <: Real
     X2,bins2 = rebin2(X,bins,windowsize)
     binsize = bins[2] - bins[1]
     nb,nt = size(X)
@@ -275,7 +363,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
         nq[lidx] += 1
     end
     μ ./= nq
-    μ ./= (windowsize*binsize/1000.0)
+    μ ./= (windowsize/1000.0)
 
     # raster
     Xmin = minimum(X)
@@ -283,39 +371,41 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
     # since this scheme has 10 colors, index using number from 1 to 8
     # for W, the locations are the 4 corners
     # for J, the locations are the 4 corners plus the cardinals
-    height = nl*500/4 
     with_theme(plot_theme) do
-        fig = Figure(resolution=(500,height))
-        axp = Axis(fig[1,1])
+        axp = Axis(lg[1,1])
         vlines!(axp, 0.0, color="black",linestyle=:dot)
         for i in axes(μ,2)
-            lines!(axp, bins2, μ[:,i], color=_colors[ulabel[i]])
+            lines!(axp, bins2, μ[:,i], color=_colors[ulabel[i]], linewidth=2.0)
         end
         axp.xticklabelsvisible = false
         axp.xticksvisible = false
         axp.bottomspinevisible = false
-        axp.ylabel = "Firing rate [Hz]"
-        axp.xlabel = xlabel
-        axesr = [Axis(fig[1+i,1]) for i in 1:nl]
+        axp.yticklabelsvisible = yticklabelsvisible
+        if ylabelvisible
+            axp.ylabel = "Firing rate [Hz]"
+        end
+        axesr = [Axis(lg[1+i,1]) for i in 1:nl]
         linkxaxes!(axesr..., axp)
         # raster
         for (ll, ax) in enumerate(axesr)
             # grab all trials with this label
             tidx = findall(tlabel.==ulabel[ll])
-            sidx = sortperm(rtimes[tidx])
+            sidx = sortperm(rtime[tidx])
             qidx = findall(X[:,tidx[sidx]] .> Xmin)
             # grap the spikes for this trial
             vlines!(ax, 0.0, color="black",linestyle=:dot)
-            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=10px, color=_colors[ulabel[ll]], marker='|')
+            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=15px, color=_colors[ulabel[ll]], marker='|')
             # show rtime
-            scatter!(ax, rtime[tidx[sidx]], 1:length(sidx), color="black", marker='|')
+            if multiplier !== nothing
+                scatter!(ax, multiplier*rtime[tidx[sidx]], 1:length(sidx), color="black", marker='|')
+            end
             ax.xticklabelsvisible = false 
             ax.bottomspinevisible = false
             ax.xticksvisible = false
             ax.yticksvisible = false
             ax.yticklabelsvisible = false
             ax.leftspinevisible = false
-            rowgap!(fig.layout, ll, 5.0)
+            rowgap!(lg, ll, 5.0)
         end
 
         ax = axesr[end]
@@ -323,8 +413,11 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
         ax.xticklabelsvisible = true
         ax.bottomspinevisible = true
         ax.xlabel = xlabel
-        ax.ylabel = "TrialID"
-        fig
+        if ylabelvisible
+            ax.ylabel = "TrialID"
+        end
+        rowsize!(lg, 1, 250)
+        axp 
     end
 end
 
