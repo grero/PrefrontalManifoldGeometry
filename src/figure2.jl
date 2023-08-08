@@ -67,6 +67,38 @@ function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
     fig
 end
 
+
+"""
+    get_cell_data(ppsth, cellidx::Int64, subject::String)
+
+Get the data for cell `cellidx` coming from `subject`
+"""
+function get_cell_data(ppsth, trialidx::Vector{Vector{Int64}}, tlabel::Vector{Vector{Int64}}, rtimes::Dict{String, Vector{Float64}}, cellidx::Int64, subject::String;rtime_min=120.0, rtime_max=300.0)
+    subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsth.cellnames)
+    if cellidx > length(subject_idx)
+        return nothing
+    end
+    cellidx = subject_idx[cellidx]
+    session = DPHT.get_level_path("session", ppsth.cellnames[cellidx])
+    _rtimes = rtimes[session][trialidx[cellidx]]
+    rtidx = findall(rtime_min .< _rtimes .< rtime_max)
+    _rtimes = _rtimes[rtidx]
+    _rtimes = rtimes[session][trialidx[cellidx]]
+    rtidx = findall(rtime_min .< _rtimes .< rtime_max)
+    _rtimes = _rtimes[rtidx]
+    X = ppsth.counts[:,rtidx,cellidx]
+    X, ppsth.bins, tlabel[cellidx][rtidx]
+end
+
+function get_cell_data(alignment::String, args...;suffix="", kvs...)
+    fnames = joinpath("data","ppsth_fef_$(alignment)_raw$(suffix).jld2")
+    ppsth = JLD2.load(fnames, "ppsth")
+    rtimes = JLD2.load(fnames, "rtimes")
+    trialidx = JLD2.load(fnames, "trialidx")
+    tlabel = JLD2.load(fnames, "labels")
+    get_cell_data(ppsth, trialidx, tlabel, rtimes, args...;kvs...)
+end
+
 function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="")
     #movement aligned
