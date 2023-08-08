@@ -285,7 +285,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
     # for J, the locations are the 4 corners plus the cardinals
     height = nl*500/4 
     with_theme(plot_theme) do
-        fig = Figure(resolution=(500,500))
+        fig = Figure(resolution=(500,height))
         axp = Axis(fig[1,1])
         vlines!(axp, 0.0, color="black",linestyle=:dot)
         for i in axes(μ,2)
