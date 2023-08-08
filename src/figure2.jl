@@ -4,6 +4,7 @@ using MultivariateStats
 using DataProcessingHierarchyTools
 using JLD2
 using HDF5
+using CRC32c
 const DPHT = DataProcessingHierarchyTools
 
 include("regression.jl")
@@ -13,18 +14,63 @@ using CairoMakie
 
 sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
 sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
+sessions_p = ["P/20130923/session01", "P/20130927/session01", "P/20131014/session01", "P/20131021/session01"]
+ramping_cells_j =  [22, 23, 24, 35, 52, 53, 58, 59, 60, 88, 89, 90, 91, 92, 103, 112, 113, 117]
+ramping_cells_w =  [5, 24, 47, 54, 82]
 
 function plot_fef_cell(cellidx::Int64,args...;kvs...)
     height = 5.0*72
-    width = 1.3*height
+    if get(Dict(kvs), :show_target, false)
+        width = 1.6*height
+    else
+        width = 1.3*height
+    end
     fig = Figure(resolution=(width,height))
-    plot_fef_cell!(fig, cellidx, args...;kvs...)
+    lg = GridLayout()
+    fig[1,1] = lg
+    plot_fef_cell!(lg, cellidx, args...;kvs...)
+    fig
+end
+
+"""
+    plot_fef_cell(cellidx::Int64, subject::String;kvs...)
+
+Plot all locations for the specified cell
+"""
+function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
+    nlocations = length(locations[subject])
+    height = 25.0*72
+    if get(Dict(kvs), :show_target, false)
+        width = 0.8*height
+    else
+        width = 0.5*height
+    end
+    fig = Figure(resolution=(width,height))
+    axes = Any[]
+    for l in 1:nlocations
+        lg = GridLayout()
+        fig[l,1] = lg
+        if l < nlocations
+            xticklabelsvisible = false
+            xlabelvisible = false
+        else
+            xticklabelsvisible = true 
+            xlabelvisible = true
+        end
+        ax = plot_fef_cell!(lg, cellidx, subject, collect(locations[subject][l:l]);xticklabelsvisible=xticklabelsvisible, xlabelvisible=xlabelvisible,kvs...)
+        if ax === nothing
+            return nothing
+        end
+        push!(axes, ax)
+    end
+    linkyaxes!(axes...)
+    fig
 end
 
 function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
-                    tmin=(cue=-Inf, mov=-Inf), tmax=(cue=Inf, mov=Inf), ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true)
+                    tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="")
     #movement aligned
-    fnames = joinpath("data","ppsth_fef_mov.jld2")
+    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
     ppsths = JLD2.load(fnames, "ppsth")
     rtimess = JLD2.load(fnames, "rtimes")
     trialidxs = JLD2.load(fnames, "trialidx")
@@ -33,18 +79,34 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
 
 
     # cue aligned
-    fnamec = joinpath("data","ppsth_fef_cue.jld2")
+    fnamec = joinpath("data","ppsth_fef_cue_raw$(suffix).jld2")
     ppsthc = JLD2.load(fnamec, "ppsth")
     rtimesc = JLD2.load(fnamec, "rtimes")
     trialidxc = JLD2.load(fnamec, "trialidx")
     tlabelc = JLD2.load(fnamec, "labels")
     binsc = ppsthc.bins
 
+    # add target aligned here
+    fnamet = joinpath("data","ppsth_fef_target_raw$(suffix).jld2")
+    ppstht = JLD2.load(fnamet, "ppsth")
+    rtimest = JLD2.load(fnamet, "rtimes")
+    trialidxt = JLD2.load(fnamet, "trialidx")
+    tlabelt = JLD2.load(fnamet, "labels")
+    binst = ppstht.bins
+
     subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsths.cellnames)
+    if cellidx > length(subject_idx)
+        return nothing
+    end
     cellidx = subject_idx[cellidx]
     @assert ppsths.cellnames == ppsthc.cellnames
-
+    # we have more cells for target aligned, so grab the subset that is also in ppsthc
+    cellidxt = findfirst(ppstht.cellnames.==ppsthc.cellnames[cellidx])
     @assert trialidxs[cellidx] == trialidxc[cellidx]
+
+    @assert length(trialidxt[cellidxt]) >= length(trialidxc[cellidx])
+    ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
+    @assert trialidxt[cellidxt][ttidx] == trialidxc[cellidx]
     session = DPHT.get_level_path("session", ppsths.cellnames[cellidx])
 
     _rtimes = rtimess[session][trialidxs[cellidx]]
@@ -57,9 +119,11 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     tidx = findall(in(locations).(tlabels[cellidx][rtidx]))
     Xs = ppsths.counts[:,rtidx[tidx],cellidx]
     Xc = ppsthc.counts[:,rtidx[tidx],cellidx]
+    Xt = ppstht.counts[:,ttidx[rtidx[tidx]],cellidxt]
 
     X2s,bins2s = rebin2(Xs, ppsths.bins, windowsize)
     X2c,bins2c = rebin2(Xc, ppsthc.bins, windowsize)
+    X2t,bins2t = rebin2(Xt, ppstht.bins, windowsize)
     sidx = sortperm(-_rtimes[tidx])
 
     if latency_ref == :mov
@@ -69,18 +133,39 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     end
         
     highlight_window
+    if show_target
+        ncols = 3
+        align = [:target, :cue, :mov]
+        _X = [Xt, Xc, Xs]
+        _X2 = [X2t, X2c, X2s]
+        bins = [binst, binsc, binss]
+        bins2 = [bins2t, bins2c, bins2s]
+        qq = [nothing, _rtimes[tidx], -_rtimes[tidx]]
+        highlight_window = [nothing;highlight_window]
+    else
+        ncols = 2
+        align = [:cue, :mov]
+        _X = [Xc, Xs]
+        _X2 = [X2c, X2s]
+        bins = [binsc, binss]
+        qq = [_rtimes[tidx], -_rtimes[tidx]]
+        bins2 = [bins2c, bins2s]
+    end
+
     with_theme(plot_theme) do
-        axes = [Axis(fig[i,j]) for i in 1:2, j in 1:2]
-        linkyaxes!(axes[1,1], axes[1,2])
-        for (q, X, X2, bins, bins2, rtimesq, ww, ax1, ax2) in zip([:cue,:mov], [Xc,Xs], [X2c, X2s], [binsc, binss], [bins2c, bins2s], [_rtimes[tidx], -_rtimes[tidx]], highlight_window, axes[1,1:2], axes[2,1:2])
-            if length(ww) == 1
-                for ax in [ax1, ax2]
-                    vspan!(ax, ww, ww+windowsize, color=RGB(0.8, 0.8, 1.0))
+        axes = [Axis(fig[i,j]) for i in 1:2, j in 1:ncols]
+        linkyaxes!([axes[1,j] for j in 1:ncols]...)
+        for (q, X, X2, bins, bins2, rtimesq, ww, ax1, ax2) in zip(align, _X, _X2, bins, bins2, qq, highlight_window, axes[1,:], axes[2,:])
+            if ww !== nothing
+                if length(ww) == 1
+                    for ax in [ax1, ax2]
+                        vspan!(ax, ww, ww .+ windowsize, color=RGB(0.8, 0.8, 1.0))
+                    end
+                else
+                    xx = cat([[w,w+windowsize] for w in ww[sidx]]...,dims=1)
+                    yy = cat([[i,i] for i in 1:length(ww[sidx])]...,dims=1)
+                    linesegments!(ax2, xx,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
                 end
-            else
-                xx = cat([[w,w+windowsize] for w in ww[sidx]]...,dims=1)
-                yy = cat([[i,i] for i in 1:length(ww[sidx])]...,dims=1)
-                linesegments!(ax2, xx,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
             end
             vlines!(ax1, 0.0, color="black")
             bidx = searchsortedfirst(bins2, tmin[q]):searchsortedlast(bins2, tmax[q])
@@ -97,12 +182,14 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
             #h = heatmap!(ax2, bins[bidx], 1:size(X,2), X[bidx,sidx], colormap=:Greys)
             scatter!(ax2, bins[bidx[[I.I[1] for I in qidx]]], [I.I[2] for I in qidx], markersize=10px, color="black", marker='|')
             vlines!(ax2, 0.0, color="black")
-            scatter!(ax2, rtimesq[sidx], 1:length(sidx), color="red", markersize=5px)
+            if rtimesq !== nothing
+                scatter!(ax2, rtimesq[sidx], 1:length(sidx), color="red", markersize=5px)
+            end
             ax2.xticksvisible = true
             ax2.yticksvisible = true
             
         end
-        for ax in axes[:,2]
+        for ax in axes[:,2:end]
             ax.yticklabelsvisible = false
         end
         axes[2,1].yticklabelsvisible = false
@@ -111,8 +198,14 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
             axes[1,1].ylabel = "Activity [Hz]"
         end
         if xlabelvisible
-            axes[2,1].xlabel = "Go-cue [ms]"
-            axes[2,2].xlabel = "Movement [ms]"
+            if show_target
+                axes[2,1].xlabel = "Target [ms]"
+                axes[2,2].xlabel = "Go-cue [ms]"
+                axes[2,3].xlabel = "Movement [ms]"
+            else
+                axes[2,1].xlabel = "Go-cue [ms]"
+                axes[2,2].xlabel = "Movement [ms]"
+            end
         end
         axes[2,1].xticklabelsvisible = xticklabelsvisible
         axes[2,2].xticklabelsvisible = xticklabelsvisible
@@ -123,8 +216,8 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
                 ax.leftspinevisible=false
             end
         end
-            
-        fig
+        rowgap!(fig,1,5)
+        axes[1,1] 
     end
 end
 
@@ -258,22 +351,24 @@ function remove_window!(ppsth,trialidx::Vector{Vector{Int64}}, window::Tuple{Flo
 end
 
 function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=true,subject="ALL",
-                              rtime_min=120.0, remove_window=nothing,window_ref::Symbol=:cue)
-    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_mov.jld2","ppsth", "labels","trialidx","rtimes")
-    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_cue.jld2","ppsth", "labels","trialidx","rtimes")
+                              rtime_min=120.0, remove_window::Union{Nothing, Dict{Symbol, Tuple{Float64, Float64}}}=nothing, save_sample_indices::Bool=false,suffix="")
+    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_fef_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_fef_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
     cellidx = get_area_index(ppsth_mov.cellnames, area)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
     h = zero(UInt32)
     if remove_window !== nothing
-        h = crc32c("remove_window=$(remove_window)",h)
-        h = crc32c("window_ref=$(window_ref)")
-        if window_ref == :cue
-            remove_window!(ppsth_cue, remove_window)
-            remove_window!(ppsth_mov, trialidx_mov, remove_window, rtimes_mov, -1.0)
-        else
-            remove_window!(ppsth_mov, remove_window)
-            remove_window!(ppsth_cue, trialidx_cue, remove_window, rtimes_cue, 1.0)
+        for (window_ref,v) in remove_window
+            h = crc32c("remove_window=$(v)",h)
+            h = crc32c("window_ref=$(window_ref)",h)
+            if window_ref == :cue
+                remove_window!(ppsth_cue, v)
+                remove_window!(ppsth_mov, trialidx_mov, v, rtimes_mov, -1.0)
+            else
+                remove_window!(ppsth_mov, v)
+                remove_window!(ppsth_cue, trialidx_cue, v, rtimes_cue, 1.0)
+            end
         end
     end
     cellidx = findall(cellidx)
@@ -286,6 +381,9 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=
     elseif subject == "J"
         sessions = sessions_j
         locations = [1:8;]
+    elseif subject == "P"
+        sessions = sessions_p
+        locations = [1:8;]
     else
         error("Unknown subject $(subject). Should be one of ALL, W, or J")
     end
@@ -293,22 +391,26 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=
 	latencies = range(100.0, step=-10.0, stop=0.0)
 	windows = [range(5.0, step=10.0, stop=50.0);]
 	kvs = [:nruns=>nruns, :difference_decoder=>true, :windows=>windows,
-		:latencies=>latencies, :combine_locations=>true, :use_area=>"ALL",
-		:rtime_min=>120.0, :mixin_postcue=>true,
+		:latencies=>latencies, :combine_locations=>combine_locations, :use_area=>"ALL",
+		:rtime_min=>rtime_min, :mixin_postcue=>true,
 		:shuffle_bins=>false, :shuffle_latency=>false, :simple_shuffle=>false,
 		:restricted_shuffle=>false, :shuffle_each_trial=>false, :fix_resolution=>false,
 		:at_source=>false, :shuffle_training=>false, :use_new_decoder=>false,
-		:combine_training_only=>false, :max_shuffle_latency=>50.0
+		:combine_training_only=>false, :max_shuffle_latency=>50.0, :save_sample_indices=>save_sample_indices,
 		]
 	dargs_cue = EventOnsetDecoding.DecoderArgs(args...;kvs..., reverse_bins=true, baseline_end=-250.0)
+    fname_cue = EventOnsetDecoding.get_filename(dargs_cue)
 	dargs_mov = EventOnsetDecoding.DecoderArgs(args...;kvs..., reverse_bins=false)
+    fname_mov = EventOnsetDecoding.get_filename(dargs_mov)
+
+    @show fname_cue fname_mov
     rseeds = rand(UInt32, dargs_mov.nruns)
 
-    perf_mov,rr_mov,f1score_mov,fname_mov = EventOnsetDecoding.run_rtime_decoder(ppsth_mov,trialidx_mov,labels_mov,rtimes_mov,dargs_mov,
-                                                             ;decoder=MultivariateStats.MulticlassLDA, rseeds=rseeds, redo=redo)
-
+    @show size(ppsth_cue.counts) size(trialidx_cue) size(labels_cue) collect(keys(rtimes_cue))
     perf_cue,rr_cue,f1score_cue,fname_cue = EventOnsetDecoding.run_rtime_decoder(ppsth_cue,trialidx_cue,labels_cue,rtimes_cue,dargs_cue,
-                                                             ;decoder=MultivariateStats.MulticlassLDA, rseeds=rseeds, redo=redo)
+                                                             ;decoder=MultivariateStats.MulticlassLDA, rseeds=rseeds, redo=redo, h_init=h)
+    perf_mov,rr_mov,f1score_mov,fname_mov = EventOnsetDecoding.run_rtime_decoder(ppsth_mov,trialidx_mov,labels_mov,rtimes_mov,dargs_mov,
+                                                             ;decoder=MultivariateStats.MulticlassLDA, rseeds=rseeds, redo=redo, h_init=h)
 
     fname_cue, fname_mov
 end
@@ -316,7 +418,7 @@ end
 
 function plot_event_onset_subspaces(fname_cue, fname_mov;kvs...)
     with_theme(plot_theme) do
-        fig = Figure(resolution=(700,500))
+        fig = Figure(resolution=(700,400))
         lg = GridLayout()
         fig[1,1] = lg
         plot_data = plot_event_onset_subspaces!(lg, fname_cue, fname_mov;kvs...)
@@ -324,9 +426,36 @@ function plot_event_onset_subspaces(fname_cue, fname_mov;kvs...)
     end
 end
 
-function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, threshold=0.5)
-    ymin = Inf
-    ymax = -Inf
+function plot_performance(f1score::Array{Float64,3},args...;kvs...)
+    fig = Figure(resolution=(500,300))
+    plot_performance!(fig, f1score, args...;kvs...)
+    fig
+end
+
+function plot_performance!(lg, f1score::Array{Float64,3}, windows::AbstractVector{Float64}, latencies::AbstractVector{Float64};α::StatsBase.PValue=StatsBase.PValue(0.001), threshold=0.5, show_colorbar=true, kvs...)
+    ax = Axis(lg[1,1])
+    cidx = findall(dropdims(maximum(x->isnan(x) ? -Inf : x, f1score, dims=(1,2)),dims=(1,2)).>0.0)
+    lower_limit = fill(0.0, length(windows), length(latencies))
+    μ = fill(0.0, length(windows), length(latencies))
+    for iw in 1:length(windows)
+        for il in 1:length(latencies)
+            dd = fit(Beta, filter(isfinite, f1score[iw,il,cidx]))
+            lower_limit[iw,il] = quantile(dd, α.v)
+            μ[iw,il] = mean(dd)
+        end
+    end
+    pidx = findall(lower_limit .> threshold) 
+    h = heatmap!(ax, windows, latencies, μ;kvs...)
+    scatter!(ax, windows[[p.I[1] for p in pidx]], latencies[[p.I[2] for p in pidx]], marker='*', color="red", markersize=20px)
+    if show_colorbar
+        l = Colorbar(lg[1,2], h)
+    end
+    ax.xticks = windows
+    h,ax
+end
+
+function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, threshold=0.5, ymin=Inf,
+                                                               ymax=-Inf, show_colorbar=true,kvs...)
     plot_data = Dict{Symbol, Any}(:cue => Dict{Symbol, Any}(), :mov => Dict{Symbol, Any}())
     for (k,fname) in zip([:cue, :mov], [fname_cue, fname_mov])
         bins, f1score,windows,latencies = h5open(fname) do fid
@@ -364,13 +493,13 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, thresho
             lower_limit = plot_data[k][:lower_limit]
             pidx = plot_data[k][:pidx]
             h = heatmap!(ax, windows, latencies, μ,  colormap=:Blues,colorrange=(ymin, ymax))
-            if k == :mov
+            if k == :mov && show_colorbar
                 # TODO: Maybe put this below instead of at the side?
                 cb = Colorbar(lg0[1,3], h, label="F1-score",ticklabelsize=12)
             end
             # highlight some bins
             if k == :cue
-                pp = get_rectangular_border(20.0, 55.0, 30.0, 65.0)
+                pp = get_rectangular_border(10.0, 35.0, 20.0, 45.0)
                 lines!(ax, pp, color="red")
             else
                 pp = get_rectangular_border(30.0, -5.0, 40.0, 5.0)
@@ -381,9 +510,13 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, thresho
         end
         ax = axes[1]
         ax.xlabel = "Window size [ms]"
-        ax.ylabel = "Latency [ms]"
+        if get(Dict(kvs), :ylabelvisible, true)
+            ax.ylabel = "Latency [ms]"
+        end
+        ax.yticklabelsvisible = get(Dict(kvs), :yticklabelsvisible, true)
         ax.title = "Go-cue onset"
         ax.titlefont = :regular
+
         ax = axes[2]
         ax.yticklabelsvisible = false
         ax.title = "Movement onset"
@@ -393,9 +526,9 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, thresho
     plot_data
 end
 
-fname = "fig2_data.jld2"
 
-let
+function plot(;do_save=false)
+    fname = "fig2_data.jld2"
     α = 0.001
     threshold = 0.5
     if isfile(fname)
@@ -453,7 +586,7 @@ let
             end
             # highlight some bins
             if k == :cue
-                pp = get_rectangular_border(20.0, 55.0, 30.0, 65.0)
+                pp = get_rectangular_border(10.0, 35.0, 20.0, 45.0)
                 lines!(ax, pp, color="red")
             else
                 pp = get_rectangular_border(30.0, -5.0, 40.0, 5.0)
@@ -490,12 +623,12 @@ let
         lg3 = GridLayout()
         lg[1,1] = lg3
         # cue aligned
-        plot_fef_cell!(lg3, 28,"W", [2];windowsize=25.0, latency=60.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg3, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
         rowgap!(lg3, 1, 4.0)
         colgap!(lg3, 1, 4.0)
         lg4 = GridLayout()
         lg[2,1] = lg4
-        plot_fef_cell!(lg4, 59,"J", [6];windowsize=25.0, latency=60.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50), ylabelvisible=true, showmovspine=showmovspine, xlabelvisible=true, xticklabelsvisible=true)
+        plot_fef_cell!(lg4, 59,"J", [6];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50), ylabelvisible=true, showmovspine=showmovspine, xlabelvisible=true, xticklabelsvisible=true)
         rowgap!(lg4, 1, 4.0)
         colgap!(lg4, 1, 4.0)
         colgap!(lg, 1, 5.0)
@@ -507,7 +640,7 @@ let
         bins = plot_data_reg[:bins]
         bidx = searchsortedfirst(bins, -200.0):searchsortedlast(bins, 50.0)
         # transition period in blue?
-        vspan!(ax5, -203.0 + 85.0, -35.0,color=RGB(0.9, 0.9, 1.0))
+        vspan!(ax5, -203.0 + 65.0, -35.0,color=RGB(0.9, 0.9, 1.0))
         for (x0,x1) in plot_data_reg[:xh]
             vspan!(ax5, x0, x1,color=RGB(0.8, 0.8, 0.8))
         end
@@ -525,7 +658,9 @@ let
         colgap!(fig.layout,1,1.0)
         colsize!(fig.layout, 1, Relative(0.4))
         fname = joinpath("figures","manuscript", "subspaces_and_regression.pdf")
-        save(fname, fig;pt_per_unit=1)
+        if do_save
+            save(fname, fig;pt_per_unit=1)
+        end
         fig
     end
 end
