@@ -82,9 +82,9 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                                                curve_data_file="model_output_more_trials_longer.jld2",
                                                idx0=30,nruns=50, ntrials::Union{Int64, Vector{Int64}}=0,rseed=UInt32(1234),
                                                go_cue=idx0, path_length_method::Symbol=:normal,
-                                               remove_outliers=false, do_interpolation=true, do_remove_dependence=true)
+                                               remove_outliers=false, do_interpolation=true, do_remove_dependence=true, h0=UInt32(0))
     @assert σ²0 >= σ²n
-    h = UInt32(0)
+    h = h0
     h = crc32c(string(σ²0),h)
     h = crc32c(string(τ),h)
     h = crc32c(string(σ²n),h)
@@ -221,6 +221,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         end
         pltr = fill(0.0, n_tot_trials, nruns)
         plftr = fill(0.0, n_tot_trials, nruns)
+        asftr = fill(0.0, n_tot_trials, nruns)
         plf = fill(0.0, n_tot_trials, nruns)
         pl = fill(0.0, n_tot_trials)
         r²0 = fill(0.0, nruns)
@@ -230,6 +231,8 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         r²pl = fill(0.0, nruns)
         pvpl = fill(0.0, nruns)
         r²plf = fill(0.0, nruns)
+        r²asftr = fill(0.0, nruns)
+        r²pcas = fill(0.0, nruns)
         r²hr = fill(0.0, nruns)
         r²cv = fill(0.0, nruns)
         pvf = fill(0.0, nruns)
@@ -303,6 +306,8 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                     Y[:,:,i] .+= A[kk]*randn(RNG, size(A[kk],1),_ncells)
                     plf[trial_offset+i,r] = sum(sqrt.(sum(abs2, diff(Y[offset+1:_eeidx[i],:,i],dims=1),dims=2)))
                     plftr[trial_offset+i,r],pidx = compute_triangular_path_length(Y[offset+1:_eeidx[i],:,i],path_length_method)
+                    # compute speed
+                    asftr[trial_offset+i, r] = plf[trial_offset+i,r]/(_eeidx[i]-offset+2)
                 end
                 min_rt_idx = argmin(_rt)
                 Δ = plf[trial_offset + min_rt_idx,r]/np_min
@@ -343,10 +348,12 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                 ridxf = r
             end
             βplf,r²plf[r], pvplf,rssplf = llsq_stats(plf[:,r:r], rtl)
+            βasf, r²asftr[r], _,_ = llsq_stats(asftr[:,r:r], rtl)
             #r²plf[r] = adjusted_r²(r²plf[r], ntrials, length(βplf))
             @debug "Regress path length" r²plf[r]
             # hierarhical
             βhr,r²hr[r], pvhr,rsshr = llsq_stats([Z0[:,r] plftr[:,r]], rtl)
+            βpcas, r²pcas[r],_,_ = llsq_stats([Z0[:,r] asftr[:,r]], rtl)
             @debug "ZO" extrema(Z0[:,r]) extrema(plftr[:,r]) rsshr rsspl
             fvalue[r],pvf[r] = ftest(rsspl,length(βpl), rsshr, length(βhr),length(rtl)) 
             #r²hr[r] = adjusted_r²(r²hr[r], ntrials, length(βhr))
@@ -364,7 +371,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         end
         results = (r²0=r²0, pv0=pv0, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
                    rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curvesp,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
-                   path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf)
+                   path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf)
         @info "r²plf" r²plf
         if do_save
             JLD2.save(fname, Dict(String(k)=>results[k] for k in keys(results)))
@@ -373,7 +380,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     results
 end
 
-function plot()
+function plot(;do_save=true,kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
 	w2 = 35.0
@@ -382,7 +389,7 @@ function plot()
                                           n_init_points=1, curve_data_file="model_output_more_trials_longer.jld2",
                                           idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["whiskey"],
                                           path_length_method=:normal, remove_outliers=true,
-                                          do_interpolation=false, do_remove_dependence=true);
+                                          do_interpolation=false, do_remove_dependence=true, do_save=do_save,kvs...);
 	# the function that was used to generate the trajectories
 	func,gfunc,ifunc = get_functions() 
 
@@ -399,9 +406,11 @@ function plot()
 	end
 	# compute path length and initial conditions
 	path_length = fill(0.0, size(results.Y,3))
+    avg_speed = fill!(similar(path_length), 0.0)
 	for i in 1:size(results.Y,3)
 		y = results.Y[idx0+1:results.eeidx_sample[i],:,i]
 		path_length[i],dm = compute_triangular_path_length2(y)
+        avg_speed[i] = sum(sqrt.(sum(abs2,diff(y,dims=1),dims=2)))/(results.eeidx_sample[i]-idx0+2)
 	end
 	fa = MultivariateStats.fit(MultivariateStats.FactorAnalysis, results.Y[idx0,:,:];method=:em, maxoutdim=1)
 	z0 = MultivariateStats.predict(fa, results.Y[idx0,:,:])
@@ -488,11 +497,12 @@ function plot()
 	#regression
 	βpl, r²pl, pvpl, rsspl = llsq_stats(repeat(path_length[tqidx],1,1), lrt)	
 	βpc, r²pc, pvpc, rsspc = llsq_stats(permutedims(z0,[2,1])[tqidx,:], lrt)
-	@info r²pl r²pc
-	μr = fill(0.0,3)
-	lr = fill(0.0,3)
-	ur = fill(0.0,3)
-	for (ii,r²) in enumerate([results.r²0,results.r²pl,results.r²hr])
+	βas, r²as, pvas, rssas = llsq_stats(repeat(avg_speed[tqidx],1,1), lrt)	
+	@info r²pl r²pc r²as
+	μr = fill(0.0,5)
+	lr = fill(0.0,5)
+	ur = fill(0.0,5)
+	for (ii,r²) in enumerate([results.r²0,results.r²pl,results.r²asftr, results.r²hr, results.r²pcas])
 		dd = fit(Beta, r²)
 		μr[ii] = mean(dd)
 		lr[ii] = quantile(dd, 0.05)
@@ -542,14 +552,22 @@ function plot()
 		ax5 = Axis(lg3[1,1])
 		scatter!(ax5, z0[:], log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax5, βpc[end], βpc[1], color="black", linestyle=:dot)
-		ax5.xlabel = "Initial (pc)"
+		ax5.xlabel = "Initial (MP)"
 		ax5.ylabel = "log(rt)"
-		ax6 = Axis(lg3[1,2])
+		ax6 = Axis(lg3[1,2],xticks=LinearTicks(4))
 		scatter!(ax6, path_length, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax6, βpl[end], βpl[1], color="black", linestyle=:dot)
-		ax6.xlabel = "Path length (pl)"
-		linkyaxes!(ax5, ax5)
+		ax6.xlabel = "Path length (PL)"
 		ax6.yticklabelsvisible = false
+        ax73 = Axis(lg3[1,3], xticks=LinearTicks(4))
+		scatter!(ax73, avg_speed, log.(results.rt_sample),color=colors, markersize=7.5px)
+		ablines!(ax73, βas[end], βas[1], color="black", linestyle=:dot)
+		ax73.xlabel = "Avg speed (AS)"
+		ax73.yticklabelsvisible = false
+        for _ax in [ax5, ax6, ax73]
+            _ax.xticklabelsvisible = false
+        end
+		linkyaxes!(ax5, ax6, ax73)
 		#TODO: Add reaction time regression as a function of time
 		lg4 = GridLayout()
 		fig[2,1:2] = lg4
@@ -564,7 +582,8 @@ function plot()
 		colsize!(lg4,1, Relative(0.8))
 		barplot!(ax8, 1:length(ur), μr)
 		rangebars!(ax8, 1:length(ur), lr, ur)
-		ax8.xticks=([1:3;], ["pc","pl","pc+pl"])
+		ax8.xticks=([1:length(μr);], ["MP","PL","AS", "MP+PL","MP+AS"])
+        ax8.xticklabelrotation = -π/3
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
 		labels = [Label(lg1[1,1,TopLeft()], "A",padding=label_padding),
