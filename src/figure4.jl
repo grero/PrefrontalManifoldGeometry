@@ -461,8 +461,8 @@ function plot(;do_save=true,kvs...)
 		single_cell_responses[jj] = Point2f[]
 		response_colors[jj] = eltype(colors)[]
 		for i in 1:size(results.Y,3)
-			y = results.Y[idx0:results.eeidx_sample[i],cidx,i]
-			x = [-results.eeidx_sample[i]+idx0:0.0;]
+			y = results.Y[idx0-15:results.eeidx_sample[i],cidx,i]
+			x = [-results.eeidx_sample[i]+idx0-15:0;]
 			# smooth out the noise
 			model = loess(x, y, span=0.5)
 			us = range(extrema(x)...; step = 0.1)
