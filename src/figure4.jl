@@ -502,7 +502,7 @@ function plot(;do_save=true,kvs...)
 	μr = fill(0.0,5)
 	lr = fill(0.0,5)
 	ur = fill(0.0,5)
-	for (ii,r²) in enumerate([results.r²0,results.r²pl,results.r²asftr, results.r²hr, results.r²pcas])
+	for (ii,r²) in enumerate([results.r²0,results.r²asftr,results.r²pl, results.r²hr, results.r²pcas])
 		dd = fit(Beta, r²)
 		μr[ii] = mean(dd)
 		lr[ii] = quantile(dd, 0.05)
@@ -554,12 +554,12 @@ function plot(;do_save=true,kvs...)
 		ablines!(ax5, βpc[end], βpc[1], color="black", linestyle=:dot)
 		ax5.xlabel = "Initial (MP)"
 		ax5.ylabel = "log(rt)"
-		ax6 = Axis(lg3[1,2],xticks=LinearTicks(4))
+		ax6 = Axis(lg3[1,3],xticks=LinearTicks(4))
 		scatter!(ax6, path_length, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax6, βpl[end], βpl[1], color="black", linestyle=:dot)
 		ax6.xlabel = "Path length (PL)"
 		ax6.yticklabelsvisible = false
-        ax73 = Axis(lg3[1,3], xticks=LinearTicks(4))
+        ax73 = Axis(lg3[1,2], xticks=LinearTicks(4))
 		scatter!(ax73, avg_speed, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax73, βas[end], βas[1], color="black", linestyle=:dot)
 		ax73.xlabel = "Avg speed (AS)"
@@ -582,7 +582,7 @@ function plot(;do_save=true,kvs...)
 		colsize!(lg4,1, Relative(0.8))
 		barplot!(ax8, 1:length(ur), μr)
 		rangebars!(ax8, 1:length(ur), lr, ur)
-		ax8.xticks=([1:length(μr);], ["MP","PL","AS", "MP+PL","MP+AS"])
+		ax8.xticks=([1:length(μr);], ["MP","AS", "PL","MP+PL","MP+AS"])
         ax8.xticklabelrotation = -π/3
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
