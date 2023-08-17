@@ -596,7 +596,9 @@ function plot(;do_save=true,kvs...)
 		colgap!(fig.layout, 1, 10.0)
 		rowgap!(fig.layout, 1, 1.0)
 		fname = joinpath("figures","manuscript","toy_model_figure.png")
-		save(fname,fig;pt_per_unit=1)
+        if do_save
+            save(fname,fig;pt_per_unit=1)
+        end
 		fig
 	end
 
