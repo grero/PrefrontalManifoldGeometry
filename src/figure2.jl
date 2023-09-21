@@ -187,24 +187,24 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     end
 
     with_theme(plot_theme) do
-        axes = [Axis(fig[i,j]) for i in 1:2, j in 1:ncols]
+        axes = [Axis(fig[i,j], xticklabelsize=14, yticklabelsize=14) for i in 1:2, j in 1:ncols]
         linkyaxes!([axes[1,j] for j in 1:ncols]...)
         for (q, X, X2, bins, bins2, rtimesq, ww, ax1, ax2) in zip(align, _X, _X2, bins, bins2, qq, highlight_window, axes[1,:], axes[2,:])
             if ww !== nothing
                 if length(ww) == 1
                     for ax in [ax1, ax2]
-                        vspan!(ax, ww, ww .+ windowsize, color=RGB(0.8, 0.8, 1.0))
+                        vspan!(ax, ww/1000.0, (ww .+ windowsize)./1000.0, color=RGB(0.8, 0.8, 1.0))
                     end
                 else
                     xx = cat([[w,w+windowsize] for w in ww[sidx]]...,dims=1)
                     yy = cat([[i,i] for i in 1:length(ww[sidx])]...,dims=1)
-                    linesegments!(ax2, xx,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
+                    linesegments!(ax2, xx./1000.0,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
                 end
             end
             vlines!(ax1, 0.0, color="black")
             bidx = searchsortedfirst(bins2, tmin[q]):searchsortedlast(bins2, tmax[q])
             
-            lines!(ax1, bins2[bidx], 1000.0*dropdims(mean(X2[bidx,:], dims=2)/windowsize, dims=2))
+            lines!(ax1, bins2[bidx]/1000.0, 1000.0*dropdims(mean(X2[bidx,:], dims=2)/windowsize, dims=2))
             ax1.xticklabelsvisible = false
             ax1.xticksvisible = true
             ax1.yticksvisible = true
@@ -214,10 +214,10 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
             Xq =  X[bidx,sidx]
             qidx = findall(Xq .> minimum(Xq))
             #h = heatmap!(ax2, bins[bidx], 1:size(X,2), X[bidx,sidx], colormap=:Greys)
-            scatter!(ax2, bins[bidx[[I.I[1] for I in qidx]]], [I.I[2] for I in qidx], markersize=10px, color="black", marker='|')
+            scatter!(ax2, bins[bidx[[I.I[1] for I in qidx]]]./1000.0, [I.I[2] for I in qidx], markersize=10px, color="black", marker='|')
             vlines!(ax2, 0.0, color="black")
             if rtimesq !== nothing
-                scatter!(ax2, rtimesq[sidx], 1:length(sidx), color="red", markersize=5px)
+                scatter!(ax2, rtimesq[sidx]./1000.0, 1:length(sidx), color="red", markersize=5px)
             end
             ax2.xticksvisible = true
             ax2.yticksvisible = true
@@ -237,8 +237,8 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
                 axes[2,2].xlabel = "Go-cue [ms]"
                 axes[2,3].xlabel = "Movement [ms]"
             else
-                axes[2,1].xlabel = "Go-cue [ms]"
-                axes[2,2].xlabel = "Movement [ms]"
+                axes[2,1].xlabel = "Go-cue"
+                axes[2,2].xlabel = "Movement"
             end
         end
         axes[2,1].xticklabelsvisible = xticklabelsvisible
@@ -255,7 +255,21 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     end
 end
 
-function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float64;rtime_min=120.0, rtime_max=300.0, suffix="", locations::Union{Nothing, Vector{Int64}}=nothing, 
+function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float64;suffix="",kvs...)
+    # get the number of locations to determine the height
+    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    tlabels = JLD2.load(fnames, "labels")
+    ulabel = unique(tlabels)
+    nl = length(ulabel)
+    height = nl*100 
+    fig = Figure(resolution=(1500,height))
+    lg = GridLayout()
+    fig[1,1] = lg
+    plot_psth_and_raster!(lg, subject, cellidx, windowsize;suffix=suffix, kvs...)
+    fig
+end
+
+function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::Float64;rtime_min=120.0, rtime_max=300.0, suffix="", locations::Union{Nothing, Vector{Int64}}=locations[subject],
                                                                                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf),kvs...)
     #movement aligned
     fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
@@ -315,11 +329,14 @@ function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float
     fig = Figure(resolution=(1500,height))
     # one column for each alignment
     lgt = GridLayout()
-    fig[1,1] = lgt
+    #fig[1,1] = lgt
+    lg[1,1] = lgt
     lgc = GridLayout()
-    fig[1,2] = lgc
+    #fig[1,2] = lgc
+    lg[1,2] = lgc
     lgs = GridLayout()
-    fig[1,3] = lgs
+    #fig[1,3] = lgs
+    lg[1,3] = lgs
     tridx = rtidx[tidx]
     bidxt = searchsortedfirst(binst, tmin.target):searchsortedlast(binst, tmax.target)
     bidxc = searchsortedfirst(binsc, tmin.cue):searchsortedlast(binsc, tmax.cue)
@@ -328,7 +345,7 @@ function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float
     axc = plot_psth_and_raster!(lgc, Xc[bidxc, :], binsc[bidxc], location_idx[subject][tlabelc[cellidx][tridx]],_rtimes, windowsize;multiplier=1.0, ylabelvisible=false, yticklabelsvisible=false, xlabel="Go-cue onset[ms]", kvs...)
     axs = plot_psth_and_raster!(lgs, Xs[bidxs,:], binss[bidxs], location_idx[subject][tlabels[cellidx][tridx]],_rtimes, windowsize;multiplier=-1.0, ylabelvisible=false, yticklabelsvisible=false, xlabel="Movement onset [ms]", kvs...)
     linkyaxes!(axt, axc, axs)
-    fig
+    lg
 end
 
 """
@@ -348,7 +365,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
     fig
 end
 
-function plot_psth_and_raster!(lg, X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, rtime::Vector{Float64}, windowsize=1.0;xlabel="", multiplier=1.0, ylabelvisible=true, yticklabelsvisible=true) where T <: Real
+function plot_psth_and_raster!(lg, X::Matrix{T}, bins::AbstractVector{T},tlabel::Vector{Int64}, rtime::Vector{Float64}, windowsize=1.0;xlabel="", multiplier=1.0, ylabelvisible=true, yticklabelsvisible=true, xlabelvisible=true, xticklabelsvisible=true, toprowsize=250) where T <: Real
     X2,bins2 = rebin2(X,bins,windowsize)
     binsize = bins[2] - bins[1]
     nb,nt = size(X)
@@ -413,10 +430,13 @@ function plot_psth_and_raster!(lg, X::Matrix{T}, bins::AbstractVector{T},tlabel:
         ax.xticklabelsvisible = true
         ax.bottomspinevisible = true
         ax.xlabel = xlabel
+        ax.xlabelvisible=xlabelvisible
+        ax.xticklabelsvisible = xticklabelsvisible
         if ylabelvisible
             ax.ylabel = "TrialID"
         end
-        rowsize!(lg, 1, 250)
+        #TODO: Make this a function argument.
+        rowsize!(lg, 1, toprowsize)
         axp 
     end
 end
@@ -552,8 +572,9 @@ end
 
 function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=true,subject="ALL",
                               rtime_min=120.0, remove_window::Union{Nothing, Dict{Symbol, Tuple{Float64, Float64}}}=nothing, save_sample_indices::Bool=false,suffix="")
-    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_fef_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
-    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_fef_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    sarea = lowercase(area)
+    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_$(sarea)_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_$(sarea)_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
     cellidx = get_area_index(ppsth_mov.cellnames, area)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
@@ -600,7 +621,7 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=
 		]
 	dargs_cue = EventOnsetDecoding.DecoderArgs(args...;kvs..., reverse_bins=true, baseline_end=-250.0)
     fname_cue = EventOnsetDecoding.get_filename(dargs_cue)
-	dargs_mov = EventOnsetDecoding.DecoderArgs(args...;kvs..., reverse_bins=false)
+	dargs_mov = EventOnsetDecoding.DecoderArgs(args...;kvs..., reverse_bins=false, baseline_end=-300.0)
     fname_mov = EventOnsetDecoding.get_filename(dargs_mov)
 
     @show fname_cue fname_mov
@@ -616,9 +637,9 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=
 end
  
 
-function plot_event_onset_subspaces(fname_cue, fname_mov;kvs...)
+function plot_event_onset_subspaces(fname_cue, fname_mov;width=700, height=400, kvs...)
     with_theme(plot_theme) do
-        fig = Figure(resolution=(700,400))
+        fig = Figure(resolution=(width,height))
         lg = GridLayout()
         fig[1,1] = lg
         plot_data = plot_event_onset_subspaces!(lg, fname_cue, fname_mov;kvs...)
@@ -654,7 +675,7 @@ function plot_performance!(lg, f1score::Array{Float64,3}, windows::AbstractVecto
     h,ax
 end
 
-function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, threshold=0.5, ymin=Inf,
+function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, α=0.001, threshold=0.5, ymin=Inf,
                                                                ymax=-Inf, show_colorbar=true,kvs...)
     plot_data = Dict{Symbol, Any}(:cue => Dict{Symbol, Any}(), :mov => Dict{Symbol, Any}())
     for (k,fname) in zip([:cue, :mov], [fname_cue, fname_mov])
@@ -689,10 +710,14 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, thresho
         for (k,ax) in zip([:cue, :mov],axes)
             windows = plot_data[k][:windows]
             latencies = plot_data[k][:latencies]
+            _max_latency = min(max_latency, maximum(latencies))
+            lidx = searchsortedlast(latencies, _max_latency, rev=true):length(latencies)
             μ = plot_data[k][:μ]
             lower_limit = plot_data[k][:lower_limit]
             pidx = plot_data[k][:pidx]
-            h = heatmap!(ax, windows, latencies, μ,  colormap=:Blues,colorrange=(ymin, ymax))
+            qidx = pidx[(in(lidx)).([p.I[2] for p in pidx])]
+            @show lidx latencies max_latency
+            h = heatmap!(ax, windows, latencies[lidx], μ[:,lidx],  colormap=:Blues,colorrange=(ymin, ymax))
             if k == :mov && show_colorbar
                 # TODO: Maybe put this below instead of at the side?
                 cb = Colorbar(lg0[1,3], h, label="F1-score",ticklabelsize=12)
@@ -705,7 +730,7 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, thresho
                 pp = get_rectangular_border(30.0, -5.0, 40.0, 5.0)
                 lines!(ax, pp, color="red")
             end
-            scatter!(ax, windows[[p.I[1] for p in pidx]], latencies[[p.I[2] for p in pidx]], marker='*', color="red", markersize=20px)
+            scatter!(ax, windows[[p.I[1] for p in qidx]], latencies[[p.I[2] for p in qidx]], marker='*', color="red", markersize=20px)
             ax.xticks = windows
         end
         ax = axes[1]
@@ -727,7 +752,7 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;α=0.001, thresho
 end
 
 
-function plot(;do_save=false)
+function plot(;do_save=false,max_latency=Inf, width=900, height=500, kvs...)
     fname = "fig2_data.jld2"
     α = 0.001
     threshold = 0.5
@@ -767,7 +792,7 @@ function plot(;do_save=false)
         JLD2.save(fname, Dict("plot_data"=>plot_data, "plot_data_reg"=>plot_data_reg))
     end
     with_theme(plot_theme) do
-        fig = Figure(resolution=(900,500))
+        fig = Figure(resolution=(width,height))
         lg0 = GridLayout()
         fig[1,1] = lg0
         axes = [Axis(lg0[1,i]) for i in 1:2]
@@ -776,10 +801,11 @@ function plot(;do_save=false)
         for (k,ax) in zip([:cue, :mov],axes)
             windows = plot_data[k][:windows]
             latencies = plot_data[k][:latencies]
+            lidx = searchsortedfirst(latencies, max_latency, rev=true):length(latencies)
             μ = plot_data[k][:μ]
             lower_limit = plot_data[k][:lower_limit]
             pidx = plot_data[k][:pidx]
-            h = heatmap!(ax, windows, latencies, μ,  colormap=:Blues,colorrange=(ymin, ymax))
+            h = heatmap!(ax, windows, latencies[lidx], μ[:,lidx],  colormap=:Blues,colorrange=(ymin, ymax))
             if k == :mov
                 # TODO: Maybe put this below instead of at the side?
                 cb = Colorbar(lg0[1,3], h, label="F1-score",ticklabelsize=12)
@@ -792,7 +818,8 @@ function plot(;do_save=false)
                 pp = get_rectangular_border(30.0, -5.0, 40.0, 5.0)
                 lines!(ax, pp, color="red")
             end
-            scatter!(ax, windows[[p.I[1] for p in pidx]], latencies[[p.I[2] for p in pidx]], marker='*', color="red", markersize=20px)
+            qidx = pidx[(in(lidx)).([p.I[2] for p in pidx])]
+            scatter!(ax, windows[[p.I[1] for p in qidx]], latencies[[p.I[2] for p in qidx]], marker='*', color="red", markersize=20px)
             ax.xticks = windows
         end
         ax = axes[1]
