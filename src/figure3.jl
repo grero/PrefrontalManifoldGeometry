@@ -1,6 +1,8 @@
+module Figure3
 using Makie
 using CairoMakie
 using JLD2
+using CRC32c
 
 include("utils.jl")
 include("regression.jl")
@@ -11,34 +13,51 @@ include("plot_utils.jl")
 Data for the figure comparing path length, average speed and post-cue period in terms of
 how much reaction time variance they explain
 """
-function get_reaction_time_regressors(;redo=false, do_save=true,area="FEF")
+function get_reaction_time_regressors(;t0=85.0, t1=35.0, redo=false, do_save=true,area="FEF", do_shuffle=false,rtmin=120.0)
     # TODO: Check why the r² values went down. I think it was after I changed from summing up the squares
     # .     to summing about the square roots.
-    if area == :FEF
-        fname = "reaction_time_predictors_new.jld2"
+    h = "" 
+    q = zero(UInt32)
+    if t0 != 85.0 
+        q = crc32c(string(t0),q)
+    end
+    if t1 != 35.0
+        q = crc32c(string(t1),q)
+    end
+    if rtmin != 120.0
+        q = crc32c("rtmin=$(rtmin)",q)
+    end
+    if q > 0
+        h = "_$(string(q, base=16))"
     else
-        fname = "reaction_time_predictors_new_$area.jld2"
+        h = ""
+    end
+    if area == :FEF
+        fname = "reaction_time_predictors_new$(h).jld2"
+    else
+        fname = "reaction_time_predictors_new_$(area)$(h).jld2"
     end
     if isfile(fname) && !redo
         stats_results = JLD2.load(fname, "stats_results")
     else
         stats_results = Dict{String,Any}()
+        stats_results["params"] = Dict("t0"=>t0, "t1"=>t1)
         stats_results["path_length"] = Dict{String,Any}()
         stats_results["path_length2"] = Dict{String,Any}()
         stats_results["avg_speed"] = Dict{String,Any}()
         stats_results["delay2"] = Dict{String,Any}()
         stats_results["postcue"] = Dict{String,Any}()
-        stats_results["path_length"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx"], get_path_length_and_rtime("W", 85.0, 35.0;area=area)))
-        stats_results["path_length"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", 85.0, 35.0;area=area)))
-        stats_results["path_length2"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx"], get_path_length_and_rtime("W", 85.0, 35.0, operation=:path_length2,area=area)))
-        stats_results["path_length2"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", 85.0, 35.0, operation=:path_length2, area=area)))
-        stats_results["avg_speed"]["W"] = Dict{String,Any}(zip(["S", "lrt", "tridx"], get_path_length_and_rtime("W", 85.0, 35.0,operation=:mean_speed, area=area)))
-        stats_results["avg_speed"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", 85.0, 35.0,operation=:mean_speed, area=area)))
-        stats_results["delay2"]["W"] = Dict{String,Any}(zip(["lrt","S", "tridx"], explain_rtime_variance("W", :cue;realign=true, area=area)))
-        stats_results["delay2"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx"], explain_rtime_variance("J", :cue;realign=true,area=area)))
-        stats_results["postcue"]["W"] = Dict{String,Any}(zip(["lrt","S","tridx"], explain_rtime_variance("W", :cue;realign=true, reg_window=(0.0, 50.0), area=area)))
+        stats_results["path_length"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx"], get_path_length_and_rtime("W", t0, t1;area=area,do_shuffle=do_shuffle,rtmin=rtmin)))
+        stats_results["path_length"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", t0, t1;area=area, do_shuffle=do_shuffle, rtmin=rtmin)))
+        stats_results["path_length2"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx"], get_path_length_and_rtime("W", t0, t1, operation=:path_length2,area=area, do_shuffle=do_shuffle, rtmin=rtmin)))
+        stats_results["path_length2"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", t0, t1, operation=:path_length2, area=area, do_shuffle=do_shuffle, rtmin=rtmin)))
+        stats_results["avg_speed"]["W"] = Dict{String,Any}(zip(["S", "lrt", "tridx"], get_path_length_and_rtime("W", t0, t1,operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin)))
+        stats_results["avg_speed"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", t0, t1,operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin)))
+        stats_results["delay2"]["W"] = Dict{String,Any}(zip(["lrt","S", "tridx"], explain_rtime_variance("W", :cue;realign=true, area=area,rtmin=rtmin)))
+        stats_results["delay2"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx"], explain_rtime_variance("J", :cue;realign=true,area=area,rtmin=rtmin)))
+        stats_results["postcue"]["W"] = Dict{String,Any}(zip(["lrt","S","tridx"], explain_rtime_variance("W", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin)))
         #TODO: Why are so many trials excluded here?
-        stats_results["postcue"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx"],explain_rtime_variance("J", :cue;realign=true, reg_window=(0.0, 50.0), area=area)))
+        stats_results["postcue"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx"],explain_rtime_variance("J", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin)))
       
         if any(isnan.(stats_results["path_length"]["W"]["S"]))
             @warn "NaN encountered"
@@ -70,6 +89,9 @@ function get_reaction_time_regressors(;redo=false, do_save=true,area="FEF")
         end
         
         for (k,v) in stats_results
+            if k == "params"
+                continue
+            end
             xj = v["J"]
             xw = v["W"]
             lrt = [xw["lrt"];xj["lrt"]]
@@ -89,7 +111,7 @@ function get_reaction_time_regressors(;redo=false, do_save=true,area="FEF")
             # for nested regression, simply add one variable to the other
         end
         # now do hierarchial regression
-        for (k1, k2) in [("postcue","path_length"),("path_length","postcue"),("postcue","path_length2"),("path_length2","postcue")]
+        for (k1, k2) in [("postcue","path_length"),("path_length","postcue"),("postcue","path_length2"),("path_length2","postcue"), ("avg_speed","postcue"), ("postcue","avg_speed"), ("avg_speed", "path_length2"),("path_length2", "avg_speed"),("avg_speed","path_length"),("postcue", "avg_speed")]
             kk = "$(k1)→$(k2)"
             stats_results[kk] = Dict{String,Any}()
             for subject in ["J","W"]
@@ -159,7 +181,7 @@ function get_reaction_time_regressors(;redo=false, do_save=true,area="FEF")
 
         stats_results["path_length"]["legend_anchor"] = (0.45, 0.85)
         stats_results["path_length2"]["legend_anchor"] = (0.45, 0.85)
-        stats_results["avg_speed"]["legend_anchor"] = (0.45, 0.85)
+        stats_results["avg_speed"]["legend_anchor"] = (0.40, 0.85)
         stats_results["delay2"]["legend_anchor"] = (0.45, 0.85)
         stats_results["postcue"]["legend_anchor"] = (0.45, 0.85)
         if do_save
@@ -189,8 +211,8 @@ function plot_trajectory_illustration!(lg)
     l2 = sqrt.(sum(abs2, diff(traj2,dims=1),dims=2))
     delta = sum(l2[1:ss])
     with_theme(theme_minimal()) do
-        ax = Axis(lg[1,1], autolimitaspect=1)
-        ax2 = Axis(lg[1,3], autolimitaspect=1)
+        ax = Axis(lg[1,1], autolimitaspect=1,alignmode=Inside())
+        ax2 = Axis(lg[1,3], autolimitaspect=1, alignmode=Inside())
         linkaxes!(ax, ax2)
         lines!(ax, traj1[:,1], traj1[:,2],color="red")
         linesegments!(ax, traj1[tidx1,1], traj1[tidx1,2],color="red", linestyle=:dot)
@@ -208,8 +230,12 @@ function plot_trajectory_illustration!(lg)
         scatter!(ax, traj2[[1,nn],1], traj2[[1,nn],2], marker=:rect, markersize=20px, color=[RGB(0.5, 1.0, 1.0),RGB(0.5, 1.0, 0.5)])
         ll = Legend(lg[1,2], ax2, valign=:top,framevisible=true, padding=5.0, labelsize=12)
 
-        text!(ax, 0.5, 0.3, text="Same speed\nDifferent length", space=:relative, align=(:center, :top), fontsize=12)
-        text!(ax2, 0.5, 0.3, text="Same length\nDifferent speed", space=:relative, align=(:center, :top), fontsize=12)
+        #text!(ax, 0.5, 0.4, text="Same speed\nDifferent length", space=:relative, align=(:center, :top), fontsize=12)
+        #text!(ax2, 0.5, 0.4, text="Same length\nDifferent speed", space=:relative, align=(:center, :top), fontsize=12)
+        ax.xlabel = "Same speed\nDifferent length" 
+        ax.xlabelsize = 12
+        ax2.xlabel = "Same length\nDifferent speed"
+        ax2.xlabelsize = 12
         colgap!(lg,1,0.1)
         colgap!(lg,2,0.1)
         for _ax in [ax, ax2]
@@ -223,8 +249,8 @@ function plot_trajectory_illustration!(lg)
     end 
 end
 
-function plot()
-    stats_results = get_reaction_time_regressors(;redo=false, do_save=true)
+function plot(;width=800, height=600, kvs...)
+    stats_results = get_reaction_time_regressors(;kvs...)
     qq1 = stats_results["postcue→path_length2"]["J"]
     qq2 = stats_results["path_length2→postcue"]["J"]
 
@@ -236,8 +262,10 @@ function plot()
     ymax = 0.8
     with_theme(plot_theme) do
         markersize=5px
-        fig = Figure(resolution=(800,600))
-        axes = [Axis(fig[2,i]) for i in 1:3]
+        fig = Figure(resolution=(width, height))
+        lg2 = GridLayout()
+        fig[2,1:2] = lg2
+        axes = [Axis(lg2[1,i]) for i in 1:3]
         #linkyaxes!(axes...)
         for (ax, vv) in zip(axes, ["postcue", "path_length2","avg_speed"])
             _data = stats_results[vv]
@@ -261,7 +289,7 @@ function plot()
             if "legend_anchor" in keys(stats_results[vv])
                 _anchor = stats_results[vv]["legend_anchor"]
             else
-                _anchor = (0.45, 0.85)	
+                _anchor = (0.40, 0.85)	
             end
             text!(ax, _anchor[1]-0.04, _anchor[2]+0.1, text=lstring[1], space=:relative, fontsize=12)
             text!(ax, _anchor[1]-0.04, _anchor[2]+0.05, text=lstring[2], space=:relative, color=ax.palette.color[][1], fontsize=12)
@@ -273,21 +301,29 @@ function plot()
         end
         # joint vs single regression
         lg7 = GridLayout()
-        fig[1,3] = lg7
+        fig[1,2] = lg7
         axesp = [Axis(lg7[1,i]) for i in 1:2]
         linkyaxes!(axesp...)
         for (ii,(subject,ax)) in enumerate(zip(["W","J"], axesp))
             qq = stats_results["postcue→path_length2"][subject]
             rsstot = qq["rss"]
-            r² = qq["r²"]
-            r²1 = stats_results["postcue"][subject]["r²"] 
-            r²2 = stats_results["path_length2"][subject]["r²"]
+            r²pcpl = qq["r²"]
+            r²pc = stats_results["postcue"][subject]["r²"] 
+            r²pl = stats_results["path_length2"][subject]["r²"]
             r²1res = stats_results["postcue→path_length2"][subject]["r²_res"]
             r²2res = stats_results["path_length2→postcue"][subject]["r²_res"]
-            barplot!(ax, 1:3, [r²1, r²2, r²], color=ax.palette.color[][ii])
-            hlines!(ax, r²1+r²2, color="black", linestyle=:dot)
-            ax.xticks=([1,2,3], ["MP", "PL", "MP+PL"])
-            ax.xticklabelrotation = π/2
+            qq = stats_results["postcue→avg_speed"][subject]
+            r²pcas = qq["r²"]
+            r²as = stats_results["avg_speed"][subject]["r²"] 
+
+            barplot!(ax, 1:5, [r²pc, r²pl, r²pcpl, r²as, r²pcas], color=ax.palette.color[][ii])
+            hlines!(ax, r²pc+r²pl, color="black", linestyle=:dot)
+            hlines!(ax, r²as+r²pc, color="black", linestyle=:dot)
+
+            # speed
+
+            ax.xticks=([1,2,3,4,5], ["MP", "PL", "MP+PL","AS", "MP+AS"])
+            ax.xticklabelrotation = π/3
         end
         axesp[1].ylabel = "r²"
         axesp[2].yticklabelsvisible = false
@@ -296,13 +332,13 @@ function plot()
 
         # add trajectory illustration
         lg4 = GridLayout()
-        fig[1,1:2] = lg4
+        fig[1,1] = lg4
         plot_trajectory_illustration!(lg4)
         labels = [Label(fig[1,1,TopLeft()], "A"),
-                Label(fig[2,1,TopLeft()], "B"),
-                Label(fig[2,2,TopLeft()], "C"),
-                Label(fig[2,3,TopLeft()], "D"),
-                Label(fig[1,3,TopLeft()], "E")]
+                Label(lg2[1,1,TopLeft()], "B"),
+                Label(lg2[1,2,TopLeft()], "C"),
+                Label(lg2[1,3,TopLeft()], "D"),
+                Label(fig[1,2,TopLeft()], "E")]
         ax =axes[1]
         ax.ylabel = "log(rt)"
         ax.xlabel = "Motor prep (MP)"
@@ -314,7 +350,76 @@ function plot()
         ax.xlabel = "Avg speed (AS)"
         rowsize!(fig.layout,1,Relative(0.25))
         fname = joinpath("figures","manuscript","reaction_time_regressors_new.pdf")
-        save(fname, fig,pt_per_unit=1)
+        if get(Dict(kvs), :do_save, false)
+            save(fname, fig,pt_per_unit=1)
+        end
+        rowgap!(fig.layout, 1, 5)
+        colsize!(fig.layout, 1, Relative(0.6))
         fig
     end
 end
+
+minimum_nan(x) = minimum(filter(isfinite, x))
+
+function plot_regression(stats_results, v1::String, v2::String, subject::String)
+    fig = Figure()
+    ax = Axis3(fig[1,1])
+    β = stats_results["$(v1)→$(v2)"][subject]["β"]
+    β1 = stats_results[v1][subject]["β"]
+    S1 = repeat(stats_results[v1][subject]["S"],1,1)
+
+    β2 = stats_results[v2][subject]["β"]
+    S2 = repeat(stats_results[v2][subject]["S"],1,1)
+    S = [S1 S2]
+    rtp = S*β[1:2] .+ β[3]
+    lrt = stats_results[v1][subject]["lrt"]
+    scatter!(ax, S1[:], S2[:], rtp, label="$(v1)+$(v2)")
+    scatter!(ax, S1[:], fill(minimum_nan(S2), length(S1)), S1*β1[1:1] .+ β1[2], label=v1)
+    scatter!(ax, fill(minimum_nan(S1), length(S2)), S2[:], S2*β2[1:1] .+ β2[2], label=v2)
+
+    scatter!(ax, S1[:], S2[:], lrt, label="Actual")
+
+    # single regression
+    _color = ax.palette.color[][4]
+    scatter!(ax, S1[:], fill(minimum_nan(S2), length(S1)), lrt,color=(_color, 0.5))
+    scatter!(ax, fill(minimum_nan(S1), length(S2)), S2[:],  lrt, color=(_color, 0.5))
+    ax.xlabel = v1
+    ax.ylabel = v2 
+    ax.zlabel = "log(rt)"
+    Legend(fig[1,2], ax)
+    fig,ax
+end
+
+function plot_regression_error(stats_results, v1, v2, subject)
+    β = stats_results["$(v1)→$(v2)"][subject]["β"]
+    β1 = stats_results[v1][subject]["β"]
+    S1 = repeat(stats_results[v1][subject]["S"],1,1)
+
+    β2 = stats_results[v2][subject]["β"]
+    S2 = repeat(stats_results[v2][subject]["S"],1,1)
+    S = [S1 S2]
+    rtp = S*β[1:2] .+ β[3]
+    lrt = stats_results[v1][subject]["lrt"]
+    rtp1 = S1*β1[1:1] .+ β1[2]
+    rtp2 = S2*β2[1:1] .+ β2[2]
+
+    ymin = min(minimum(lrt), minimum(rtp2))
+    ymax = max(maximum(lrt), maximum(rtp2))
+    points = [Point2(_lrt, _prt) for (_lrt,_prt) in zip(lrt,rtp2)]
+    directions = [Point2(1.0, -1.0)*(_prt-_lrt)/sqrt(2) for (_lrt, _prt) in zip(lrt, rtp2)]
+    with_theme(plot_theme) do
+        fig = Figure()
+        ax = Axis(fig[1,1], aspect=1.0)
+        #scatter!(ax, lrt, rtp, label="$(v1)+$(v2)")
+        #scatter!(ax, lrt, rtp1 , label=v1)
+        arrows!(ax, points, directions)
+        scatter!(ax, lrt, rtp2 , label=v2)
+        ablines!(ax, 0.0, 1.0, linestyle=:dot, color="black")
+        xlims!(ax, ymin,ymax)
+        ylims!(ax, ymin,ymax)
+        axislegend(ax)
+        fig
+    end
+end
+
+end # module
