@@ -1,11 +1,21 @@
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 
-locations = Dict("J" => [1,2,3,4,6,7,8], "W" => 1:4)
+sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
+sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
+
+ncells = Dict("james" => [37, 29, 33, 25], "whiskey" => [15, 18, 10, 13, 13, 16, 21, 21])
+_ntrials = Dict("james" => [108, 140, 154, 196], "whiskey" => [164, 93, 86, 227, 171, 144, 209, 177])
+
+locations = Dict("J" => [1,2,3,4,6,7,8], "W" => [1:4;], "P" => [1,2,3,4,6,7,8,9])
 
 location_mapping = Dict("W" => [2, 4, 1, 3],
 				        "J" => [1,2,3,4,6,7,8,9],
 	                    "P" => [1,2,3,4,6,7,8,9])
+
+location_idx = Dict("W" => [3,9,1,7],
+					"J" => [1,2,3,4,5,6,7,8,9],
+					"P" => [1,2,3,4,5,6,7,8,9])
 
 areas = Dict("J" => Dict("array01" => "vFEF",
 				"array02" => "dFEF",
@@ -16,7 +26,11 @@ areas = Dict("J" => Dict("array01" => "vFEF",
 			"W" => Dict("array01" => "dDLPFC",
 					"array02" => "dFEF",
 					"array03" => "vDLPFC",
-					"array04" => "vFEF")
+					"array04" => "vFEF"),
+			"P" => Dict("array01" => "area8",
+					    "array02" => "FEF",
+						"array03" => "DLPFC",
+						"array04" => "vDLPFC")
 			)
 
 
