@@ -7,7 +7,9 @@ plot_theme = Theme(Axis=(xticksvisible=true,
 				xgridvisible=false,
 				ygridvisible=false,
 				topspinevisible=false,
-				rightspinevisible=false))
+				rightspinevisible=false,
+				xticklabelsize=14,
+				yticklabelsize=14))
 
 
 function make_grid!(ax)
