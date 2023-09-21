@@ -13,12 +13,25 @@ target_colors = let
     [RGB(0.5 + 0.5*tg.r, 0.5 + 0.5*tg.g, 0.5 + 0.5*tg.b) for tg in cc]
 end
 
-function plot_saccades!(ax, saccades::Vector{T2}, color;xmin=0.0, xmax=1500.0, ymin=0.0, ymax=1000.0) where T2 <: Matrix{T} where T <: Real
-    for saccade in saccades
-        x = saccade[:,1]
-        y = saccade[:,2]
-        idx = (xmin .< x .< xmax).&(ymin .< y .< ymax)
-        lines!(ax, x[idx], y[idx], color=color)
+function plot_saccades!(ax, saccades::Vector{T2}, color, qcolor=color;xmin=0.0, xmax=1500.0, ymin=0.0, ymax=1000.0, max_q::Union{Vector{Int64}, Nothing}=nothing) where T2 <: Matrix{T} where T <: Real
+    for (ii,saccade) in enumerate(saccades)
+		if max_q === nothing
+			x = saccade[:,1]
+			y = saccade[:,2]
+
+			idx = (xmin .< x .< xmax).&(ymin .< y .< ymax)
+			lines!(ax, x[idx], y[idx], color=color)
+		else
+			eq = max_q[ii]
+			x1 = saccade[1:eq,1]
+			x2 = saccade[eq+1:end,1]
+			y1 = saccade[1:eq,2]
+			y2 = saccade[eq+1:end,2]
+			for (x,y,_color) in zip([x1,x2], [y1,y2],[qcolor,color])
+				idx = (xmin .< x .< xmax).&(ymin .< y .< ymax)
+				lines!(ax, x[idx], y[idx], color=_color)
+			end
+		end
     end
 end
 
@@ -65,17 +78,31 @@ function plot_microstimulation_figure!(figlg, datadir)
 	slength_stim_early = fill(0.0, length(sdata_early.saccades_stim))
 	slength_stim_mid = fill(0.0, length(sdata_mid.saccades_stim))
 	slength_nostim = fill(0.0, length(rtime_nostim))
+	max_q_idx_early = fill(0, length(slength_stim_early))
+	max_q_idx_mid = fill(0, length(slength_stim_mid))
+	max_q_idx_nostim = fill(0, length(slength_nostim))
 
 	# exclude the middle right position since this was where all of the evoked saccade went.
 	pos0 = sdata_early.target_pos[findfirst(pos->(pos[1] > sdata_early.screen_center[1])&(pos[2] == sdata_early.screen_center[2]), sdata_early.target_pos)]
 
+	pos0v = fill(0.0, 1,2)
+	pos0v[1,:] .= pos0
 	all_target_pos = sdata_mid.target_pos
 	# get the distance from the central fixation to each of the target locations
 	tvector = [pos .- sdata_mid.screen_center for pos in sdata_mid.target_pos]
-
-	for (q, slength, saccades, trial_label,rtidx, target_pos) in zip([:early, :mid, :nostim], [slength_stim_early, slength_stim_mid, slength_nostim], [sdata_early.saccades_stim, sdata_mid.saccades_stim, [sdata_early.saccades_nostim;sdata_mid.saccades_nostim]], [sdata_early.trial_label_stim, sdata_mid.trial_label_stim, [sdata_early.trial_label_nostim;sdata_mid.trial_label_nostim]], [rtidx_stim_early, rtidx_stim_mid, rtidx_nostim], [sdata_early.trial_label_stim, sdata_mid.trial_label_stim, [sdata_early.trial_label_nostim;sdata_mid.trial_label_nostim]])
+	
+	for (q, slength, max_q, saccades, trial_label,rtidx, target_pos) in zip([:early, :mid, :nostim], [slength_stim_early, slength_stim_mid, slength_nostim], [max_q_idx_early, max_q_idx_mid, max_q_idx_nostim], [sdata_early.saccades_stim, sdata_mid.saccades_stim, [sdata_early.saccades_nostim;sdata_mid.saccades_nostim]], [sdata_early.trial_label_stim, sdata_mid.trial_label_stim, [sdata_early.trial_label_nostim;sdata_mid.trial_label_nostim]], [rtidx_stim_early, rtidx_stim_mid, rtidx_nostim], [sdata_early.trial_label_stim, sdata_mid.trial_label_stim, [sdata_early.trial_label_nostim;sdata_mid.trial_label_nostim]])
 		for (jj,saccade) in enumerate(saccades)
 			v = sqrt.(sum(diff(saccade, dims=1).^2,dims=2))
+			w = diff(saccade, dims=1)
+			w ./= v  #normalize
+
+			v = dropdims(v, dims=2)
+			# find the largest directional change
+			# max_q[jj] = argmin(dropdims(sum(w[1:end-1,:].*w[2:end,:],dims=2),dims=2)) .+ 1
+			# use the positions closest to pos0 as max_q_idx
+			dd = dropdims(sum(abs2, saccade .- pos0v, dims=2),dims=2)
+			max_q[jj] = argmin(dd)
 			slength[jj] = sum(v)
 			tlength = sqrt(sum(tvector[trial_label[jj]].^2))
 			slength[jj] /= tlength
@@ -171,9 +198,10 @@ function plot_microstimulation_figure!(figlg, datadir)
 
 		@debug extrema(slength_stim_mid)
 		@debug sum(evoked_saccade_idx.mid)
-		for (ax,rtidx, saccades, color) in zip([ax7, ax8], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim], ax6.palette.color[][3:4])
+		@show max_q_idx_early
+		for (ax,rtidx, saccades, max_q, color, qcolor) in zip([ax7, ax8], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim],[max_q_idx_early, max_q_idx_mid],  ax6.palette.color[][[3,5]], ax6.palette.color[][[4,6]])
 			scatter!(ax, [pos[1] for pos in sdata_early.target_pos], [pos[2] for pos in sdata_early.target_pos], marker='□', markersize=sdata_early.target_size, color=target_colors, markerspace=:data)
-			plot_saccades!(ax, saccades[rtidx], color)
+			plot_saccades!(ax, saccades[rtidx], color,qcolor;max_q=max_q[rtidx])
 			xlims!(ax, 300.0, 1600.0)
 			ylims!(ax, 0.0, 1200.0)
 		end
