@@ -1,3 +1,4 @@
+module Figure4
 using AttractorModels
 using ProgressMeter
 using Makie: Point2f, Point3f
@@ -380,7 +381,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     results
 end
 
-function plot(;do_save=true,kvs...)
+function plot(;width=700,height=700, do_save=true,h0=one(UInt32), kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
 	w2 = 35.0
@@ -389,7 +390,7 @@ function plot(;do_save=true,kvs...)
                                           n_init_points=1, curve_data_file="model_output_more_trials_longer.jld2",
                                           idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["whiskey"],
                                           path_length_method=:normal, remove_outliers=true,
-                                          do_interpolation=false, do_remove_dependence=true, do_save=do_save,kvs...);
+                                          do_interpolation=false, do_remove_dependence=true, do_save=do_save,h0=h0, kvs...);
 	# the function that was used to generate the trajectories
 	func,gfunc,ifunc = get_functions() 
 
@@ -502,7 +503,7 @@ function plot(;do_save=true,kvs...)
 	μr = fill(0.0,5)
 	lr = fill(0.0,5)
 	ur = fill(0.0,5)
-	for (ii,r²) in enumerate([results.r²0,results.r²asftr,results.r²pl, results.r²hr, results.r²pcas])
+	for (ii,r²) in enumerate([results.r²0,results.r²pl, results.r²hr,results.r²asftr, results.r²pcas])
 		dd = fit(Beta, r²)
 		μr[ii] = mean(dd)
 		lr[ii] = quantile(dd, 0.05)
@@ -510,7 +511,7 @@ function plot(;do_save=true,kvs...)
 	end
 	zmin = -10.0
 	with_theme(plot_theme) do
-		fig = Figure(resolution=(700,700))
+		fig = Figure(resolution=(width,height))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
 		ax1 = Axis3(lg1[1,1],azimuth=5.000607537633862, elevation=0.5089042208588803)
@@ -518,18 +519,21 @@ function plot(;do_save=true,kvs...)
 		ax1.yticklabelsize = 12
 		ax1.zticklabelsize = 12
 		ax1.zlabelvisible = false
-		surface!(ax1, xx, yy, func.([[x,y] for x in xx, y in yy]), colormap=colormap("rdbu",mid=0.72))
+		surface!(ax1, xx, yy, -zmin .+ func.([[x,y] for x in xx, y in yy]), colormap=colormap("rdbu",mid=0.72))
 		ax1.xlabel = "Dim 1"
 		ax1.ylabel = "Dim 2"
 		# add the original paths
-		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color="black")
+		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color="black")
 
 		# indicate the limit of the attractor
 		lpoints = decompose(Point3f, Circle(Point2f(Xe), 0.01*w2))
 		lpoints .+= Point3f(0.0, 0.0, zmin)	
-		lines!(ax1, flat_curves_x[icidx], flat_curves_y[icidx], fill(zmin,sum(icidx)),color=flat_colors)
+		lines!(ax1, flat_curves_x[icidx], flat_curves_y[icidx], fill(0.0,sum(icidx)),color=flat_colors)
 		lines!(ax1, lpoints, color=ax1.palette.color[][1])
+        #TODO: Plot this on the ``floor``
+        contour!(ax1, xx,yy, func.([[x,y] for x in xx, y in yy]),levels=15, colormap=colormap("rdbu",mid=0.72))
 		# add panels) showing single unit responses aligned to movement onset
+        zlims!(ax1, 0.0, 10.0)
 		lg2 = GridLayout()
 		fig[1,2] = lg2
 		ax2 = Axis(lg2[1,1])
@@ -578,11 +582,34 @@ function plot(;do_save=true,kvs...)
 		ax7.xticklabelsvisible = false
 		axislegend(ax7,valign=:top, halign=:right, margin=(0.0, -0.0, 0.0, -20.0))
 		ax7.ylabel = "r²"
+        # reaction time
+        ax11 = Axis(lg4[1,3])
+        _rtime =results.rt_sample[tqidx] 
+        dd = StatsBase.fit(Gamma, _rtime)
+        x = sort(_rtime)
+        y = pdf.(dd,x)
+        y ./= sum(y)
+        scatter!(ax11, rand(length(tqidx)),_rtime)
+        ax112 = Axis(lg4[1,3])
+        linkyaxes!(ax11, ax112)
+        lines!(ax112, y, x, color="black")
+        ax112.xticklabelsvisible = false 
+        ax112.xticksvisible = false 
+        ax112.yticklabelsvisible = false
+        ax112.yticksvisible = false
+        ax112.bottomspinevisible = false
+        ax112.leftspinevisible = false
+        ax11.xticklabelsvisible = false
+        ax11.xticksvisible = false
+        ax11.bottomspinevisible = false
+        ax11.ylabel = "Reaction time"
 		ax8 = Axis(lg4[1,2])
-		colsize!(lg4,1, Relative(0.8))
+        colsize!(lg4, 1, Relative(0.6))
+        colsize!(lg4, 3, Relative(0.2))
+
 		barplot!(ax8, 1:length(ur), μr)
 		rangebars!(ax8, 1:length(ur), lr, ur)
-		ax8.xticks=([1:length(μr);], ["MP","AS", "PL","MP+PL","MP+AS"])
+		ax8.xticks=([1:length(μr);], ["MP","PL", "MP+PL","AS", "MP+AS"])
         ax8.xticklabelrotation = -π/3
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
@@ -590,7 +617,8 @@ function plot(;do_save=true,kvs...)
 				 Label(lg2[1,1,TopLeft()], "B",padding=label_padding),
 				 Label(lg3[1,1,TopLeft()],"C",padding=label_padding),
 				 Label(lg4[1,1,TopLeft()], "D",padding=label_padding),
-				 Label(lg4[1,2,TopLeft()], "E",padding=label_padding)]
+				 Label(lg4[1,2,TopLeft()], "E",padding=label_padding),
+                 Label(lg4[1,3,TopLeft()], "F", padding=label_padding)]
 		colsize!(fig.layout, 1, Relative(0.7))
 		rowsize!(fig.layout, 1, Relative(0.8))
 		colgap!(fig.layout, 1, 10.0)
@@ -603,3 +631,4 @@ function plot(;do_save=true,kvs...)
 	end
 
 end
+end #module
