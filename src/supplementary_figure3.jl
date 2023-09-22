@@ -1,3 +1,4 @@
+module CrossSubspace
 using EventOnsetDecoding
 using LinearAlgebra
 using StatsBase
@@ -5,8 +6,12 @@ using Random
 using JLD2
 using HDF5
 using ProgressMeter
+using Makie
+using Distributions
 
+include("plot_utils.jl")
 include("utils.jl")
+include("figure2.jl")
 
 """
     get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbol;redo=false)
@@ -194,8 +199,15 @@ function get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbo
 	f1score, train, test, window, latency;
 end
 
-function plot(window, latency;do_save=true)
-    fname_cue, fname_mov = get_event_subspaces(;subject="ALL", rtime_min=120.0,area="FEF",save_sample_indices=true,nruns=100)
+function plot(window, latency;width=605, height=400, do_save=true)
+    fig = Figure(resolution=(width,height))
+    lg = GridLayout()
+    fig[1,1] = lg
+    plot!(lg, window, latency)
+end 
+
+function plot!(lg, window, latency;ylabelvisible=true)
+    fname_cue, fname_mov = Figure2.get_event_subspaces(;subject="ALL", rtime_min=120.0,area="FEF",save_sample_indices=false,nruns=100)
     f1score_cue = h5open(fname_cue) do fid
         read(fid,"f1score")
     end
@@ -203,8 +215,7 @@ function plot(window, latency;do_save=true)
         read(fid, "f1score")
     end
     with_theme(plot_theme)  do
-        fig = Figure(resolution=(500,400))
-        ax = Axis(fig[1,1])
+        ax = Axis(lg[1,1])
         # train on cue, test on mov 
         f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :cue, :mov;redo=false,baseline_end=-250.0)
         iw = searchsortedfirst(windows, window.cue)
@@ -227,37 +238,48 @@ function plot(window, latency;do_save=true)
         #uu = percentile.(yy, 95)
         barplot!(ax, [1:4;], mm)
         rangebars!(ax, [1:4;], ll, uu)
-        ax.xticks = ([1:4;],["train on cue\ntest on cue", "train on cue\ntest on mov","train on mov\ntest on mov", "train on mov\ntest on cue"])
-        ax.ylabel = "F₁ score"
-        fig
+        #ax.xticks = ([1:4;],["train on cue\ntest on cue", "train on cue\ntest on mov","train on mov\ntest on mov", "train on mov\ntest on cue"])
+        ax.xticks = ([1:4;], ["cue→cue","cue→mov","mov→mov","mov→cue"])
+        ax.xticklabelrotation = π/6
+        if ylabelvisible
+            ax.ylabel = "F₁ score"
+        end
+        lg 
     end
         
 end
 
-function plot(;do_save=true)
+function plot(;do_save=false, width=605, height=400, kvs...)
+    fig = Figure(resolution=(width,height))
+    lg = GridLayout()
+    fig[1,1] = lg
+    plot!(lg;kvs...)
+    if do_save
+        fname = joinpath("figures","manuscript","supplementary_figure4.pdf")
+        save(fname, fig;pt_per_unit=1)
+    end
+end
+
+function plot!(lg;kvs...)
     with_theme(plot_theme)  do
-        fig = Figure(resolution=(700,400))
         # train on cue, test on mov 
         lg1 = GridLayout()
-        fig[1,1] = lg1
+        lg[1,1] = lg1
         f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :cue, :mov;redo=false,baseline_end=-250.0)
-        h1,ax1 = plot_performance!(lg1, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72))
+        h1,ax1 = Figure2.plot_performance!(lg1, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72), kvs...)
         ax1.title = "Trained on go-cue,\ntested on movement"
         ax1.ylabel = "Latency [ms]"
         ax1.xlabel = "Window [ms]"
 
         # train on mov test on cue 
         lg2 = GridLayout()
-        fig[1,2] = lg2
+        lg[1,2] = lg2
         f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :mov, :cue;redo=false,baseline_end=-300.0)
-        h2,ax2 = plot_performance!(lg2, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72))
+        h2,ax2 = Figure2.plot_performance!(lg2, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72), kvs...)
         ax2.title = "Trained on movement,\ntested on go-cue"
         ax2.yticklabelsvisible = false
         Colorbar(fig[1,3], h2, label="F₁ sccore")
-        if do_save
-            fname = joinpath("figures","manuscript","supplementary_figure4.pdf")
-            save(fname, fig;pt_per_unit=1)
-        end
         fig
    end
 end
+end # module
