@@ -137,7 +137,6 @@ function plot(bins, posteriors, windows::Vector{Tuple{Float64, Float64}})
     n = length(posteriors)
     with_theme(theme_minimal()) do
         fig = Figure(resolution=(400,500))
-        n = length(posteriors)
         axes = [Axis(fig[i,1], xticksvisible=true, yticksvisible=true) for i in 1:n]
         linkaxes!(axes...)
         for (ax, posterior, window) in zip(axes, posteriors, windows)
