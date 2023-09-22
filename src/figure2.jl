@@ -1,3 +1,4 @@
+module Figure2
 using EventOnsetDecoding
 using HypothesisTests
 using MultivariateStats
@@ -323,10 +324,6 @@ function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::
     Xc = ppsthc.counts[:,rtidx[tidx],cellidx]
     Xt = ppstht.counts[:,ttidx[rtidx[tidx]],cellidxt]
 
-    ulabel = unique(tlabels)
-    nl = length(ulabel)
-    height = nl*100 
-    fig = Figure(resolution=(1500,height))
     # one column for each alignment
     lgt = GridLayout()
     #fig[1,1] = lgt
