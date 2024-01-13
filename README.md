@@ -1,5 +1,5 @@
 # Prefrontal Manifold geometry
-Codes to reproduce the main figures in the paper "Prefrontal Manifold Geometry Explains Reaction Time Variability".
+Codes to reproduce the main figures in the paper "Prefrontal Manifold Geometry Contributes to Reaction Time Variability".
 
 ## Installation
 
@@ -11,35 +11,40 @@ Codes to reproduce the main figures in the paper "Prefrontal Manifold Geometry E
 ```
 To get to the add `pkg>` prompt, press `]` in the REPL
 
-2. It is recommended that you create a new environment in which to install the various packages (similar to a `conda` environment in Python). To do, either start Julia from the directory containing the environment, e.g. `$HOME/Documents/PrefrontalManifoldGeometryPaperTest`,
-
+2. Clone this repository using e.g. bash
 
 ```bash
+git clone https://github.com/grero/PrefrontalManifoldGeometry.git PrefrontalManifoldGeometry
+```
+3. Start Julia from the newly cloned folder
+
+```bash
+cd PrefrontalManifoldGeometry
 julia --project=.
 ```
 
-or, from within the REPL itself, navigate to the directory, enter package mode, and type `activate .`
+or, from within the REPL itself, navigate to the folder, enter package mode, and type `activate .`, followed by `instantiate`. The latter command will install all  package dependencies.
 
 ```julia
-shell> cd $HOME/Documents/PrefrontalManifoldGeometryPaperTest
+shell> cd PrefrontalManifoldGeometry
 (@v1.9) pkg> activate .
+(@v1.9) pkg> instantiate 
 ```
 to enter shell mode, press `;` in the REPL.
 
-Once you have activated the environment, add this package using
-
-```julia
-(PrefrontalManifoldGeometryPaperTest) pkg> add PrefronalManifoldGeometry
-```
-
 ## Usage
 
-The codes for producing each of the main figures are organized in their own module. This means that to reproduce for example figure 1, you can execute the following from the Julia REPL:
+The codes for producing each of the main figures are organized in their own module. This means that to reproduce all the figures, you can execute the following from the Julia REPL:
 
 ```julia
 using PrefrontalManifoldGeometry
 const PMG = PrefrontalManifoldGeometry
-using PMG: Makie, CairoMakie
-using Mkie, CairoMakie
+using CairoMakie
 fig1 = PMG.Figure1.plot()
+fig2 = PMG.Figure2.plot()
+fig3 = PMG.Figure3.plot()
+fig4 = PMG.Figure4.plot()
+fig5 = PMG.Figure5.plot()
 ```
+
+As some of the analyses take a long time to run, each of the plot functions will load pre-computed data by default. To re-run any analysis from scrtach (i.e. starting from single cell spike counts), use the argument `redo=true` to any function.

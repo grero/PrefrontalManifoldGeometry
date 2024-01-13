@@ -1,11 +1,12 @@
+module Utils
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 
 sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
 sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
 
-ncells = Dict("james" => [37, 29, 33, 25], "whiskey" => [15, 18, 10, 13, 13, 16, 21, 21])
-_ntrials = Dict("james" => [108, 140, 154, 196], "whiskey" => [164, 93, 86, 227, 171, 144, 209, 177])
+ncells = Dict("J" => [37, 29, 33, 25], "W" => [15, 18, 10, 13, 13, 16, 21, 21])
+_ntrials = Dict("J" => [108, 140, 154, 196], "W" => [164, 93, 86, 227, 171, 144, 209, 177])
 
 locations = Dict("J" => [1,2,3,4,6,7,8], "W" => [1:4;], "P" => [1,2,3,4,6,7,8,9])
 
@@ -132,4 +133,7 @@ function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,celli
         X .-= mean(X, dims=(1,2))
     end
 	X, _label, rtime
+end
+
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, locations, location_mapping, location_idx
 end

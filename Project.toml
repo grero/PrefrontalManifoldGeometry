@@ -1,3 +1,8 @@
+name = "PrefrontalManifoldGeometry"
+uuid = "f880c12f-e22f-4a91-9d34-26f3f6437d04"
+authors = ["Roger Herikstad <roger.herikstad@gmail.com>"]
+version = "0.1.0"
+
 [deps]
 AttractorModels = "c5b5f41d-6417-4974-a1bf-8957fdc17f70"
 CRC32c = "8bf52ea8-c179-5cab-976a-9e18b702a9bc"
@@ -14,10 +19,12 @@ HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
 ImageMagick = "6218d12a-5da1-5696-b52f-db25d2ecc6d1"
 JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 KernelFunctions = "ec8451be-7e33-11e9-00cf-bbf324bd1392"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Loess = "4345ca2d-374a-55d4-8d30-97f9976e7612"
 Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
 MultivariateStats = "6f286f6a-111f-5878-ab1e-185364afe411"
 OrthogonalLDA = "48e35133-c67d-494f-bc67-285ed7959dbe"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"

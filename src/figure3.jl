@@ -4,18 +4,19 @@ using CairoMakie
 using JLD2
 using CRC32c
 
-include("utils.jl")
+using ..Utils
+using ..PlotUtils
+
+#include("utils.jl")
 include("regression.jl")
 include("trajectories.jl")
-include("plot_utils.jl")
+#include("plot_utils.jl")
 
 """
 Data for the figure comparing path length, average speed and post-cue period in terms of
 how much reaction time variance they explain
 """
-function get_reaction_time_regressors(;t0=85.0, t1=35.0, redo=false, do_save=true,area="FEF", do_shuffle=false,rtmin=120.0)
-    # TODO: Check why the r² values went down. I think it was after I changed from summing up the squares
-    # .     to summing about the square roots.
+function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=true,area="FEF", do_shuffle=false,rtmin=120.0)
     h = "" 
     q = zero(UInt32)
     if t0 != 85.0 

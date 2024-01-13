@@ -7,6 +7,9 @@ using Makie
 using Colors
 using CairoMakie
 
+using ..Utils
+using ..PlotUtils
+
 target_colors = let
     colors = [RGB(0.8, 0.8, 0.8); parse.(Colorant, ["black","deepskyblue", "tomato"])]
     push!(colors, parse(Colorant, "white"))
@@ -36,7 +39,7 @@ function plot_saccades!(ax, saccades::Vector{T2}, color, qcolor=color;xmin=0.0, 
     end
 end
 
-function plot_microstimulation_figure!(figlg, datadir)
+function plot_microstimulation_figure!(figlg)
     # load saccade data for sessions with early stimulations
     _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
     sdata_early = NamedTuple(zip(Symbol.(keys(_sdata_early)), values(_sdata_early)))
@@ -213,7 +216,6 @@ function plot_microstimulation_figure!(figlg, datadir)
 end
 
 function plot()
-    datadir = joinpath(homedir(), "Documents","research","workingMemoryRaw")
 	cue_color = RGB(0.7, 1.0, 0.7)
 	saccade_color =RGB(1.0, 0.676, 0.3) 
 	with_theme(plot_theme) do
@@ -239,7 +241,7 @@ function plot()
 		ylims!(ax2, -0.1, 0.45)
 		lg2 = GridLayout()
 		fig[2,1] = lg2
-		plot_microstimulation_figure!(lg2, datadir)
+		plot_microstimulation_figure!(lg2)
 		rowsize!(fig.layout, 1, Relative(0.1))
 		fig
 		

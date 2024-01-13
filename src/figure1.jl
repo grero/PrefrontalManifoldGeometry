@@ -16,10 +16,10 @@ using DataProcessingHierarchyTools
 
 const DPHT = DataProcessingHierarchyTools
 
-include("utils.jl")
-include("plot_utils.jl")
+using ..Utils
+using ..PlotUtils
 
-
+CairoMakie.activate!()
 """
 Create an illustration of the task into the layout `lg`
 """
@@ -45,7 +45,6 @@ function task_figure!(lg;kvs...)
 		end
 		ax.xlabel = labels[ii]
 	end
-	# task for Whiske
 	labels2 = ["Fixation\n500ms","Target\n300ms","Delay 1\n1000ms","Distractor\nor re-target\n300ms","Delay 2\n1000ms", "Go-cue","Saccade"]
 	lg2 = GridLayout()
 	lg[2,1] = lg2
@@ -100,13 +99,12 @@ function task_figure!(lg;kvs...)
 end
 
 function plot(;do_save=true)
-	#img = load(joinpath("figures","james_whiskey_implant_on_brain.png"))
     img = load(joinpath("figures","manuscript","electrodes_on_brain.png"))
 	# grap the width and heigth from the QUARTO ENV variable
 	width = parse(Float64, get(ENV, "QUARTO_FIG_WIDTH", "15"))*72
 	height = parse(Float64, get(ENV, "QUARTO_FIG_HEIGHT","15"))*72
 	with_theme(plot_theme) do
-		fig = Figure(resolution=(width,height))
+		fig = Figure(size=(width,height))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
 		task_figure!(lg1;fontsize=16)
@@ -123,6 +121,7 @@ function plot(;do_save=true)
 				  Label(lg2[1,1,TopLeft()], "B",fontsize=label_fontsize)]
 		fname = joinpath("figures","manuscript","figure1.pdf")
         if do_save
+            CairoMakie.activate!()
             save(fname, fig;pt_per_unit=1)
         end
 		fig

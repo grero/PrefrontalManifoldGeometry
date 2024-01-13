@@ -8,11 +8,14 @@ using JLD2
 using StableRNGs
 using KernelFunctions
 using Loess
+using ..Utils
+using ..PlotUtils
 
-include("utils.jl")
+
+#include("utils.jl")
 include("trajectories.jl")
 include("regression.jl")
-include("plot_utils.jl")
+#include("plot_utils.jl")
 
 get_functions(;kvs...) = AttractorModels.get_attractors2(;w1=sqrt(10.0/2), w2=sqrt(45.0/2.0), wf=sqrt(5.0/2),
                                                         b=-4.5, ϵ2=2.5, A0=7.0, A2=7.0, zmin=-3.5,
@@ -381,14 +384,14 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     results
 end
 
-function plot(;width=700,height=700, do_save=true,h0=one(UInt32), kvs...)
+function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
 	w2 = 35.0
 	do_interpolation = false
-	results = run_model(;redo=false,σ²0=1.125,τ=1.0,σ²n=0.0,nd=ncells["whiskey"],
+	results = run_model(;redo=redo,σ²0=1.125,τ=1.0,σ²n=0.0,nd=ncells["W"],
                                           n_init_points=1, curve_data_file="model_output_more_trials_longer.jld2",
-                                          idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["whiskey"],
+                                          idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["W"],
                                           path_length_method=:normal, remove_outliers=true,
                                           do_interpolation=false, do_remove_dependence=true, do_save=do_save,h0=h0, kvs...);
 	# the function that was used to generate the trajectories

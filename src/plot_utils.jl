@@ -1,3 +1,4 @@
+module PlotUtils
 using Makie
 using Makie: Point2f
 using Colors
@@ -86,4 +87,7 @@ function plot_normals!(ax, traj::Matrix{T};ss::Function=(traj,i)->advance(traj,i
 	xlower_upper = permutedims([lower[:,1] upper[:,1]], [2,1])[:]
 	ylower_upper = permutedims([lower[:,2] upper[:,2]], [2,1])[:]
 	linesegments!(ax, xlower_upper, ylower_upper;kvs...)
+end
+
+export plot_theme, make_grid!, get_rectangular_border
 end
