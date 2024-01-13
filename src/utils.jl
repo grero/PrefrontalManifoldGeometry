@@ -159,5 +159,5 @@ function get_normals(traj::Matrix{T}) where T <: Real
 	nn
 end
 
-export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, locations, location_mapping, location_idx, get_normals
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals
 end
