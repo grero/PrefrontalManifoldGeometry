@@ -4,10 +4,10 @@ using CairoMakie
 using JLD2
 using CRC32c
 
-include("utils.jl")
+#include("utils.jl")
 include("regression.jl")
 include("trajectories.jl")
-include("plot_utils.jl")
+#include("plot_utils.jl")
 
 """
 Data for the figure comparing path length, average speed and post-cue period in terms of

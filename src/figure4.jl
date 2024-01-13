@@ -9,10 +9,10 @@ using StableRNGs
 using KernelFunctions
 using Loess
 
-include("utils.jl")
+#include("utils.jl")
 include("trajectories.jl")
 include("regression.jl")
-include("plot_utils.jl")
+#include("plot_utils.jl")
 
 get_functions(;kvs...) = AttractorModels.get_attractors2(;w1=sqrt(10.0/2), w2=sqrt(45.0/2.0), wf=sqrt(5.0/2),
                                                         b=-4.5, ϵ2=2.5, A0=7.0, A2=7.0, zmin=-3.5,

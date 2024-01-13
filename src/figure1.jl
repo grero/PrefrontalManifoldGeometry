@@ -16,10 +16,6 @@ using DataProcessingHierarchyTools
 
 const DPHT = DataProcessingHierarchyTools
 
-include("utils.jl")
-include("plot_utils.jl")
-
-
 """
 Create an illustration of the task into the layout `lg`
 """
@@ -45,7 +41,6 @@ function task_figure!(lg;kvs...)
 		end
 		ax.xlabel = labels[ii]
 	end
-	# task for Whiske
 	labels2 = ["Fixation\n500ms","Target\n300ms","Delay 1\n1000ms","Distractor\nor re-target\n300ms","Delay 2\n1000ms", "Go-cue","Saccade"]
 	lg2 = GridLayout()
 	lg[2,1] = lg2

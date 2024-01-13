@@ -1,3 +1,4 @@
+module Utils
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 
@@ -132,4 +133,7 @@ function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,celli
         X .-= mean(X, dims=(1,2))
     end
 	X, _label, rtime
+end
+
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, locations, location_mapping, location_idx
 end
