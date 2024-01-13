@@ -121,6 +121,7 @@ function plot(;do_save=true)
 				  Label(lg2[1,1,TopLeft()], "B",fontsize=label_fontsize)]
 		fname = joinpath("figures","manuscript","figure1.pdf")
         if do_save
+            CairoMakie.activate!()
             save(fname, fig;pt_per_unit=1)
         end
 		fig
