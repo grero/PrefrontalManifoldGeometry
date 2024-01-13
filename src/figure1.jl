@@ -1,3 +1,4 @@
+module Figure1
 using Makie
 using Makie: Point2f0
 using CairoMakie
@@ -126,4 +127,5 @@ function plot(;do_save=true)
         end
 		fig
 	end
+end
 end

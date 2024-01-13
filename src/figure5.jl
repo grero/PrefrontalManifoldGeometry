@@ -1,3 +1,4 @@
+module Figure5
 using LinearAlgebra
 using Random
 using StatsBase
@@ -243,4 +244,5 @@ function plot()
 		fig
 		
 	end
+end
 end
