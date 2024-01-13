@@ -7,6 +7,7 @@ using CRC32c
 using JLD2
 using StableRNGs
 using KernelFunctions
+using Colors
 using Loess
 using ..Utils
 using ..PlotUtils
@@ -24,6 +25,7 @@ get_functions(;kvs...) = AttractorModels.get_attractors2(;w1=sqrt(10.0/2), w2=sq
 function generate_trajectories(;do_record=true)
     GLMakie.activate!()
     func,gfunc,ifunc = get_functions()
+    curve_data_file = joinpath("data","model_output_more_trials_longer.jld2")
     fig = AttractorModels.animate_manifold(func, gfunc, ifunc;bump_dur=3, nframes=300, bump_amp=0.0,
                                                               σn=0.0525, dt=0.5, max_width_scale=1.0,
                                                               rebound=false, ntrials=500,
@@ -33,7 +35,7 @@ function generate_trajectories(;do_record=true)
                                                               zf0=3.5, b0=4.5, ϵ0=2.5, ϵf=1.0,
                                                               do_record=do_record,animation_filename="test_movie.mp4",
                                                               fps=60.0,
-                                                              fname="model_output_more_trials_longer.jld2")
+                                                              fname=curve_data_file)
 end
 
 """
@@ -133,7 +135,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         h = crc32c("keep_dependence",h)
     end
     q = string(h, base=16)
-    fname = "model_full_space_results_$q.jld2"
+    fname = joinpath("data","model_full_space_results_$q.jld2")
     @show fname
     if isfile(fname) && !redo
         qq = JLD2.load(fname)
@@ -513,6 +515,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 		ur[ii] = quantile(dd, 0.95)
 	end
 	zmin = -10.0
+    plot_colors = Makie.wong_colors()
 	with_theme(plot_theme) do
 		fig = Figure(resolution=(width,height))
 		lg1 = GridLayout()
@@ -532,7 +535,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 		lpoints = decompose(Point3f, Circle(Point2f(Xe), 0.01*w2))
 		lpoints .+= Point3f(0.0, 0.0, zmin)	
 		lines!(ax1, flat_curves_x[icidx], flat_curves_y[icidx], fill(0.0,sum(icidx)),color=flat_colors)
-		lines!(ax1, lpoints, color=ax1.palette.color[][1])
+		lines!(ax1, lpoints, color=plot_colors[1])
         #TODO: Plot this on the ``floor``
         contour!(ax1, xx,yy, func.([[x,y] for x in xx, y in yy]),levels=15, colormap=colormap("rdbu",mid=0.72))
 		# add panels) showing single unit responses aligned to movement onset
