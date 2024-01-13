@@ -104,7 +104,7 @@ function plot(;do_save=true)
 	width = parse(Float64, get(ENV, "QUARTO_FIG_WIDTH", "15"))*72
 	height = parse(Float64, get(ENV, "QUARTO_FIG_HEIGHT","15"))*72
 	with_theme(plot_theme) do
-		fig = Figure(resolution=(width,height))
+		fig = Figure(size=(width,height))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
 		task_figure!(lg1;fontsize=16)
