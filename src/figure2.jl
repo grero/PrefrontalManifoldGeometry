@@ -625,10 +625,8 @@ function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=
 	dargs_mov = EventOnsetDecoding.DecoderArgs(args...;kvs..., reverse_bins=false, baseline_end=-300.0)
     fname_mov = EventOnsetDecoding.get_filename(dargs_mov)
 
-    @show fname_cue fname_mov
     rseeds = rand(UInt32, dargs_mov.nruns)
 
-    @show size(ppsth_cue.counts) size(trialidx_cue) size(labels_cue) collect(keys(rtimes_cue))
     perf_cue,rr_cue,f1score_cue,fname_cue = EventOnsetDecoding.run_rtime_decoder(ppsth_cue,trialidx_cue,labels_cue,rtimes_cue,dargs_cue,
                                                              ;decoder=MultivariateStats.MulticlassLDA, rseeds=rseeds, redo=redo, h_init=h)
     perf_mov,rr_mov,f1score_mov,fname_mov = EventOnsetDecoding.run_rtime_decoder(ppsth_mov,trialidx_mov,labels_mov,rtimes_mov,dargs_mov,
@@ -717,7 +715,6 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
             lower_limit = plot_data[k][:lower_limit]
             pidx = plot_data[k][:pidx]
             qidx = pidx[(in(lidx)).([p.I[2] for p in pidx])]
-            @show lidx latencies max_latency
             h = heatmap!(ax, windows, latencies[lidx], μ[:,lidx],  colormap=:Blues,colorrange=(ymin, ymax))
             if k == :mov && show_colorbar
                 # TODO: Maybe put this below instead of at the side?
