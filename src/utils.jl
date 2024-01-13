@@ -1,6 +1,7 @@
 module Utils
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
+using StatsBase
 
 sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
 sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
@@ -135,5 +136,28 @@ function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,celli
 	X, _label, rtime
 end
 
-export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, locations, location_mapping, location_idx
+"""
+```julia
+function get_normals(traj::Matrix{T}) where T <: Real
+````
+Get the normals at each point of the trajectory.
+
+A normal vector is a unit vector orthogonal to the trajectory gradient at each time point
+
+"""
+function get_normals(traj::Matrix{T}) where T <: Real
+	#find the tangential vector at each point
+	grad = diff(traj, dims=1)
+	grad ./= sqrt.(sum(abs2, grad,dims=2))
+	#find the vector orthogonal to the gradient
+	nn = randn(size(grad)...)
+	# remove projection onto grad
+	nn .-= sum(nn.*grad,dims=2).*grad
+	#re-normalize
+	nn ./= sqrt.(sum(abs2,nn,dims=2))
+	@debug "Test" extrema(sum(nn.*grad,dims=2))
+	nn
+end
+
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, locations, location_mapping, location_idx, get_normals
 end

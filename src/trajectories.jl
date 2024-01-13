@@ -1,25 +1,7 @@
-"""
-```julia
-function get_normals(traj::Matrix{T}) where T <: Real
-````
-Get the normals at each point of the trajectory.
+using DataProcessingHierarchyTools
+const DPHT = DataProcessingHierarchyTools
+using StatsBase
 
-A normal vector is a unit vector orthogonal to the trajectory gradient at each time point
-
-"""
-function get_normals(traj::Matrix{T}) where T <: Real
-	#find the tangential vector at each point
-	grad = diff(traj, dims=1)
-	grad ./= sqrt.(sum(abs2, grad,dims=2))
-	#find the vector orthogonal to the gradient
-	nn = randn(size(grad)...)
-	# remove projection onto grad
-	nn .-= sum(nn.*grad,dims=2).*grad
-	#re-normalize
-	nn ./= sqrt.(sum(abs2,nn,dims=2))
-	@debug "Test" extrema(sum(nn.*grad,dims=2))
-	nn
-end
 """
 ```julia
 function compute_triangular_path_length(traj::Matrix{Float64})
@@ -114,7 +96,7 @@ function compute_triangular_path_length2(X::Array{T,3}, qidx::Matrix{Int64}) whe
 end
 
 function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", do_shuffle=false, kvs...)
-	fname = joinpath("data", "ppsth_cue_new.jld2")
+	fname = joinpath("data", "ppsth_fef_cue_raw.jld2")
 	ppstht, labelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
 	bins = ppstht.bins
 	subject_index = findall(cell->DPHT.get_level_name("subject", cell)==subject, ppstht.cellnames)

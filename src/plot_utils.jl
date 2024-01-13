@@ -3,6 +3,8 @@ using Makie
 using Makie: Point2f
 using Colors
 
+using ..Utils
+
 plot_theme = Theme(Axis=(xticksvisible=true,
 	            yticksvisible=true,
 				xgridvisible=false,
@@ -89,5 +91,5 @@ function plot_normals!(ax, traj::Matrix{T};ss::Function=(traj,i)->advance(traj,i
 	linesegments!(ax, xlower_upper, ylower_upper;kvs...)
 end
 
-export plot_theme, make_grid!, get_rectangular_border
+export plot_theme, make_grid!, get_rectangular_border, plot_normals!, advance
 end
