@@ -750,11 +750,11 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
 end
 
 
-function plot(;do_save=false,max_latency=Inf, width=900, height=500, kvs...)
+function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500, kvs...)
     fname = joinpath("data","fig2_data.jld2")
     α = 0.001
     threshold = 0.5
-    if isfile(fname)
+    if isfile(fname) && !redo
         plot_data, plot_data_reg = JLD2.load(fname, "plot_data", "plot_data_reg")
     else
         plot_data = Dict{Symbol, Any}(:cue => Dict{Symbol, Any}(), :mov => Dict{Symbol, Any}())
