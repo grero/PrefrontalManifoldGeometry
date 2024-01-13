@@ -109,7 +109,7 @@ function regress_reaction_time(;rtmin=120.0, rtmax=300.0, window=35.0, align=:mo
 end
 
 function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-400.0, -50.0), rtmin=120.0, rtmax=300.0, realign=false, area="FEF", kvs...)
-   fname = joinpath("data","ppsth_$(alignment)_new.jld2")
+    fname = joinpath("data","ppsth_$(area)_$(alignment)_raw.jld2")
    ppstht, tlabelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
    # get all cells from the specified subject
    subject_index = findall(cell->DPHT.get_level_name("subject", cell)==subject, ppstht.cellnames)
