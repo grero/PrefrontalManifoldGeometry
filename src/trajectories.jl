@@ -27,7 +27,7 @@ function compute_triangular_path_length(traj::Matrix{Float64})
 Find the largest combined Euclidean distance from the first point to a point on the trajectory, and from that point to the last point.
 ```
 """
-function compute_triangular_path_length(traj::Matrix{T},method=:normal) where T <: Real
+function compute_triangular_path_length(traj::Matrix{T},method=:normal, do_shuffle=false) where T <: Real
 	nn = size(traj,1)
 	dm = -Inf
 	qidx = 0
@@ -90,11 +90,16 @@ function compute_triangular_path_length_sq(traj::Matrix{T},i::Int64) where T <: 
 	_d += sum(abs2, traj[i,:] - traj[end,:])
 end
 
-function compute_triangular_path_length(X::Array{T,3}, qidx::Matrix{Int64}, args...) where T <: Real
+function compute_triangular_path_length(X::Array{T,3}, qidx::Matrix{Int64}, args...;do_shuffle=false) where T <: Real
 	nn = qidx[2,:] - qidx[1,:] .+ 1
 	path_lengths = fill(0.0, length(nn))
 	for i in 1:length(path_lengths)
-		path_lengths[i],_ = compute_triangular_path_length(X[qidx[1,i]:qidx[2,i],i,:],args...)
+		_X = X[qidx[1,i]:qidx[2,i],i,:]
+		if do_shuffle
+			bidx = shuffle(1:nn[i])	
+			_X = _X[bidx,:]
+		end
+		path_lengths[i],_ = compute_triangular_path_length(_X,args...)
 	end
 	path_lengths
 end
@@ -108,7 +113,7 @@ function compute_triangular_path_length2(X::Array{T,3}, qidx::Matrix{Int64}) whe
 	path_lengths
 end
 
-function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", kvs...)
+function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", do_shuffle=false, kvs...)
 	fname = joinpath("data", "ppsth_cue_new.jld2")
 	ppstht, labelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
 	bins = ppstht.bins
@@ -145,9 +150,11 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operati
 				merge!(countstats, qv)
 			end
 			if operation == :path_length
-				S = compute_triangular_path_length(Xl[:, tridx,:], qidx[:,tridx])
+				S = compute_triangular_path_length(Xl[:, tridx,:], qidx[:,tridx];do_shuffle=do_shuffle)
 			elseif operation == :path_length2
-				S = compute_triangular_path_length(Xl[:, tridx,:], qidx[:,tridx],:sq)
+				S = compute_triangular_path_length(Xl[:, tridx,:], qidx[:,tridx],:sq;do_shuffle=do_shuffle)
+			elseif operation == :path_length_ref
+				S = compute_ref_path_length(Xl[:,tridx,:],  qidx[:,tridx];do_shuffle=do_shuffle)
 			elseif operation == :mean_speed
 				S = fill(0.0, length(tridx))
 				for jj in 1:length(S)
