@@ -66,7 +66,7 @@ function regress_reaction_time(;rtmin=120.0, rtmax=300.0, window=35.0, align=:mo
     r2j = fill(0.0, size(ppsth.counts,1),100)
     total_idx = 1
 	for (ii, session) in enumerate(sessions)
-		X, _label, _rtime = get_session_data(ii,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax)
+		X, _label, _rtime = get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax)
 		X2,bins2 = rebin2(X, ppsth.bins, window)
 		ulabel = unique(_label)
 
