@@ -3,6 +3,7 @@ using Makie
 using CairoMakie
 using JLD2
 using CRC32c
+using Colors
 
 using ..Utils
 using ..PlotUtils
@@ -261,6 +262,7 @@ function plot(;width=800, height=600, kvs...)
     # tweak to make sure we can see the annotations
     ymin = -0.3
     ymax = 0.8
+    plot_colors = Makie.wong_colors()
     with_theme(plot_theme) do
         markersize=5px
         fig = Figure(resolution=(width, height))
@@ -284,8 +286,8 @@ function plot(;width=800, height=600, kvs...)
             lrt = stats_results[vv]["both"]["lrt"]
             Sw = stats_results[vv]["W"]["S"]
             Sj = stats_results[vv]["J"]["S"]
-            scatter_color = fill(ax.palette.color[][1], length(S))
-            scatter_color[length(Sw)+1:end] .= ax.palette.color[][2]
+            scatter_color = fill(plot_colors[1], length(S))
+            scatter_color[length(Sw)+1:end] .= plot_colors[2]
             scatter!(ax, S[:], lrt, color=scatter_color, markersize=markersize)
             if "legend_anchor" in keys(stats_results[vv])
                 _anchor = stats_results[vv]["legend_anchor"]
@@ -293,8 +295,8 @@ function plot(;width=800, height=600, kvs...)
                 _anchor = (0.40, 0.85)	
             end
             text!(ax, _anchor[1]-0.04, _anchor[2]+0.1, text=lstring[1], space=:relative, fontsize=12)
-            text!(ax, _anchor[1]-0.04, _anchor[2]+0.05, text=lstring[2], space=:relative, color=ax.palette.color[][1], fontsize=12)
-            text!(ax, _anchor[1]-0.04, _anchor[2], text=lstring[3], space=:relative, color=ax.palette.color[][2], fontsize=12)
+            text!(ax, _anchor[1]-0.04, _anchor[2]+0.05, text=lstring[2], space=:relative, color=plot_colors[1], fontsize=12)
+            text!(ax, _anchor[1]-0.04, _anchor[2], text=lstring[3], space=:relative, color=plot_colors[2], fontsize=12)
             ablines!(ax, β[2:2], β[1:1], color="black", linestyle=:dot)
             ablines!(ax, βw[2:2], βw[1:1], color=Cycled(1), linestyle=:dot)
             ablines!(ax, βj[2:2], βj[1:1], color=Cycled(2), linestyle=:dot)
@@ -317,7 +319,7 @@ function plot(;width=800, height=600, kvs...)
             r²pcas = qq["r²"]
             r²as = stats_results["avg_speed"][subject]["r²"] 
 
-            barplot!(ax, 1:5, [r²pc, r²pl, r²pcpl, r²as, r²pcas], color=ax.palette.color[][ii])
+            barplot!(ax, 1:5, [r²pc, r²pl, r²pcpl, r²as, r²pcas], color=plot_colors[ii])
             hlines!(ax, r²pc+r²pl, color="black", linestyle=:dot)
             hlines!(ax, r²as+r²pc, color="black", linestyle=:dot)
 
@@ -381,7 +383,7 @@ function plot_regression(stats_results, v1::String, v2::String, subject::String)
     scatter!(ax, S1[:], S2[:], lrt, label="Actual")
 
     # single regression
-    _color = ax.palette.color[][4]
+    _color = plot_colors[4]
     scatter!(ax, S1[:], fill(minimum_nan(S2), length(S1)), lrt,color=(_color, 0.5))
     scatter!(ax, fill(minimum_nan(S1), length(S2)), S2[:],  lrt, color=(_color, 0.5))
     ax.xlabel = v1
