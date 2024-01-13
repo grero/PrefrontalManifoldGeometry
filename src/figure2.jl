@@ -408,10 +408,10 @@ function plot_psth_and_raster!(lg, X::Matrix{T}, bins::AbstractVector{T},tlabel:
             qidx = findall(X[:,tidx[sidx]] .> Xmin)
             # grap the spikes for this trial
             vlines!(ax, 0.0, color="black",linestyle=:dot)
-            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=15px, color=_colors[ulabel[ll]], marker='|')
+            scatter!(ax, bins[[I.I[1] for I in qidx]], [I.I[2] for I in qidx], markersize=2.5px, color=_colors[ulabel[ll]])
             # show rtime
             if multiplier !== nothing
-                scatter!(ax, multiplier*rtime[tidx[sidx]], 1:length(sidx), color="black", marker='|')
+                scatter!(ax, multiplier*rtime[tidx[sidx]], 1:length(sidx), color="black", markersize=2.5px)
             end
             ax.xticklabelsvisible = false 
             ax.bottomspinevisible = false
