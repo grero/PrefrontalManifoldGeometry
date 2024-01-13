@@ -751,7 +751,7 @@ end
 
 
 function plot(;do_save=false,max_latency=Inf, width=900, height=500, kvs...)
-    fname = "fig2_data.jld2"
+    fname = joinpath("data","fig2_data.jld2")
     α = 0.001
     threshold = 0.5
     if isfile(fname)
