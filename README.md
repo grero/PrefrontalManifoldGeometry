@@ -34,11 +34,17 @@ to enter shell mode, press `;` in the REPL.
 
 ## Usage
 
-The codes for producing each of the main figures are organized in their own module. This means that to reproduce for example figure 1, you can execute the following from the Julia REPL:
+The codes for producing each of the main figures are organized in their own module. This means that to reproduce all the figures, you can execute the following from the Julia REPL:
 
 ```julia
 using PrefrontalManifoldGeometry
 const PMG = PrefrontalManifoldGeometry
-using Makie, CairoMakie
+using CairoMakie
 fig1 = PMG.Figure1.plot()
+fig2 = PMG.Figure2.plot()
+fig3 = PMG.Figure3.plot()
+fig4 = PMG.Figure4.plot()
+fig5 = PMG.Figure5.plot()
 ```
+
+As some of the analyses take a long time to run, each of the plot functions will load pre-computed data by default. To re-run any analysis from scrtach (i.e. starting from single cell spike counts), use the argument `redo=true` to any function.
