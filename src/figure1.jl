@@ -16,6 +16,10 @@ using DataProcessingHierarchyTools
 
 const DPHT = DataProcessingHierarchyTools
 
+using ..Utils
+using ..PlotUtils
+
+CairoMakie.activate!()
 """
 Create an illustration of the task into the layout `lg`
 """
@@ -95,7 +99,6 @@ function task_figure!(lg;kvs...)
 end
 
 function plot(;do_save=true)
-	#img = load(joinpath("figures","james_whiskey_implant_on_brain.png"))
     img = load(joinpath("figures","manuscript","electrodes_on_brain.png"))
 	# grap the width and heigth from the QUARTO ENV variable
 	width = parse(Float64, get(ENV, "QUARTO_FIG_WIDTH", "15"))*72
