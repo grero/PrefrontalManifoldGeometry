@@ -12,7 +12,11 @@ const DPHT = DataProcessingHierarchyTools
 include("regression.jl")
 #include("plot_utils.jl")
 
+using ..Utils
+using ..PlotUtils
+
 using CairoMakie
+CairoMakie.activate!()
 
 sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
 sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
