@@ -4,6 +4,9 @@ using CairoMakie
 using JLD2
 using CRC32c
 
+using ..Utils
+using ..PlotUtils
+
 #include("utils.jl")
 include("regression.jl")
 include("trajectories.jl")
