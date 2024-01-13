@@ -6,6 +6,7 @@ using DataProcessingHierarchyTools
 using JLD2
 using HDF5
 using CRC32c
+using Colors
 using ColorSchemes
 const DPHT = DataProcessingHierarchyTools
 
@@ -31,7 +32,7 @@ function plot_fef_cell(cellidx::Int64,args...;kvs...)
     else
         width = 1.3*height
     end
-    fig = Figure(resolution=(width,height))
+    fig = Figure(size=(width,height))
     lg = GridLayout()
     fig[1,1] = lg
     plot_fef_cell!(lg, cellidx, args...;kvs...)
