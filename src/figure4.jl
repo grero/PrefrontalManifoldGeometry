@@ -8,6 +8,9 @@ using JLD2
 using StableRNGs
 using KernelFunctions
 using Loess
+using ..Utils
+using ..PlotUtils
+
 
 #include("utils.jl")
 include("trajectories.jl")
