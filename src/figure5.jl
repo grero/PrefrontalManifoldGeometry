@@ -126,8 +126,7 @@ function plot_microstimulation_figure!(figlg)
 
 	
 
-	# find the indices of this 
-
+    plot_colors = Makie.wong_colors()
 	with_theme(theme_minimal()) do
 		ax1 = Axis(figlg[1,1])
 		ax1.title = "No stim"
@@ -159,10 +158,8 @@ function plot_microstimulation_figure!(figlg)
 
 		#barplot!(ax6, h1.edges[1][1:end-1], 100*h1.weights/sum(h1.weights), color=RGB(0.8, 0.8, 0.8),width=binsize, gap=0.0, direction=:x)
 		stairs!(ax6, 100*h1.weights/sum(h1.weights), h1.edges[1][1:end-1], color=RGB(0.8, 0.8, 0.8))
-		#barplot!(ax6, h2.edges[1][1:end-1], 100*h2.weights/sum(h2.weights), color=ax6.palette.color[][3], width=binsize, gap=0.0, direction=:x)
-		stairs!(ax6, 100*h2.weights/sum(h2.weights), h2.edges[1][1:end-1], color=ax6.palette.color[][3])
-		#barplot!(ax6, h3.edges[1][1:end-1], 100*h3.weights/sum(h3.weights), color=ax6.palette.color[][4], width=binsize, gap=0.0, direction=:x)
-		stairs!(ax6, 100*h3.weights/sum(h3.weights), h3.edges[1][1:end-1], color=ax6.palette.color[][4])
+		stairs!(ax6, 100*h2.weights/sum(h2.weights), h2.edges[1][1:end-1], color=plot_colors[3])
+		stairs!(ax6, 100*h3.weights/sum(h3.weights), h3.edges[1][1:end-1], color=plot_colors[4])
 		hlines!(ax6, rt_cutoff, linestyle=:dot, color="black")
 		linkyaxes!(ax1, ax2, ax3,ax6)
 		for ax in [ax2, ax3]
@@ -186,7 +183,7 @@ function plot_microstimulation_figure!(figlg)
 		rtidx_stim_early .= (rtime_stim_early .< rt_cutoff).&fast_saccade_idx.early
 		rtidx_stim_mid .= (rtime_stim_mid .< rt_cutoff).&fast_saccade_idx.mid
 		
-		for (ax,rtidx, saccades, color) in zip([ax4, ax5], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim], ax6.palette.color[][3:4])
+		for (ax,rtidx, saccades, color) in zip([ax4, ax5], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim], plot_colors[3:4])
 			scatter!(ax, [pos[1] for pos in sdata_early.target_pos], [pos[2] for pos in sdata_early.target_pos], marker='□', markersize=sdata_early.target_size, color=target_colors, markerspace=:data)
 			plot_saccades!(ax, saccades[rtidx], color)
 			xlims!(ax, 300.0, 1600.0)
@@ -204,7 +201,7 @@ function plot_microstimulation_figure!(figlg)
 		@debug extrema(slength_stim_mid)
 		@debug sum(evoked_saccade_idx.mid)
 		@show max_q_idx_early
-		for (ax,rtidx, saccades, max_q, color, qcolor) in zip([ax7, ax8], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim],[max_q_idx_early, max_q_idx_mid],  ax6.palette.color[][[3,5]], ax6.palette.color[][[4,6]])
+		for (ax,rtidx, saccades, max_q, color, qcolor) in zip([ax7, ax8], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim],[max_q_idx_early, max_q_idx_mid],  plot_colors[[3,5]], plot_colors[[4,6]])
 			scatter!(ax, [pos[1] for pos in sdata_early.target_pos], [pos[2] for pos in sdata_early.target_pos], marker='□', markersize=sdata_early.target_size, color=target_colors, markerspace=:data)
 			plot_saccades!(ax, saccades[rtidx], color,qcolor;max_q=max_q[rtidx])
 			xlims!(ax, 300.0, 1600.0)
