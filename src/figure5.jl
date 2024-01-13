@@ -2,6 +2,7 @@ module Figure5
 using LinearAlgebra
 using Random
 using StatsBase
+using JLD2
 
 using Makie
 using Colors
