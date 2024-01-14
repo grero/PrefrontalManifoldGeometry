@@ -89,3 +89,7 @@ perf_mov,rr_mov,f1score_mov,fname_mov = EventOnsetDecoding.run_rtime_decoder(pps
 # plot
 fig = plot_event_onset_subspaces(fname_cue, fname_mov)
 ```
+
+### Model manifold
+
+The code for setting up the model manifold in Figure 4 can be found [here](https://github.com/grero/AttractorModels.jl). See the README of that package for detailed instructions.
