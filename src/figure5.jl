@@ -262,34 +262,38 @@ function plot_microstimulation_figure!(figlg)
     end
 end
 
-function plot()
+function plot(;show_schematic=true)
 	cue_color = RGB(0.7, 1.0, 0.7)
 	saccade_color =RGB(1.0, 0.676, 0.3) 
 	with_theme(plot_theme) do
 		fig = Figure(resolution=(700,900))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
-		# drawing to illustrate stimulation
-		ax = Axis(lg1[1,1], xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false)
-		ax2 = Axis(lg1[2,1], xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false)
-		linkaxes!(ax,ax2)
-		rowsize!(lg1, 2, Relative(0.2))
-		rowgap!(lg1, 1, 0.0)
-		arrows!(ax, [0.0], [0.0], [1.0], [0.0],linestyle=:dot)
-		poly!(ax, Rect2(0.1, 0.0, 0.05, 0.3), color=cue_color)
-		poly!(ax, Rect2(0.3, 0.0, 0.1, 0.29), color=:white, strokewidth=1.0)
-		text!(ax, 0.35, 0.15, text="25ms", align=(:center, :center))
-		# lightning bolt
-		scatter!(ax, [0.2], [0.4], marker='⚡', color=RGB(1.0, 0.9, 0.0), markersize=25px)
-		poly!(ax, Rect2(0.8, 0.0, 0.05, 0.3), color=saccade_color)
-		poly!(ax, Rect2(0.65, 0.0, 0.15, 0.29), color=:white, strokewidth=1.0)
-		text!(ax, 0.725, 0.15, text="35ms", align=(:center, :center))
-		ll = text!(ax2, [0.1, 0.8],[0.0, 0.0], text=["Go cue","Saccade"], color=[cue_color, saccade_color],fontsize=12)
-		ylims!(ax2, -0.1, 0.45)
-		lg2 = GridLayout()
-		fig[2,1] = lg2
+		if show_schematic
+			# drawing to illustrate stimulation
+			ax = Axis(lg1[1,1], xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false)
+			ax2 = Axis(lg1[2,1], xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false)
+			linkaxes!(ax,ax2)
+			rowsize!(lg1, 2, Relative(0.2))
+			rowgap!(lg1, 1, 0.0)
+			arrows!(ax, [0.0], [0.0], [1.0], [0.0],linestyle=:dot)
+			poly!(ax, Rect2(0.1, 0.0, 0.05, 0.3), color=cue_color)
+			poly!(ax, Rect2(0.3, 0.0, 0.1, 0.29), color=:white, strokewidth=1.0)
+			text!(ax, 0.35, 0.15, text="25ms", align=(:center, :center))
+			# lightning bolt
+			scatter!(ax, [0.2], [0.4], marker='⚡', color=RGB(1.0, 0.9, 0.0), markersize=25px)
+			poly!(ax, Rect2(0.8, 0.0, 0.05, 0.3), color=saccade_color)
+			poly!(ax, Rect2(0.65, 0.0, 0.15, 0.29), color=:white, strokewidth=1.0)
+			text!(ax, 0.725, 0.15, text="35ms", align=(:center, :center))
+			ll = text!(ax2, [0.1, 0.8],[0.0, 0.0], text=["Go cue","Saccade"], color=[cue_color, saccade_color],fontsize=12)
+			ylims!(ax2, -0.1, 0.45)
+			lg2 = GridLayout()
+			fig[2,1] = lg2
+			rowsize!(fig.layout, 1, Relative(0.1))
+		else
+			lg2 = lg1
+		end
 		plot_microstimulation_figure!(lg2)
-		rowsize!(fig.layout, 1, Relative(0.1))
 		fig
 		
 	end
