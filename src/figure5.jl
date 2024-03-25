@@ -7,6 +7,8 @@ using JLD2
 using Makie
 using Colors
 using CairoMakie
+using HypothesisTests
+using Distributions
 
 using ..Utils
 using ..PlotUtils
@@ -16,6 +18,26 @@ target_colors = let
     push!(colors, parse(Colorant, "white"))
     cc = distinguishable_colors(8, colors, dropseed=true)
     [RGB(0.5 + 0.5*tg.r, 0.5 + 0.5*tg.g, 0.5 + 0.5*tg.b) for tg in cc]
+end
+
+"""
+Find the number of points below q1 and above q2 in surrogates where rt1 and rt2 is mixed
+"""
+function shuffle_stim_rtimes(rt1, rt2, q1, q2;nruns=1000)
+	rt = [rt1;rt2]
+	n1 = length(rt1)
+	n2 = length(rt2)
+	nq = fill(0,2,2,nruns)
+	for i in 1:nruns
+		shuffle!(rt)
+		_rt1 = rt[1:n1]
+		_rt2 = rt[n1+1:end]
+		nq[1,1,i] = sum(_rt1 .<= q1)
+		nq[2,1,i] = sum(_rt1 .>= q2)
+		nq[1,2,i] = sum(_rt2 .<= q1)
+		nq[2,2,i] = sum(_rt2 .>= q2)
+	end
+	nq
 end
 
 function plot_saccades!(ax, saccades::Vector{T2}, color, qcolor=color;xmin=0.0, xmax=1500.0, ymin=0.0, ymax=1000.0, max_q::Union{Vector{Int64}, Nothing}=nothing) where T2 <: Matrix{T} where T <: Real
@@ -62,8 +84,8 @@ function plot_microstimulation_figure!(figlg)
 
 	# determine the lower threshold from the rtime_nostim
 	rt_cutoff = percentile(rtime_nostim, 5)
-	rt_cutoff = minimum(rtime_nostim)
-	@debug rt_cutoff
+	#rt_cutoff = minimum(rtime_nostim)
+	@show rt_cutoff
 	rtime_stim_early = sdata_early.rtime_stim
 	rtime_stim_mid = sdata_mid.rtime_stim
 	
@@ -125,7 +147,34 @@ function plot_microstimulation_figure!(figlg)
 	end
 
 	
+	# statistics
+	_rt_nostim = rtime_nostim[rtidx_nostim]
+	_rt_early = rtime_stim_early[rtidx_stim_early]	
+	_rt_mid = rtime_stim_mid[rtidx_stim_mid]
+	@show HypothesisTests.KruskalWallisTest(_rt_nostim, _rt_early, _rt_mid)
+	#@show HypothesisTests.ExactMannWhitneyUTest(_rt_early, _rt_mid)
+	le,me,ue = percentile(_rt_early, [5,50,95])
+	lm,mm,um = percentile(_rt_mid, [5,50,95])
+	@show le, um
+	@show lm, ue
 
+	#fit Gamma distribution to nostim reaction times
+	Γ = fit(Gamma, _rt_nostim)
+	@show Γ
+	# compare number of points below 1st percentile 
+	q1,q2 = percentile(Γ, [5.0,95.0])
+	@show q1,q2
+	rt_cutoff = q1
+	n11 = sum(_rt_early .<= q1)
+	n12 = sum(_rt_mid .<= q1)
+	n21 = sum(_rt_early .>= q2)
+	n22 = sum(_rt_mid .>= q2)
+	nq = shuffle_stim_rtimes(_rt_early, _rt_mid, q1,q2)
+	nqs = mapslices(x->percentile(x,95), nq,dims=3)
+	@assert !(n11 >= nqs[1,1])
+	@assert !(n21 >= nqs[2,1])
+	@assert n12 >= nqs[1,2] # this should be the only significant result
+	@assert !(n22 >= nqs[2,2])
     plot_colors = Makie.wong_colors()
 	with_theme(theme_minimal()) do
 		ax1 = Axis(figlg[1,1])
