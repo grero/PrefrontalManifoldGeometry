@@ -249,7 +249,6 @@ function plot_microstimulation_figure!(figlg)
 
 		@debug extrema(slength_stim_mid)
 		@debug sum(evoked_saccade_idx.mid)
-		@show max_q_idx_early
 		for (ax,rtidx, saccades, max_q, color, qcolor) in zip([ax7, ax8], [rtidx_stim_early, rtidx_stim_mid], [sdata_early.saccades_stim, sdata_mid.saccades_stim],[max_q_idx_early, max_q_idx_mid],  plot_colors[[3,5]], plot_colors[[4,6]])
 			scatter!(ax, [pos[1] for pos in sdata_early.target_pos], [pos[2] for pos in sdata_early.target_pos], marker='□', markersize=sdata_early.target_size, color=target_colors, markerspace=:data)
 			plot_saccades!(ax, saccades[rtidx], color,qcolor;max_q=max_q[rtidx])
