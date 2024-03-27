@@ -107,6 +107,7 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operatio
     sessions = unique(all_sessions)
 	lrt = Float64[]
 	path_length = Float64[]
+	location = Tuple{Float64, Float64}[]
 	ncells = fill(0, length(sessions))
 	counts = Float64[]
 	qridx = Int64[]
@@ -160,10 +161,11 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operatio
 			append!(lrt,_lrt)
 			append!(path_length, S)
 			append!(qridx, offset .+ tridx)
+			append!(location, fill(Utils.location_position[subject][ii],length(_lrt)))
 			offset += size(Xl,2)
 		end
 	end
-	path_length, lrt, qridx
+	path_length, lrt, qridx, location
 end
 
 """

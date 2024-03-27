@@ -3,6 +3,8 @@ using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 using StatsBase
 
+export get_session_data, location_position
+
 sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
 sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
 
@@ -18,6 +20,12 @@ location_mapping = Dict("W" => [2, 4, 1, 3],
 location_idx = Dict("W" => [3,9,1,7],
 					"J" => [1,2,3,4,5,6,7,8,9],
 					"P" => [1,2,3,4,5,6,7,8,9])
+
+# physical location of each target on the screen, in (approximate) degress of visual angle
+location_position = Dict("W" => [(-10.0, -10.0),(10.0, -10.0), (-10.0, 10.0), (10.0, 10.0)],
+					     "J" => [(-10.0, 10.0),(-10.0, 0.0), (-10.0, -10.0),(0.0, 10.0),
+						         (0.0, -10.0),(10.0, 10.0),(10.0, 0.0),(10.0, -10.0)]
+						)
 
 areas = Dict("J" => Dict("array01" => "vFEF",
 				"array02" => "dFEF",

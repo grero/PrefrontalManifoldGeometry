@@ -123,14 +123,16 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
    lrt = Float64[]
    Yp = Float64[]
    qridx = Int64[]
+   location = Tuple{Float64,Float64}[]
    offset = 0
    for (sessionidx,session) in enumerate(sessions)
        X, labels, rtimes = get_session_data(session, ppstht, trialidxt, tlabelst, rtimest, cellidx;rtime_min=rtmin, rtime_max=rtmax,
                                                                                                    variance_stabilize=true,
                                                                                                     mean_subtract=true)
        bidx = searchsortedfirst(bins, reg_window[1]):searchsortedlast(bins, reg_window[2])
-       for location in locations[subject]
-           tidx = labels.==location
+       location_idx = fill(0, maximum(labels))
+       for (il,loc) in enumerate(locations[subject])
+           tidx = labels.==loc
            Xl = dropdims(mean(X[bidx,tidx,:],dims=1),dims=1)
            Σ = cov(Xl, dims=1)
            σ² = diag(Σ)
@@ -160,6 +162,7 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
                append!(lrt, _lrt)
                append!(Yp, Y[:])
                append!(qridx, offset .+ [1:length(_lrt);])
+               append!(location, fill(Utils.location_position[subject][il],length(_lrt)))
             catch ee
                if isa(ee, DomainError)
                    # failure in fit, continue to next location
@@ -172,5 +175,5 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
            end
        end
    end
-   lrt, Yp, qridx
+   lrt, Yp, qridx,location
 end
