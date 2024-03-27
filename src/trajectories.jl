@@ -95,7 +95,7 @@ function compute_triangular_path_length2(X::Array{T,3}, qidx::Matrix{Int64}) whe
 	path_lengths
 end
 
-function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", do_shuffle=false, kvs...)
+function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", do_shuffle=false, do_center=true, kvs...)
 	fname = joinpath("data", "ppsth_fef_cue_raw.jld2")
 	ppstht, labelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
 	bins = ppstht.bins
@@ -153,7 +153,10 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operati
 			# subtract the global mean. This probably means that points will shift upwards, since the previous mean,
 			# which did not include the very short reaction time trials, would result in a higher value mean.  In others, now, we are 
 			# subtracting a lower value, which shifts the points upwards.
-			_lrt = log.(rtimel[tridx]) .- mean(log.(rtimel))
+			_lrt = log.(rtimel[tridx])
+			if do_center
+				_lrt .-= mean(log.(rtimel))
+			end
 			append!(lrt,_lrt)
 			append!(path_length, S)
 			append!(qridx, offset .+ tridx)

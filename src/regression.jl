@@ -108,7 +108,7 @@ function regress_reaction_time(;rtmin=120.0, rtmax=300.0, window=35.0, align=:mo
 	r2, bins2, percentile(rtime_all, [5,95]), r2j[:,1:total_idx]
 end
 
-function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-400.0, -50.0), rtmin=120.0, rtmax=300.0, realign=false, area="FEF", kvs...)
+function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-400.0, -50.0), rtmin=120.0, rtmax=300.0, realign=false, area="FEF", do_center=true, kvs...)
     fname = joinpath("data","ppsth_$(area)_$(alignment)_raw.jld2")
    ppstht, tlabelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
    # get all cells from the specified subject
@@ -147,7 +147,9 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
                Y .-= mean(Y)
                # mirror
                _lrt = log.(rtimes[tidx])
-               _lrt .-= mean(_lrt)
+               if do_center
+                _lrt .-= mean(_lrt)
+               end
                if realign
                    # check the sign of the correlation between reaction time and activity and realign so that the relationship is positive
                    β,r², pv,rss = llsq_stats(Y, _lrt)
