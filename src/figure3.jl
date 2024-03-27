@@ -106,6 +106,7 @@ function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=tru
             for (subject,_tridx) in zip(["J","W"], _tridxjw) 
                 @debug subject kk
                 xj = stats_results[kk][subject]
+                @debug keys(xj)
                 @debug size(xj["S"]) size(xj["lrt"]) size(xj["tridx"])
                 if size(xj["S"]) == (0,)
                     error("No trials found. subject=$(subject) kk=$(kk)")
