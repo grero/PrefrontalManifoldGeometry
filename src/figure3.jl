@@ -4,6 +4,7 @@ using CairoMakie
 using JLD2
 using CRC32c
 using Colors
+using LinearRegressionUtils
 
 using ..Utils
 using ..PlotUtils
@@ -13,6 +14,31 @@ include("regression.jl")
 include("trajectories.jl")
 #include("plot_utils.jl")
 
+function run_interaction_model()
+    plot_data = get_reaction_time_regressors(;redo=true, do_save=false,do_center=false)
+    for subject in ["J","W"]
+        S1 = plot_data["path_length"][subject]["S"]
+        S2 = plot_data["postcue"][subject]["S"]
+        S3 = plot_data["avg_speed"][subject]["S"]
+        loc = cat(map(x->[x...,], plot_data["path_length"][subject]["location"])...,dims=2)
+        X = [permutedims(loc) S1 S2 S3]
+        idx = dropdims(sum(isfinite.(X),dims=2).==size(X,2),dims=2)
+        y = plot_data["path_length"][subject]["lrt"][idx]
+        varnames = ["x","y","pl","mp","ss"]
+        # without interactions
+        lreg = LinearRegressionUtils.llsq_stats(X[idx,:],y;do_interactions=false)
+        varidx = lreg.varidx[(((lreg.β[1:end-1] - 2.33*lreg.Δβ) .> 0.0).|(lreg.β[1:end-1] + 2.33*lreg.Δβ .< 0.0))]
+        print("Subject: $subject\n")
+        print("No interaction:\n")
+        print("\tSignficant variables: $(varnames[varidx])\n")
+        # with interaction
+        lreg = LinearRegressionUtils.llsq_stats(X[idx,:],y;do_interactions=true, exclude_pairs=[(1,2)])
+        varidx = lreg.varidx[(((lreg.β[1:end-1] - 2.33*lreg.Δβ) .> 0.0).|(lreg.β[1:end-1] + 2.33*lreg.Δβ .< 0.0))]
+        _names = [isa(ii,Int64) ? varnames[ii] : "$(varnames[ii[1]])&$(varnames[ii[2]])" for ii in varidx]
+        print("With interaction:\n")
+        print("\tSignficant variables: $_names\n")
+    end
+end
 """
 Data for the figure comparing path length, average speed and post-cue period in terms of
 how much reaction time variance they explain
