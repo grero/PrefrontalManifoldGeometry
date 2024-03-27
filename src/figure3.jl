@@ -113,6 +113,7 @@ function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=tru
                 xj["S"] = xj["S"][_tridx]
                 xj["lrt"] = xj["lrt"][_tridx]
                 xj["tridx"] = xj["tridx"][_tridx]
+                xj["location"] = xj["location"][_tridx]
             end
         end
         
