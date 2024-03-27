@@ -43,7 +43,7 @@ end
 Data for the figure comparing path length, average speed and post-cue period in terms of
 how much reaction time variance they explain
 """
-function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=true,area="FEF", do_shuffle=false,rtmin=120.0)
+function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=true,area="FEF", do_shuffle=false,rtmin=120.0,kvs...)
     h = "" 
     q = zero(UInt32)
     if t0 != 85.0 
@@ -75,17 +75,17 @@ function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=tru
         stats_results["avg_speed"] = Dict{String,Any}()
         stats_results["delay2"] = Dict{String,Any}()
         stats_results["postcue"] = Dict{String,Any}()
-        stats_results["path_length"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx"], get_path_length_and_rtime("W", t0, t1;area=area,do_shuffle=do_shuffle,rtmin=rtmin)))
-        stats_results["path_length"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", t0, t1;area=area, do_shuffle=do_shuffle, rtmin=rtmin)))
-        stats_results["path_length2"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx"], get_path_length_and_rtime("W", t0, t1, operation=:path_length2,area=area, do_shuffle=do_shuffle, rtmin=rtmin)))
-        stats_results["path_length2"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", t0, t1, operation=:path_length2, area=area, do_shuffle=do_shuffle, rtmin=rtmin)))
-        stats_results["avg_speed"]["W"] = Dict{String,Any}(zip(["S", "lrt", "tridx"], get_path_length_and_rtime("W", t0, t1,operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin)))
-        stats_results["avg_speed"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx"], get_path_length_and_rtime("J", t0, t1,operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin)))
-        stats_results["delay2"]["W"] = Dict{String,Any}(zip(["lrt","S", "tridx"], explain_rtime_variance("W", :cue;realign=true, area=area,rtmin=rtmin)))
-        stats_results["delay2"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx"], explain_rtime_variance("J", :cue;realign=true,area=area,rtmin=rtmin)))
-        stats_results["postcue"]["W"] = Dict{String,Any}(zip(["lrt","S","tridx"], explain_rtime_variance("W", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin)))
+        stats_results["path_length"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx","location"], get_path_length_and_rtime("W", t0, t1;area=area,do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
+        stats_results["path_length"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1;area=area, do_shuffle=do_shuffle, rtmin=rtmin,kvs...)))
+        stats_results["path_length2"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx","location"], get_path_length_and_rtime("W", t0, t1; operation=:path_length2,area=area, do_shuffle=do_shuffle, rtmin=rtmin,kvs...)))
+        stats_results["path_length2"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1; operation=:path_length2, area=area, do_shuffle=do_shuffle, rtmin=rtmin, kvs...)))
+        stats_results["avg_speed"]["W"] = Dict{String,Any}(zip(["S", "lrt", "tridx","location"], get_path_length_and_rtime("W", t0, t1;operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
+        stats_results["avg_speed"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1;operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
+        stats_results["delay2"]["W"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"], explain_rtime_variance("W", :cue;realign=true, area=area,rtmin=rtmin,kvs...)))
+        stats_results["delay2"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"], explain_rtime_variance("J", :cue;realign=true,area=area,rtmin=rtmin,kvs...)))
+        stats_results["postcue"]["W"] = Dict{String,Any}(zip(["lrt","S","tridx","location"], explain_rtime_variance("W", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin,kvs...)))
         #TODO: Why are so many trials excluded here?
-        stats_results["postcue"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx"],explain_rtime_variance("J", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin)))
+        stats_results["postcue"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"],explain_rtime_variance("J", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin,kvs...)))
       
         if any(isnan.(stats_results["path_length"]["W"]["S"]))
             @warn "NaN encountered"
