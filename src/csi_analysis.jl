@@ -100,7 +100,7 @@ function plot(Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0) 
             colors2[i] = RGBA(cc.r, cc.g, cc.b, 0.25)
         end
     end
-    rridx = crossing .<= rt
+    rridx = isfinite.(crossing)
     lreg = LinearRegressionUtils.llsq_stats(repeat(crossing[rridx],1,1),rt[rridx])
     @show lreg.r², lreg.pv
     with_theme(PlotUtils.plot_theme)  do
