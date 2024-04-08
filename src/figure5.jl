@@ -207,8 +207,17 @@ function plot_microstimulation_figure!(figlg)
 
 		#barplot!(ax6, h1.edges[1][1:end-1], 100*h1.weights/sum(h1.weights), color=RGB(0.8, 0.8, 0.8),width=binsize, gap=0.0, direction=:x)
 		stairs!(ax6, 100*h1.weights/sum(h1.weights), h1.edges[1][1:end-1], color=RGB(0.8, 0.8, 0.8))
+		for _ax in [ax1, ax6]
+			hlines!(_ax, median(rtime_nostim[rtidx_nostim]), color=RGB(0.8, 0.8, 0.8))
+		end
 		stairs!(ax6, 100*h2.weights/sum(h2.weights), h2.edges[1][1:end-1], color=plot_colors[3])
+		for _ax in [ax2, ax6]
+			hlines!(_ax, median(rtime_stim_early[rtidx_stim_early]), color=plot_colors[3])
+		end
 		stairs!(ax6, 100*h3.weights/sum(h3.weights), h3.edges[1][1:end-1], color=plot_colors[4])
+		for _ax in [ax3, ax6]
+			hlines!(_ax, median(rtime_stim_mid[rtidx_stim_mid]), color=plot_colors[4])
+		end
 		hlines!(ax6, rt_cutoff, linestyle=:dot, color="black")
 		linkyaxes!(ax1, ax2, ax3,ax6)
 		for ax in [ax2, ax3]
@@ -256,45 +265,101 @@ function plot_microstimulation_figure!(figlg)
 			ylims!(ax, 0.0, 1200.0)
 		end
 		ax7.ylabel = "Evoked saccades"
+		for ax in [ax4,ax5, ax7, ax8]
+			ax.xticksvisible = false
+			ax.yticksvisible = false
+			ax.rightspinevisible = true
+			ax.topspinevisible = true
+		end
 		#plot_saccades!(ax4, )
-		rowsize!(lg, 1, Relative(0.4))
+		#rowsize!(lg, 1, Relative(0.4))
     end
+end
+
+function plot_schematic()
+	fig = Figure(size=(450,210))
+	bbox = BBox(5, 445, 5, 205)
+	plot_schematic(fig, bbox)
+	fig
+end
+
+function plot_schematic(fig,bbox)
+	cue_color = :green
+	saccade_color =RGB(1.0, 0.0, 0.0) 
+	with_theme(plot_theme) do
+		# drawing to illustrate stimulation
+		ax = Axis(fig, xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false,bbox=bbox)
+		ylims!(ax, -0.1, 0.7)
+		arrows!(ax, [0.0], [0.0], [1.0], [0.0],linewidth=2.0)
+		poly!(ax, Rect2(0.1, 0.0, 0.05, 0.3), color=cue_color)
+
+		offset = 0.17
+		width = 0.22
+		#poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=0.0)
+		text!(ax, offset+width/2, 0.15, text=rich(rich("60 ms",font=:bold), rich("\nMotor \nPreparation")), align=(:center, :center), color=:green)
+
+		# label for stimulation
+		label_color = :yellow
+		yoffset = 0.32
+		height = 0.25
+		poly!(ax, Rect2(offset, yoffset, width, height), color=label_color, strokewidth=1.0)
+		text!(ax, offset+width/2, yoffset+height/2, text="5-55 ms\n(early stim)", align=(:center, :center))
+
+		_offset = offset + 0.9*width
+		_width = 1.1*width
+		poly!(ax, Rect2(_offset, yoffset+0.1, _width, height), color=label_color, strokewidth=1.0)
+		text!(ax, _offset+_width/2, yoffset+0.1+height/2, text="50-100 ms\n(late stim)", align=(:center, :center))
+
+		offset = offset+width
+		width = 0.16
+		poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=2.0)
+		text!(ax, offset+width/2, 0.15, text=rich(rich("25 ms", font=:bold),rich("\n Go Cue\nSignal")), align=(:center, :center),color=cue_color)
+		# lightning bolt
+		#scatter!(ax, [0.2], [0.4], marker='⚡', color=RGB(1.0, 0.9, 0.0), markersize=25px)
+
+		offset = offset + width
+		width = 0.18
+		text!(ax, offset+width/2, 0.15, text="Transition\n Period", align=(:center, :center),color=cue_color)
+
+		offset = offset + width
+		width = 0.20
+		poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=2.0)
+		text!(ax, offset+width/2, 0.15, text=rich(rich("35 ms",font=:bold), rich("\nExecution\nThreshold")), align=(:center, :center),color=saccade_color)
+
+		offset = offset + width
+		width = 0.05
+		poly!(ax, Rect2(offset, 0.0, width, 0.3), color=saccade_color)
+
+		text!(ax, [0.1,offset],[-0.05, -0.05], text=["Go cue","Saccade"], color=[cue_color, saccade_color], align=(:center, :center))
+	end
 end
 
 function plot(;show_schematic=true)
 	cue_color = RGB(0.7, 1.0, 0.7)
 	saccade_color =RGB(1.0, 0.676, 0.3) 
 	with_theme(plot_theme) do
-		fig = Figure(resolution=(700,900))
+		fwidth = 700
+		fheight = 900
+		fig = Figure(size=(fwidth, fheight))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
 		if show_schematic
-			# drawing to illustrate stimulation
-			ax = Axis(lg1[1,1], xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false)
-			ax2 = Axis(lg1[2,1], xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false)
-			linkaxes!(ax,ax2)
-			rowsize!(lg1, 2, Relative(0.2))
-			rowgap!(lg1, 1, 0.0)
-			arrows!(ax, [0.0], [0.0], [1.0], [0.0],linestyle=:dot)
-			poly!(ax, Rect2(0.1, 0.0, 0.05, 0.3), color=cue_color)
-			poly!(ax, Rect2(0.3, 0.0, 0.1, 0.29), color=:white, strokewidth=1.0)
-			text!(ax, 0.35, 0.15, text="25ms", align=(:center, :center))
-			# lightning bolt
-			scatter!(ax, [0.2], [0.4], marker='⚡', color=RGB(1.0, 0.9, 0.0), markersize=25px)
-			poly!(ax, Rect2(0.8, 0.0, 0.05, 0.3), color=saccade_color)
-			poly!(ax, Rect2(0.65, 0.0, 0.15, 0.29), color=:white, strokewidth=1.0)
-			text!(ax, 0.725, 0.15, text="35ms", align=(:center, :center))
-			ll = text!(ax2, [0.1, 0.8],[0.0, 0.0], text=["Go cue","Saccade"], color=[cue_color, saccade_color],fontsize=12)
-			ylims!(ax2, -0.1, 0.45)
+			hh = 160
+			rowsize!(fig.layout, 1, hh)
+			_top = fheight-5
+			bbox = BBox(100, fwidth-100, _top-hh, _top) 
+			plot_schematic(fig, bbox)
 			lg2 = GridLayout()
 			fig[2,1] = lg2
-			rowsize!(fig.layout, 1, Relative(0.1))
+			labels = [Label(fig[1,1,TopLeft()], "A",font=:regular),
+					  Label(lg2[1,1,TopLeft()], "B", font=:regular),
+					  Label(lg2[2,1,TopLeft()], "C", font=:regular)
+					 ]
 		else
 			lg2 = lg1
 		end
 		plot_microstimulation_figure!(lg2)
 		fig
-		
 	end
 end
 end
