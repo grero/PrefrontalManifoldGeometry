@@ -380,6 +380,9 @@ function plot(;width=800, height=600, kvs...)
         ax.yticklabelsvisible = false
         ax.xlabel = "Avg speed (AS)"
         rowsize!(fig.layout,1,Relative(0.25))
+        # add a legend
+        ll = Legend(lg7[1,2], [PolyElement(color=c) for c in Makie.wong_colors()[1:2]],["Monkey W", "Monkey J"],
+                     halign=:right, valign=:top, margin=(10.0, -10.0, 0.0, -20.0))
         fname = joinpath("figures","manuscript","reaction_time_regressors_new.pdf")
         if get(Dict(kvs), :do_save, false)
             save(fname, fig,pt_per_unit=1)
