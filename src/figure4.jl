@@ -398,8 +398,8 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 	# the function that was used to generate the trajectories
 	func,gfunc,ifunc = get_functions() 
 
-	xx = range(-10.0, stop=20.0, length=200);
-	yy = range(-25.0, stop=5.0, length=200)
+	xx = range(-8.0, stop=20.0, length=200);
+	yy = range(-22.0, stop=5.0, length=200)
 
 	#sub-sample to 50 curves
 	#tidx = sort(shuffle(RNG, 1:length(curves))[1:50])
