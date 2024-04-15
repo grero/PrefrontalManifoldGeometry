@@ -645,7 +645,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		rowgap!(fig.layout, 1, 1.0)
 		fname = joinpath("figures","manuscript","toy_model_figure.png")
         if do_save
-            save(fname,fig;pt_per_unit=1)
+            save(fname,fig;px_per_unit=8)
         end
 		fig
 	end
