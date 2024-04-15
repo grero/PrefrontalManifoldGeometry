@@ -11,6 +11,9 @@ using Colors
 using Loess
 using ..Utils
 using ..PlotUtils
+using Dierckx
+
+using Makie.GeometryBasics
 
 
 #include("utils.jl")
@@ -491,6 +494,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 	icidx = Bool[]
 	ucidx = Bool[]
 	flat_colors = eltype(cm)[]
+    do_interpolate = true
 	for (ii,curve) in enumerate(results.curves)
         # do interpolation
         if do_interpolate
@@ -584,7 +588,9 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		fig = Figure(resolution=(width,height))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
-		ax1 = Axis3(lg1[1,1],azimuth=5.000607537633862, elevation=0.5089042208588803,viewmode=:stretch)
+        # override with custom bounding box
+        bbox = BBox(10, width-300, height-350, height-20)
+		ax1 = Axis3(fig, bbox=bbox,azimuth=5.000607537633862, elevation=0.5089042208588803,viewmode=:stretch)
         ax1.xgridvisible = true
         ax1.ygridvisible = true
         ax1.zgridvisible = true
@@ -600,7 +606,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ax1.xlabel = "Dim 1"
 		ax1.ylabel = "Dim 2"
 		# add the original paths
-		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color=RGB(0.3, 0.3, 0.3))
+		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color=RGB(0.7, 0.7, 0.7))
 
 		# indicate the limit of the attractor
 		lpoints = decompose(Point3f, Circle(Point2f(Xe), 0.01*w2))
@@ -612,13 +618,23 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
         zlims!(ax1, 0.0, 12.0)
 		lg2 = GridLayout()
 		fig[1,2] = lg2
-		ax2 = Axis(lg2[1,1])
+        lgs = GridLayout(lg2[1,1])
+        rowsize!(lg2, 1, Relative(0.3))
+        # create a custom bbox
+        #bbox_orig = lgs.layoutobservables.suggestedbbox[]
+        #@show bbox_orig
+        #bbox = BBox(bbox_orig.origin[1]-0.1*bbox_orig.widths[1], bbox_orig.origin[1]+1.1*bbox_orig.widths[1], bbox_orig.origin[2]+bbox_orig.widths[2]-150, bbox_orig.origin[2]+bbox_orig.widths[2])
+        bbox = BBox(width-310, width-7, height-160, height-10)
+        axss = Axis(fig, bbox=bbox,backgroundcolor=(:white,0.5))
+        plot_schematic!(axss;markersize=20px)
+
+		ax2 = Axis(lg2[2,1])
 		ax2.xticklabelsvisible = false
 		lines!(ax2, single_cell_responses[1], color=response_colors[1])
-		ax3 = Axis(lg2[2,1])
+		ax3 = Axis(lg2[3,1])
 		ax3.xticklabelsvisible = false
 		lines!(ax3, single_cell_responses[2], color=response_colors[2])
-		ax4 = Axis(lg2[3,1])
+		ax4 = Axis(lg2[4,1])
 		lines!(ax4, single_cell_responses[3], color=response_colors[3])
 		for ax in [ax2,ax3,ax4]
 			vlines!(ax, 0.0, color="black")
@@ -692,7 +708,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
 		labels = [Label(lg1[1,1,TopLeft()], "A",padding=label_padding),
-				 Label(lg2[1,1,TopLeft()], "B",padding=label_padding),
+				 Label(lg2[2,1,TopLeft()], "B",padding=label_padding),
 				 Label(lg3[1,1,TopLeft()],"C",padding=label_padding),
 				 Label(lg4[1,1,TopLeft()], "D",padding=label_padding),
 				 Label(lg4[1,2,TopLeft()], "E",padding=label_padding),
