@@ -386,6 +386,64 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     results
 end
 
+"""
+Schematic of manifold dynamics
+"""
+function plot_schematic!(ax;fontsize=10,markersize=25px)
+    with_theme(PlotUtils.plot_theme) do
+        ax.xticksvisible = false
+        ax.xticklabelsvisible = false
+        ax.yticksvisible = false
+        ax.yticklabelsvisible = false
+        ax.leftspinevisible = false
+        ax.bottomspinevisible = false
+        xp = [1.0, 2.0, 3.0, 4.0, 5.0]
+        yp = [5.0, 2.0, 3.0, 2.0, 0.5]
+        spl = Spline1D(xp,yp)
+        x = range(1.0, stop=5.0, length=100)
+        y = spl.(x)
+        v = derivative(spl, [2.4, 3.7])
+        poly!(ax, Rect(4.1, 1.2,1.1, 0.6),color=RGB(1.0, 0.8, 0.8))
+        lines!(ax, x, y,color=:black,linewidth=1.5)
+        ppoints = [(1.95, 1.6),(2.0,2.9),(3.1, 3.4), (4.2, 2.6),(4.7, 1.5), (5.3, 0.7)] 
+        scatter!(ax, ppoints,markersize=markersize,color=RGB(0.8, 0.8, 0.8))
+        u = [0.5, 0.5]
+        arrows!(ax, [2.1, 3.4],[2.3, 2.5], u,v.*u)
+        labels = text!(ax, ppoints,text=["1","2","3","4","5","6"], align=(:center, :center),fontsize=fontsize)
+        #Legend(lg[1,2], [PolyElement(color=RGB(0.8, 0.8, 0.8), points=decompose(Point2f, Circle(Point2(0.0),0.5)),marker='1')],["test"])
+        xlims!(ax, 0.9, 16.0)
+        #ax2 = Axis(lg[1,2])
+        #ax2.yticksvisible = false
+        #ax2.yticklabelsvisible = false
+        #ax2.xticksvisible = false
+        #ax2.xticklabelsvisible = false
+        #ax2.leftspinevisible = false
+        #ax2.bottomspinevisible = false
+        lpoints = reverse(collect(zip(fill(6.5, length(ppoints)), [1.0:6.0;])))
+        ax2 = ax
+        scatter!(ax2, lpoints, markersize=markersize, color=RGB(0.8, 0.8, 0.8))
+        text!(ax2, lpoints,text=["1","2","3","4","5","6"], align=(:center,:center),fontsize=fontsize)
+        text!(ax2, (lpoints[1][1]+0.4, lpoints[1][2]), text="Motor preparation (attractor state)",align=(:left, :center),fontsize=fontsize)
+        text!(ax2, (lpoints[2][1]+0.4, lpoints[2][2]), text="Go-cue signals (evidence accumulation)", align=(:left, :center), fontsize=fontsize)
+        text!(ax2, (lpoints[3][1]+0.4, lpoints[3][2]),text="Decision threshold (if crossed,\nmovement initiates after a variable time)", align=(:left, :center),fontsize=fontsize)
+        text!(ax2, (lpoints[4][1]+0.4, lpoints[4][2]), text="Transition period (length correlates with\nRT)", align=(:left, :center), fontsize=fontsize)
+        text!(ax2, (lpoints[5][1]+0.4, lpoints[5][2]), text="Execution threshold (if crossed,\nmovement initiates after a fixed time)", align=(:left, :center),fontsize=fontsize)
+        text!(ax2, (lpoints[6][1]+0.4, lpoints[6][2]), text="Post-movement activity (unrelated to\nmovement initiation)", align=(:left, :center), fontsize=fontsize)
+        #xlims!(ax2, 0.7, 10.0)
+        #ylims!(ax2, 0.5, 6.5)
+        #colsize!(lg, 1, Relative(0.3))
+    end
+end
+
+function plot_schematic()
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure(size=(500,200))
+        ax = Axis(fig[1,1])
+        plot_schematic!(ax)
+        fig
+    end
+end
+
 function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do_interpolation=false, kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
