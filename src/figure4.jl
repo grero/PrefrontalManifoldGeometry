@@ -386,16 +386,15 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     results
 end
 
-function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kvs...)
+function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do_interpolation=false, kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
 	w2 = 35.0
-	do_interpolation = false
 	results = run_model(;redo=redo,σ²0=1.125,τ=1.0,σ²n=0.0,nd=ncells["W"],
                                           n_init_points=1, curve_data_file="model_output_more_trials_longer.jld2",
                                           idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["W"],
                                           path_length_method=:normal, remove_outliers=true,
-                                          do_interpolation=false, do_remove_dependence=true, do_save=do_save,h0=h0, kvs...);
+                                          do_interpolation=do_interpolation, do_remove_dependence=true, do_save=do_save,h0=h0, kvs...);
 	# the function that was used to generate the trajectories
 	func,gfunc,ifunc = get_functions() 
 
@@ -435,6 +434,13 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 	ucidx = Bool[]
 	flat_colors = eltype(cm)[]
 	for (ii,curve) in enumerate(results.curves)
+        # do interpolation
+        if do_interpolate
+            spl = ParametricSpline(permutedims(curve, [2,1]))
+            _curve = permutedims(Dierckx.evaluate(spl, range(extrema(spl.t)...; length=20*length(spl.t))),[2,1])
+        else
+            _curve = curve
+        end
 		append!(flat_curves_x, curve[:,1])
 		push!(flat_curves_x, NaN)
 		append!(flat_curves_y, curve[:,2])
