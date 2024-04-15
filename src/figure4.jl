@@ -564,6 +564,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		lines!(ax4, single_cell_responses[3], color=response_colors[3])
 		for ax in [ax2,ax3,ax4]
 			vlines!(ax, 0.0, color="black")
+            ax.ylabel = "Activity [au]"
 		end
 		linkxaxes!(ax2, ax3, ax4)
 		ax4.xlabel = "Time from movement"
@@ -587,7 +588,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ax73.xlabel = "Avg speed (AS)"
 		ax73.yticklabelsvisible = false
         for _ax in [ax5, ax6, ax73]
-            _ax.xticklabelsvisible = false
+            _ax.xticklabelsvisible = true
         end
 		linkyaxes!(ax5, ax6, ax73)
 		#TODO: Add reaction time regression as a function of time
@@ -629,6 +630,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		rangebars!(ax8, 1:length(ur), lr, ur)
 		ax8.xticks=([1:length(μr);], ["MP","PL", "MP+PL","AS", "MP+AS"])
         ax8.xticklabelrotation = -π/3
+        ax8.ylabel = "r²"
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
 		labels = [Label(lg1[1,1,TopLeft()], "A",padding=label_padding),
