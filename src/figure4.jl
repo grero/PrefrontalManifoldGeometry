@@ -520,7 +520,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		lr[ii] = quantile(dd, 0.05)
 		ur[ii] = quantile(dd, 0.95)
 	end
-	zmin = -10.0
+	zmin = -12.0
     plot_colors = Makie.wong_colors()
 	with_theme(plot_theme) do
 		fig = Figure(resolution=(width,height))
