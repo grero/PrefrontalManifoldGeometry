@@ -526,26 +526,32 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		fig = Figure(resolution=(width,height))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
-		ax1 = Axis3(lg1[1,1],azimuth=5.000607537633862, elevation=0.5089042208588803)
+		ax1 = Axis3(lg1[1,1],azimuth=5.000607537633862, elevation=0.5089042208588803,viewmode=:stretch)
+        ax1.xgridvisible = true
+        ax1.ygridvisible = true
+        ax1.zgridvisible = true
 		ax1.xticklabelsize = 12
 		ax1.yticklabelsize = 12
 		ax1.zticklabelsize = 12
+        ax1.xticklabelsvisible = false
+        ax1.yticklabelsvisible = false
+        ax1.zticklabelsvisible = false
 		ax1.zlabelvisible = false
-		surface!(ax1, xx, yy, -zmin .+ func.([[x,y] for x in xx, y in yy]), colormap=colormap("rdbu",mid=0.72))
+        surface_map = diverging_palette(30.0, 170.0, mid=0.72,d1=0.7, d2=0.7,b=1.0,c=0.7)
+		surface!(ax1, xx, yy, -zmin .+ func.([[x,y] for x in xx, y in yy]), colormap=surface_map, shading=Makie.Automatic())
 		ax1.xlabel = "Dim 1"
 		ax1.ylabel = "Dim 2"
 		# add the original paths
-		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color="black")
+		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color=RGB(0.3, 0.3, 0.3))
 
 		# indicate the limit of the attractor
 		lpoints = decompose(Point3f, Circle(Point2f(Xe), 0.01*w2))
 		lpoints .+= Point3f(0.0, 0.0, zmin)	
 		lines!(ax1, flat_curves_x[icidx], flat_curves_y[icidx], fill(0.0,sum(icidx)),color=flat_colors)
-		lines!(ax1, lpoints, color=plot_colors[1])
         #TODO: Plot this on the ``floor``
-        contour!(ax1, xx,yy, func.([[x,y] for x in xx, y in yy]),levels=15, colormap=colormap("rdbu",mid=0.72))
+        contour!(ax1, xx,yy, func.([[x,y] for x in xx, y in yy]),levels=15, colormap=surface_map)
 		# add panels) showing single unit responses aligned to movement onset
-        zlims!(ax1, 0.0, 10.0)
+        zlims!(ax1, 0.0, 12.0)
 		lg2 = GridLayout()
 		fig[1,2] = lg2
 		ax2 = Axis(lg2[1,1])
