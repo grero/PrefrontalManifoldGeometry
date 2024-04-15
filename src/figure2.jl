@@ -734,17 +734,25 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
         end
         ax = axes[1]
         ax.xlabel = "Window size [ms]"
+
         if get(Dict(kvs), :ylabelvisible, true)
             ax.ylabel = "Latency [ms]"
         end
         ax.yticklabelsvisible = get(Dict(kvs), :yticklabelsvisible, true)
+        ax.xticklabelsvisible = get(Dict(kvs), :xticklabelsvisible, true)
+        ax.xlabelvisible = get(Dict(kvs), :xlabelvisible, true)
         ax.title = "Go-cue onset"
+        ax.titlevisible = get(Dict(kvs), :titlevisible, true)
         ax.titlefont = :regular
 
         ax = axes[2]
         ax.yticklabelsvisible = false
         ax.title = "Movement onset"
+        ax.titlevisible = get(Dict(kvs), :titlevisible, true)
         ax.titlefont = :regular
+        ax.xticklabelsvisible = get(Dict(kvs), :xticklabelsvisible, true)
+        ax.xlabel = "Window size [ms]"
+        ax.xlabelvisible = get(Dict(kvs), :xlabelvisible, true)
         lg0
     end
     plot_data
