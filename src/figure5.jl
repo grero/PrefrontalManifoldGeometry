@@ -208,14 +208,17 @@ function plot_microstimulation_figure!(figlg)
 		#barplot!(ax6, h1.edges[1][1:end-1], 100*h1.weights/sum(h1.weights), color=RGB(0.8, 0.8, 0.8),width=binsize, gap=0.0, direction=:x)
 		stairs!(ax6, 100*h1.weights/sum(h1.weights), h1.edges[1][1:end-1], color=RGB(0.8, 0.8, 0.8))
 		for _ax in [ax1, ax6]
+			@show median(rtime_nostim[rtidx_nostim])
 			hlines!(_ax, median(rtime_nostim[rtidx_nostim]), color=RGB(0.8, 0.8, 0.8))
 		end
 		stairs!(ax6, 100*h2.weights/sum(h2.weights), h2.edges[1][1:end-1], color=plot_colors[3])
 		for _ax in [ax2, ax6]
+			@show median(rtime_stim_early[rtidx_stim_early])
 			hlines!(_ax, median(rtime_stim_early[rtidx_stim_early]), color=plot_colors[3])
 		end
 		stairs!(ax6, 100*h3.weights/sum(h3.weights), h3.edges[1][1:end-1], color=plot_colors[4])
 		for _ax in [ax3, ax6]
+			@show median(rtime_stim_mid[rtidx_stim_mid])
 			hlines!(_ax, median(rtime_stim_mid[rtidx_stim_mid]), color=plot_colors[4])
 		end
 		hlines!(ax6, rt_cutoff, linestyle=:dot, color="black")
@@ -296,7 +299,7 @@ function plot_schematic(fig,bbox)
 		offset = 0.17
 		width = 0.22
 		#poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=0.0)
-		text!(ax, offset+width/2, 0.15, text=rich(rich("60 ms",font=:bold), rich("\nMotor \nPreparation")), align=(:center, :center), color=:green)
+		text!(ax, offset+width/2, 0.15, text=rich(rich("60 ms",font=:bold), rich("\nMotor \nPreparation")), align=(:center, :center), color=:black)
 
 		# label for stimulation
 		label_color = :yellow
@@ -308,7 +311,7 @@ function plot_schematic(fig,bbox)
 		_offset = offset + 0.9*width
 		_width = 1.1*width
 		poly!(ax, Rect2(_offset, yoffset+0.1, _width, height), color=label_color, strokewidth=1.0)
-		text!(ax, _offset+_width/2, yoffset+0.1+height/2, text="50-100 ms\n(late stim)", align=(:center, :center))
+		text!(ax, _offset+_width/2, yoffset+0.1+height/2, text="40-90 ms\n(late stim)", align=(:center, :center))
 
 		offset = offset+width
 		width = 0.16
@@ -319,7 +322,7 @@ function plot_schematic(fig,bbox)
 
 		offset = offset + width
 		width = 0.18
-		text!(ax, offset+width/2, 0.15, text="Transition\n Period", align=(:center, :center),color=cue_color)
+		text!(ax, offset+width/2, 0.15, text="Transition\n Period", align=(:center, :center),color=:black)
 
 		offset = offset + width
 		width = 0.20
