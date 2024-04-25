@@ -363,7 +363,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, include_energy=true,include_path_length=true, focus=:path_length, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, kvs...)
     q = UInt32(0)
     if subjects != ["J","W"]
         q = crc32c(string((:subjects=>subjects)),q)
@@ -371,14 +371,8 @@ function compute_regression(;redo=false, subjects=["J","W"], sessions::Union{Vec
     if sessions != :all
         q = crc32c(string((:sessions=>sessions)),q)
     end
-    if focus != :path_length
-        q = crc32c(string((:focus=>focus)),q)
-    end
-    if include_path_length == false
-        q = crc32c(string((:include_path_path=>false)),q)
-    end
+    q = crc32c(string(:varnames=>varnames),q)
     q = crc32c(string((:use_midpoint=>use_midpoint)),q)
-    q = crc32c(string((:include_energy=>include_energy)),q)
     for k in kvs
         q = crc32c(string(k),q)
     end
@@ -389,78 +383,72 @@ function compute_regression(;redo=false, subjects=["J","W"], sessions::Union{Vec
     else
         qdata = Dict()
         for subject in subjects 
-            Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(subject;area="fef", raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, kvs...);
-            if subject == "J"
-                tidx = findall(label.!=9)
-            else
-                tidx = 1:size(Z,1)
-            end
-            if sessions != :all
-                tidx = tidx[findall(in(sessions), sessionidx[tidx])]
-            end
-            xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
-            ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
-            # exclude ncells if we are only doing one session
-            vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
-            if length(unique(ncells[tidx])) > 1
-                push!(vars, ncells[tidx])
-            end
-            exclude_pairs = [(5,6)]
-            if focus == :energy
-                if !include_path_length
-                    vars = vars[[[1,4];filter(x->x!=4, 3:length(vars))]]
-                    exclude_pairs = [(4,5)]
+            qdata[subject] = Dict()
+            for area in ["fef","dlpfc"]
+                Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(subject;area=area, raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, kvs...);
+                if subject == "J"
+                    tidx = findall(label.!=9)
                 else
-                    vars = vars[[[1,4];filter(x->x!=4, 2:length(vars))]]
+                    tidx = 1:size(Z,1)
                 end
-            elseif focus == :projected_energy
-                if !include_path_length
-                    vars = vars[[[1,5];filter(x->x!=5, 3:length(vars))]]
-                    exclude_pairs = [(4,5)]
+                if sessions != :all
+                    tidx = tidx[findall(in(sessions), sessionidx[tidx])]
+                end
+                xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
+                ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
+                allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],ncells=ncells[tidx], xpos=xpos, ypos=ypos)
+                # exclude ncells if we are only doing one session
+                #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
+                vars = Any[lrt[tidx]]
+                use_varnames = Symbol[]
+                for vv in varnames
+                    if vv == :ncells 
+                        if length(unique(ncells[tidx])) > 1
+                            push!(vars, ncells[tidx])
+                            push!(use_varnames, :ncells)
+                        end
+                    else
+                        push!(vars, allvars[vv])
+                        push!(use_varnames, vv)
+                    end
+                end
+                exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
+                #if focus == :energy
+                #    if !include_path_length
+                #        vars = vars[[[1,4];filter(x->x!=4, 3:length(vars))]]
+                #        exclude_pairs = [(4,5)]
+                #    else
+                #        vars = vars[[[1,4];filter(x->x!=4, 2:length(vars))]]
+                #    end
+                #elseif focus == :projected_energy
+                #    if !include_path_length
+                #        vars = vars[[[1,5];filter(x->x!=5, 3:length(vars))]]
+                #        exclude_pairs = [(4,5)]
+                #    else
+                #        vars = vars[[[1,5];filter(x->x!=5, 2:length(vars))]]
+                #    end
+                #end
+                if "trialix" in keys(qdata[subject])
+                    trialidx = qdata[subject]["trialidx"]
+                    βfef,Δβfef,pvfef,r²fef = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs)
                 else
-                    vars = vars[[[1,5];filter(x->x!=5, 2:length(vars))]]
+                    βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
+                    qdata[subject]["trialidx"] = trialidx
                 end
+                qdata[subject]["bins"] = bins
+                qdata[subject]["sessionidx"] = sessionidx
+                βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
+                βfef_S,Δβfef_S,pvfef_S,r²fef_S = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs,shuffle_trials=true)
+                qdata[subject][area] = Dict("β"=>βfef, "β_shuffle"=>βfef_S,"pvalue"=>pvfef,"r²"=>r²fef,"r²_shuffled"=>r²fef_S)
             end
-            βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
-            βfef_S,Δβfef_S,pvfef_S,r²fef_S = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs,shuffle_trials=true)
-
-            Z,L,EE,MM,lrt,label,ncells,bins,_ = get_regression_data(subject;area="dlpfc", raw=true, mean_subtract=true, variance_stabilize=true,window=50.0, use_midpoint=use_midpoint,kvs...);
-            vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
-            if length(unique(ncells[tidx])) > 1
-                push!(vars, ncells[tidx])
-            end
-            exclude_pairs = [(5,6)]
-            if focus == :energy
-                if !include_path_length
-                    vars = vars[[[1,4];filter(x->x!=4, 3:length(vars))]]
-                    exclude_pairs = [(4,5)]
-                else
-                    vars = vars[[[1,4];filter(x->x!=4, 2:length(vars))]]
-                end
-            elseif focus == :projected_energy
-                if !include_path_length
-                    vars = vars[[[1,5];filter(x->x!=5, 3:length(vars))]]
-                    exclude_pairs = [(4,5)]
-                else
-                    vars = vars[[[1,5];filter(x->x!=5, 2:length(vars))]]
-                end
-            end
-
-            βdlpfc,Δβdlpfc,pvdlpfc,r²dlpfc = compute_regression(trialidx, vars...;exclude_pairs=exclude_pairs)
-            βdlpfc_S,Δβdlpfc_S,pvdlpfc_S,r²dlpfc_S = compute_regression(trialidx, vars...;exclude_pairs=exclude_pairs,shuffle_trials=true)
-            qdata[subject] = Dict("βfef"=>βfef, "Δβfef"=>Δβfef,"pvfef"=>pvfef, "r²fef"=>r²fef,
-                                  "βfef_shuffled"=>βfef_S, "Δβfef_shuffled"=>Δβfef_S,"pvfef_shuffled"=>pvfef_S, "r²fef_shuffled"=>r²fef_S,
-                                  "βdlpfc"=>βdlpfc, "Δβdlpfc"=>Δβdlpfc, "pvdlpfc"=>pvdlpfc, "r²dlpfc"=>r²dlpfc,
-                                  "βdlpfc_shuffled"=>βdlpfc_S, "Δβdlpfc_shuffled"=>Δβdlpfc_S, "pvdlpfc_shuffled"=>pvdlpfc_S, "r²dlpfc_shuffled"=>r²dlpfc_S,
-                                  "bins"=>bins,"trialidx"=>trialidx,"sessionidx"=>sessionidx)
         end
         JLD2.save(fname, qdata)
     end
     qdata
 end 
 
-function plot_fef_dlpfc_r²(;redo=false, subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, include_energy=true,include_path_length=true, focus=:path_length, kvs...)
-    qdata = compute_regression(;redo=redo, subjects=subjects, sessions=sessions, tt=tt, nruns=100, use_midpoint=use_midpoint, include_energy=include_energy, include_path_length=include_path_length, focus=focus, kvs...)
+function plot_fef_dlpfc_r²(;redo=false, subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, kvs...)
+    qdata = compute_regression(;redo=redo, subjects=subjects, sessions=sessions, tt=tt, nruns=100, use_midpoint=use_midpoint, kvs...)
     colors = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     fcolors = [RGB(0.5 + 0.5*c.r, 0.5+0.5*c.g, 0.5+0.5*c.b) for c in colors]
     with_theme(PlotUtils.plot_theme) do
@@ -468,7 +456,9 @@ function plot_fef_dlpfc_r²(;redo=false, subjects=["J","W"], sessions::Union{Vec
         axes = [Axis(fig[i,1]) for i in 1:2*length(subjects)]
         for (ii,subject) in enumerate(subjects)
            
-            bins,r²fef, r²dlpfc,βfef, βfef_S,βdlpfc, βdlpfc_S = [qdata[subject][k] for k in ["bins", "r²fef","r²dlpfc","βfef","βfef_shuffled","βdlpfc","βdlpfc_shuffled"]]
+            bins = qdata[subject]["bins"]
+            r²fef, βfef, βfef_S = [qdata[subject]["fef"][k] for k in ["r²","β","β_shuffle"]]
+            r²dlpfc, βdlpfc, βdlpfc_S = [qdata[subject]["dlpfc"][k] for k in ["r²","β","β_shuffle"]]
             ax1 = axes[(ii-1)*2+1]
             @show size(r²fef)
             mid_fef = dropdims(median(r²fef,dims=2),dims=2)
