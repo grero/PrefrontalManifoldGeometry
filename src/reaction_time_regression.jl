@@ -413,21 +413,6 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     end
                 end
                 exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
-                #if focus == :energy
-                #    if !include_path_length
-                #        vars = vars[[[1,4];filter(x->x!=4, 3:length(vars))]]
-                #        exclude_pairs = [(4,5)]
-                #    else
-                #        vars = vars[[[1,4];filter(x->x!=4, 2:length(vars))]]
-                #    end
-                #elseif focus == :projected_energy
-                #    if !include_path_length
-                #        vars = vars[[[1,5];filter(x->x!=5, 3:length(vars))]]
-                #        exclude_pairs = [(4,5)]
-                #    else
-                #        vars = vars[[[1,5];filter(x->x!=5, 2:length(vars))]]
-                #    end
-                #end
                 if "trialix" in keys(qdata[subject])
                     trialidx = qdata[subject]["trialidx"]
                     βfef,Δβfef,pvfef,r²fef = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs)
