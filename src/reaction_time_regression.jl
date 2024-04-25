@@ -19,7 +19,7 @@ include("plot_utils.jl")
 Get the maximum square deviation from a straigth path from the beginning to the end
 of the transition period.
 """
-function get_projected_energy(X::Array{T,3}, qidx::Matrix{Int64}, label::AbstractVector{Int64}=fill(1,size(X,2))) where T <: Real
+function get_projected_energy(X::Array{T,3}, qidx::Vector{T2}, label::AbstractVector{Int64}=fill(1,size(X,2))) where T <: Real where T2 <: AbstractVector{Int64}
     nbins,ntrials,ncells = size(X)
     nn = countmap(label)
     ulabel = collect(keys(nn))
@@ -31,7 +31,7 @@ function get_projected_energy(X::Array{T,3}, qidx::Matrix{Int64}, label::Abstrac
     V = fill(0.0, ncells,nlabel)
     for j2 in 1:ntrials
         l = findfirst(label[j2].==ulabel)
-        idxq,idxs = qidx[:,j2]
+        idxq,idxs = qidx[j2]
         Xs = X[idxq:idxs,j2,:]
         μ0[:,l] .+= Xs[1,:]
         μ1[:,l] .+= Xs[end,:]
@@ -46,7 +46,7 @@ function get_projected_energy(X::Array{T,3}, qidx::Matrix{Int64}, label::Abstrac
     get_projected_energy(X,qidx,V,label),V
 end
 
-function get_projected_energy(X::Array{T,3}, qidx::Matrix{Int64}, V::Matrix{Float64}, label::AbstractVector{Int64}=fill(1,size(X,2))) where T <: Real
+function get_projected_energy(X::Array{T,3}, qidx::Vector{T2}, V::Matrix{Float64}, label::AbstractVector{Int64}=fill(1,size(X,2))) where T <: Real where T2 <: AbstractVector{Int64}
     nbins,ntrials,ncells = size(X)
     MM = fill(0.0, ntrials)
     nn = countmap(label)
@@ -57,12 +57,12 @@ function get_projected_energy(X::Array{T,3}, qidx::Matrix{Int64}, V::Matrix{Floa
         l = findfirst(ulabel.==label[j2])
         #Xs = X[idxq:idxs,j2,:]
         #MM[j2] = maximum(sum(abs2, Xs .- (Xs*V).*permutedims(V),dims=2))
-        MM[j2] = get_projected_energy(X[:,j2,:],qidx[:,j2],V[:,l])
+        MM[j2] = get_projected_energy(X[:,j2,:],qidx[j2],V[:,l])
     end 
     MM
 end
 
-function get_projected_energy(X::Matrix{Float64}, qidx::Vector{Int64},V)
+function get_projected_energy(X::Matrix{Float64}, qidx::UnitRange{Int64},V)
     Xs = X[qidx[1]:qidx[2],:]
     get_projected_energy(Xs, V)
 end
@@ -125,6 +125,9 @@ function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, windo
     EE = fill!(similar(Z),NaN)
     MM = fill!(similar(Z),NaN) # modified enerngy
     offset = 0
+    idxsm = 0 
+    nnmax = 0
+    warnfirst = true
 	for (ii, session) in enumerate(sessions)
 		X, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
         ulabel = unique(_label)
@@ -139,23 +142,29 @@ function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, windo
         #else
         #    X2 = X
         #end
-        qidx = fill(0, 2, _nt,nbins)
-        for j in 1:nbins
-            idx0 = j
-            idx1 = searchsortedlast(bins, bins[j]+window)
-            for j2 in 1:_nt
-                idxq = searchsortedlast(bins, bins[idx1]+Δt)
-                idxs = searchsortedlast(bins, bins[idx0]+_rtime[j2])
-                qidx[1,j2,j] = idxq
-                qidx[2,j2,j] = idxs
-            end
+        qidx = Vector{UnitRange{Int64}}(undef, _nt)
+        idx0 = 1
+        idx1 = searchsortedfirst(bins, bins[idx0]+window)
+        idxq = searchsortedfirst(bins, bins[idx1]+Δt)
+        # length of transition period, from window + Δt
+        for j2 in 1:_nt
+            idxs = searchsortedlast(bins, bins[idx0]+_rtime[j2])
+            qidx[j2] = 1:(idxs-idxq+1)
+            nnmax = max(nnmax, length(qidx[j2]))
+        end
+        if get(kvs, :do_shuffle, false)
+            qidxs = shuffle_reaction_times(qidx)
+        else
+            qidxs = qidx
         end
         # compute M and V for the actual transition period
         idxt = searchsortedfirst(bins, tt) 
-        MM[offset+1:offset + _nt,idxt], V = get_projected_energy(X, qidx[:,:,idxt],_label)
+        idxp = searchsortedfirst(bins, tt-Δt-window)
+        MM[offset+1:offset + _nt,idxp], V = get_projected_energy(X, map(x->x .+ (idxt-1), qidxs),_label)
         for j in 1:size(X,1)
             idx0 = j
             idx1 = searchsortedlast(bins, bins[j]+window)
+            idxq = searchsortedlast(bins, bins[idx1]+Δt)
             # project onto FA components
             y = permutedims(dropdims(sum(X[idx0:idx1,:,:],dims=1),dims=1))
             try
@@ -171,29 +180,29 @@ function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, windo
                 Z[offset+1:offset+_nt,j]  .= z
             catch ee
                 @warn "Error encountered in FA for bin $j session $session"
-                continue
             end
             # compute the average state at the beginning and at the end of the transition period
             # path length
+            # shift the transition period
+            _qidx = map(x->x .+ (idxq-1), qidxs)
             for j2 in 1:_nt
                 l = findfirst(_label[j2].==ulabel)
-                idxq = searchsortedlast(bins, bins[idx1]+Δt)
-                idxs = searchsortedlast(bins, bins[idx0]+_rtime[j2])
-                if idxs >= length(bins)
+                _idxv = _qidx[j2]
+                if last(_idxv) >= length(bins)
                     continue
                 end
                 # transition period
-                Xs = X[idxq:idxs,j2,:]
+                Xs = X[_idxv,j2,:]
                 if use_midpoint
                     # midpoint
-                    ip = div(idxs-idxq+1,2)+1
+                    ip = div(length(_idxv),2)+1
                 else
                     # point of high energy
                     ee = dropdims(sum(abs2, Xs,dims=2),dims=2)
                     ip = argmax(ee)
                 end
                 if smooth_window !== nothing
-                    Xs = mapslices(x->Utils.gaussian_smooth(x, bins[idxq:idxs], smooth_window), Xs, dims=1)
+                    Xs = mapslices(x->Utils.gaussian_smooth(x, bins[_idxv], smooth_window), Xs, dims=1)
                 end
                 L[offset+j2,j] = compute_triangular_path_length(Xs, ip)
                 # energy
@@ -208,6 +217,7 @@ function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, windo
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
+    @show idxsm nnmax
     Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], rt, label, ncells, bins, sessionidx
 end
 
@@ -241,6 +251,27 @@ function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     β,Δβ, pv, r²
 end
 
+function shuffle_reaction_times(qidx::Vector{UnitRange{Int64}})
+    ntrials = size(qidx,2)
+    nn = [_q[2] - _q[1] .+ 1 for _q in qidx]
+    qidxs = Vector{Vector{Int64}}(undef, ntrials)
+    for i in 1:ntrials
+        k = 0
+        for j in shuffle(1:ntrials)
+            if i == j
+                continue
+            end
+            if nn[j] >= nn[i]
+                k = j
+                break
+            end
+        end
+        bidx = shuffle(qidx[k][1]:qidx[k][2])[1:nn[i]]
+        sort!(bidx)
+        qidxs[i] = bidx
+    end
+    qidxs
+end
 """
 Compute
 """
@@ -252,6 +283,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
     pv = fill(NaN, nbins)
     r² = fill(NaN, nbins)
     if shuffle_trials
+        # TODO use a more sophisticaed shuffle here
         sidx = shuffle(trialidx)
     else
         sidx = trialidx
