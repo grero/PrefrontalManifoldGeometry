@@ -288,7 +288,6 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
     pv = fill(NaN, nbins)
     r² = fill(NaN, nbins)
     if shuffle_trials
-        # TODO use a more sophisticaed shuffle here
         sidx = shuffle(trialidx)
     else
         sidx = trialidx
