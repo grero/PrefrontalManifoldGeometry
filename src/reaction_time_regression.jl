@@ -153,7 +153,12 @@ function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, windo
             nnmax = max(nnmax, length(qidx[j2]))
         end
         if get(kvs, :do_shuffle, false)
-            qidxs = shuffle_reaction_times(qidx)
+            # shuffle per location
+            qidxs = Vector{Vector{Int64}}(undef, _nt)
+            for l in ulabel
+                _tidx = findall(_label.==l)
+                qidxs[_tidx] = shuffle_reaction_times(qidx[_tidx])
+            end
         else
             qidxs = qidx
         end
