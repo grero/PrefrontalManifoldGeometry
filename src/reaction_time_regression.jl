@@ -91,12 +91,12 @@ function balance_num_trials(label::Vector{Int64}, args...)
     oargs
 end
 
-"""
-    get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,align=:mov, realign=true, raw=false, do_shuffle=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, kvs...)
-
-Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
-"""
 function get_regression_data(subject;area="fef", align=:cue, raw=false, kvs...)
+    ppsth,tlabels,trialidx, rtimes = load_data(subject;area=area,align=align,raw=raw)
+    get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;kvs...)
+end
+
+function load_data(subject;area="fef",align=:cue, raw=false,kvs...)
     if subject == "M"
         # this is model data
         fname = joinpath("data","ppsth_model_cue.jld2")
@@ -106,10 +106,15 @@ function get_regression_data(subject;area="fef", align=:cue, raw=false, kvs...)
         fname = joinpath("data","ppsth_$(area)_$(align).jld2")
     end
     ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes")
-    get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;kvs...)
+    return ppsth,tlabels,trialidx,rtimes
 end
 
-function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::String;rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,realign=true, do_shuffle=false, do_shuffle_responses=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
+"""
+    get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,align=:mov, realign=true, raw=false, do_shuffle=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, kvs...)
+
+Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
+"""
+function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::String;rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
 
 	# Per session, per target regression, combine across to compute rv
 	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
