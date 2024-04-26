@@ -526,56 +526,9 @@ function plot_fef_dlpfc_r²(;redo=false, subjects=["J","W"], sessions::Union{Vec
     end
 end
 
-function plot_path_length_regression_with_shuffles(;subjects=["J","W"],use_midpoint=false,nruns=100, tt=65.0,include_energy=true,kvs...)
-    q = UInt32(0)
-    q = crc32c(string((:use_midpoint=>use_midpoint)),q)
-    q = crc32c(string((:include_energy=>include_energy)),q)
-    for k in kvs
-        q = crc32c(string(k),q)
-    end
-    qs = string(q, base=16)
-    fname = "path_length_regression_$(qs).jld2"
-    if isfile(fname)
-        qdata = JLD2.load(fname)
-    else
-        qdata = Dict()
-        for subject in ["J","W"]
-            Z,L,EE, lrt,label,ncells,bins = get_regression_data(subject;area="fef", align=:cue,raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,smooth_window=nothing,use_midpoint=use_midpoint);
-            if subject == "J"
-                tidx = findall(label.!=9)
-            else
-                tidx = 1:size(Z,1)
-            end
-            xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
-            ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
-            if include_energy
-                vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], xpos, ypos,ncells[tidx]]
-                exclude_pairs = [(4,5)]
-            else
-                vars = [lrt[tidx], L[tidx,:], Z[tidx,:], xpos, ypos,ncells[tidx]]
-                exclude_pairs = [(3,4)]
-            end
-            βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
-            βfef_S,Δβfef_S,pvfef_S,r²fef_S = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs,shuffle_trials=true)
+function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W"],nruns=100, tt=65.0,kvs...)
+    qdata = compute_regression(;redo=redo, subjects=subjects, tt=tt, nruns=nruns, kvs...)
 
-            Z,L,EE,lrt,label,ncells,bins = get_regression_data(subject;area="dlpfc", align=:cue,raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,smooth_window=nothing, use_midpoint=use_midpoint);
-            if include_energy
-                vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], xpos, ypos,ncells[tidx]]
-                exclude_pairs = [(4,5)]
-            else
-                vars = [lrt[tidx], L[tidx,:], Z[tidx,:], xpos, ypos,ncells[tidx]]
-                exclude_pairs = [(3,4)]
-            end
-            βdlpfc,Δβdlpfc,pvdlpfc,r²dlpfc = compute_regression(trialidx, vars...;exclude_pairs=exclude_pairs)
-            βdlpfc_S,Δβdlpfc_S,pvdlpfc_S,r²dlpfc_S = compute_regression(trialidx, vars...;exclude_pairs=exclude_pairs,shuffle_trials=true)
-            qdata[subject] = Dict("βfef"=>βfef, "Δβfef"=>Δβfef,"pvfef"=>pvfef, "r²fef"=>r²fef,
-                                  "βfef_shuffled"=>βfef_S, "Δβfef_shuffled"=>Δβfef_S,"pvfef_shuffled"=>pvfef_S, "r²fef_shuffled"=>r²fef_S,
-                                  "βdlpfc"=>βdlpfc, "Δβdlpfc"=>Δβdlpfc, "pvdlpfc"=>pvdlpfc, "r²dlpfc"=>r²dlpfc,
-                                  "βdlpfc_shuffled"=>βdlpfc_S, "Δβdlpfc_shuffled"=>Δβdlpfc_S, "pvdlpfc_shuffled"=>pvdlpfc_S, "r²dlpfc_shuffled"=>r²dlpfc_S,
-                                  "bins"=>bins,"trialidx"=>trialidx)
-        end
-        JLD2.save(fname, qdata)
-    end
     colors = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     fcolors = [RGB(0.5 + 0.5*c.r, 0.5+0.5*c.g, 0.5+0.5*c.b) for c in colors]
     with_theme(PlotUtils.plot_theme) do
@@ -585,7 +538,9 @@ function plot_path_length_regression_with_shuffles(;subjects=["J","W"],use_midpo
             vlines!(ax, tt,color="black")
         end
         for (ii,subject) in enumerate(subjects)
-            bins,r²fef, r²dlpfc,βfef, βfef_S,βdlpfc, βdlpfc_S = [qdata[subject][k] for k in ["bins", "r²fef","r²dlpfc","βfef","βfef_shuffled","βdlpfc","βdlpfc_shuffled"]]
+            bins = qdata[subject]["bins"]
+            r²fef, βfef, βfef_S = [qdata[subject]["fef"][k] for k in ["r²","β","β_shuffle"]]
+            r²dlpfc, βdlpfc, βdlpfc_S = [qdata[subject]["dlpfc"][k] for k in ["r²","β","β_shuffle"]]
             bidx = findall(isfinite, dropdims(mean(r²fef,dims=2),dims=2))
             idxtt = searchsortedfirst(bins,tt)
             ax1 = axes[(ii-1)*2+1]
@@ -609,7 +564,7 @@ function plot_path_length_regression_with_shuffles(;subjects=["J","W"],use_midpo
             band!(ax2, bins[bidx], lower_dlpfc[:], upper_dlpfc[:],color=(colors[2],0.5))
             lines!(ax2, bins[bidx], mid_dlpfc[:], label="dlpfc",color=colors[2])
         end
-        axislegend(axes[3], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
+        axislegend(axes[end-1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
         for ax in axes[1:end-1]
             ax.xticklabelsvisible = false
         end
