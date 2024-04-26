@@ -96,13 +96,20 @@ end
 
 Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
 """
-function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,align=:cue, realign=true, raw=false, do_shuffle=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
-    if raw
+function get_regression_data(subject;area="fef", align=:cue, raw=false, kvs...)
+    if subject == "M"
+        # this is model data
+        fname = joinpath("data","ppsth_model_cue.jld2")
+    elseif raw
         fname = joinpath("data","ppsth_$(area)_$(align)_raw.jld2")
     else 
         fname = joinpath("data","ppsth_$(area)_$(align).jld2")
     end
     ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes")
+    get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;kvs...)
+end
+
+function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::String;rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,realign=true, do_shuffle=false, do_shuffle_responses=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
 
 	# Per session, per target regression, combine across to compute rv
 	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
@@ -159,6 +166,8 @@ function get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, windo
                 _tidx = findall(_label.==l)
                 qidxs[_tidx] = shuffle_reaction_times(qidx[_tidx])
             end
+        elseif do_shuffle_responses
+            qidxs = shuffle(qidx)
         else
             qidxs = qidx
         end
@@ -363,7 +372,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false, kvs...)
     q = UInt32(0)
     if subjects != ["J","W"]
         q = crc32c(string((:subjects=>subjects)),q)
@@ -373,6 +382,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     end
     q = crc32c(string(:varnames=>varnames),q)
     q = crc32c(string((:use_midpoint=>use_midpoint)),q)
+    if shuffle_responses
+        q = crc32c(string((:shuffle_responses=>true)),q)
+    end
     for k in kvs
         q = crc32c(string(k),q)
     end
@@ -412,7 +424,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                         push!(use_varnames, vv)
                     end
                 end
-                exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
+                if all(in(use_varnames).([:xpos, :ypos]))
+                    exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
+                else
+                    exclude_pairs = Tuple{Int64, Int64}[]
+                end
                 if "trialix" in keys(qdata[subject])
                     trialidx = qdata[subject]["trialidx"]
                     βfef,Δβfef,pvfef,r²fef = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs)
@@ -420,11 +436,24 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
                     qdata[subject]["trialidx"] = trialidx
                 end
+                trialidx = qdata[subject]["trialidx"]
                 qdata[subject]["bins"] = bins
                 qdata[subject]["sessionidx"] = sessionidx
-                βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
-                βfef_S,Δβfef_S,pvfef_S,r²fef_S = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs,shuffle_trials=true)
-                qdata[subject][area] = Dict("β"=>βfef, "β_shuffle"=>βfef_S,"pvalue"=>pvfef,"r²"=>r²fef,"r²_shuffled"=>r²fef_S)
+                # shuffle
+                β_S = fill(0.0, size(βfef)...)
+                r²_S = fill(0.0, size(r²fef)...)
+                do_shuffle = !shuffle_responses 
+                do_shuffle_responses = shuffle_responses 
+                for r in 1:nruns
+                    Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(subject;area=area, raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,kvs...);
+                    allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],ncells=ncells[tidx], xpos=xpos, ypos=ypos)
+                    vars = Any[lrt[tidx]]
+                    for vv in use_varnames
+                        push!(vars, allvars[vv])
+                    end
+                    β_S[:,:,r],_,_,r²_S[:,r] = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false)
+                end
+                qdata[subject][area] = Dict("β"=>βfef, "β_shuffle"=>β_S,"pvalue"=>pvfef,"r²"=>r²fef,"r²_shuffled"=>r²_S)
             end
         end
         JLD2.save(fname, qdata)
