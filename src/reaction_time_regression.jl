@@ -607,8 +607,6 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
             r²dlpfc, βdlpfc, βdlpfc_S = [qdata[subject]["dlpfc"][k] for k in ["r²","β","β_shuffle"]]
             bidx = findall(isfinite, dropdims(mean(r²fef,dims=2),dims=2))
             idxtt = searchsortedfirst(bins,tt)
-            ax1 = axes[(ii-1)*2+1]
-            ax2 = axes[ii*2]
 
             lower_fef,mid_fef, upper_fef = [mapslices(x->percentile(x,pc), βfef[1,bidx,:],dims=2) for pc in [5,50,95]]
             lower_fef_S,mid_fef_S, upper_fef_S = [mapslices(x->percentile(x,pc), βfef_S[1,bidx,:],dims=2) for pc in [5,50,95]]
