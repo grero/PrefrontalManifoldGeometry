@@ -231,7 +231,6 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::String;rtmin
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
-    @show idxsm nnmax
     Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], rt, label, ncells, bins, sessionidx
 end
 
