@@ -265,8 +265,8 @@ function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
 end
 
 function shuffle_reaction_times(qidx::Vector{UnitRange{Int64}})
-    ntrials = size(qidx,2)
-    nn = [_q[2] - _q[1] .+ 1 for _q in qidx]
+    ntrials = length(qidx)
+    nn = length.(qidx)
     qidxs = Vector{Vector{Int64}}(undef, ntrials)
     for i in 1:ntrials
         k = 0
@@ -279,9 +279,13 @@ function shuffle_reaction_times(qidx::Vector{UnitRange{Int64}})
                 break
             end
         end
-        bidx = shuffle(qidx[k][1]:qidx[k][2])[1:nn[i]]
-        sort!(bidx)
-        qidxs[i] = bidx
+        if k > 0
+            bidx = shuffle(qidx[k])[1:nn[i]]
+            sort!(bidx)
+            qidxs[i] = bidx
+        else
+            qidxs[i] = qidx[i]
+        end
     end
     qidxs
 end
