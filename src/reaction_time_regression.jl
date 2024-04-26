@@ -420,7 +420,10 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         for subject in subjects 
             qdata[subject] = Dict()
             for area in ["fef","dlpfc"]
-                Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(subject;area=area, raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, kvs...);
+                # load the data here so we don't have to do it more than once
+                ppsth,tlabels,trialidx, rtimes = load_data(subject;area=area,raw=true, kvs...)
+                # TODO: Do the shuffling here (hic misce)
+                Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, kvs...);
                 if subject == "J"
                     tidx = findall(label.!=9)
                 else
