@@ -593,9 +593,13 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
     fcolors = [RGB(0.5 + 0.5*c.r, 0.5+0.5*c.g, 0.5+0.5*c.b) for c in colors]
     with_theme(PlotUtils.plot_theme) do
         fig = Figure(size=(500,500))
-        axes = [Axis(fig[i,1]) for i in 1:2*length(subjects)]
+        if show_zscore
+            axes = [Axis(fig[i,1]) for i in 1:length(subjects)]
+        else
+            axes = [Axis(fig[i,1]) for i in 1:2*length(subjects)]
+        end
         for ax in axes
-            vlines!(ax, tt,color="black")
+            vlines!(ax, [0.0, tt],color=[:black, :gray])
         end
         for (ii,subject) in enumerate(subjects)
             bins = qdata[subject]["bins"]
@@ -611,20 +615,41 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
             lower_dlpfc,mid_dlpfc, upper_dlpfc = [mapslices(x->percentile(x,pc), βdlpfc[1,bidx,:],dims=2) for pc in [5,50,95]]
             lower_dlpfc_S,mid_dlpfc_S, upper_dlpfc_S = [mapslices(x->percentile(x,pc), βdlpfc_S[1,bidx,:],dims=2) for pc in [5,50,95]]
             
-            ax1.title = "Monkey $(subject)"
-            band!(ax1, bins[bidx], lower_fef_S[:], upper_fef_S[:],color=(:black,0.5))
-            lines!(ax1, bins[bidx], mid_fef_S[:], label="Shuffled",color=:black)
+            if show_zscore
+                # compute a `z-score`, that is the mean of the actual data
+                ax1 = axes[ii]
+                ax1.title = "Monkey $(subject)"
+                for (β,βs, color,area) in zip([βfef,βdlpfc],[βfef_S,βdlpfc_S],[PlotUtils.fef_color, PlotUtils.dlpfc_color],["FEF","DLPFC"])
+                    μ = dropdims(mean(β[1,bidx,:],dims=2),dims=2)
+                    μs = dropdims(mean(βs[1,bidx,:],dims=2),dims=2)
+                    σs = dropdims(std(βs[1,bidx,:],dims=2),dims=2)
+                    zs = (μ - μs)./σs
+                    lines!(ax1, bins[bidx], zs, label=area, color=color)
+                    ax1.ylabel = "Zscored β"
+                end
+            else
+                ax1 = axes[(ii-1)*2+1]
+                ax2 = axes[ii*2]
+                ax1.title = "Monkey $(subject)"
+                band!(ax1, bins[bidx], lower_fef_S[:], upper_fef_S[:],color=(:black,0.5))
+                lines!(ax1, bins[bidx], mid_fef_S[:], label="Shuffled",color=:black)
 
-            band!(ax1, bins[bidx], lower_fef[:], upper_fef[:],color=(colors[1],0.5))
-            lines!(ax1, bins[bidx], mid_fef[:], label="FEF",color=colors[1])
+                band!(ax1, bins[bidx], lower_fef[:], upper_fef[:],color=(colors[1],0.5))
+                lines!(ax1, bins[bidx], mid_fef[:], label="FEF",color=colors[1])
 
-            band!(ax2, bins[bidx], lower_dlpfc_S[:], upper_dlpfc_S[:],color=(:black,0.5))
-            lines!(ax2, bins[bidx], mid_dlpfc_S[:], label="Shuffled",color=:black)
+                band!(ax2, bins[bidx], lower_dlpfc_S[:], upper_dlpfc_S[:],color=(:black,0.5))
+                lines!(ax2, bins[bidx], mid_dlpfc_S[:], label="Shuffled",color=:black)
 
-            band!(ax2, bins[bidx], lower_dlpfc[:], upper_dlpfc[:],color=(colors[2],0.5))
-            lines!(ax2, bins[bidx], mid_dlpfc[:], label="dlpfc",color=colors[2])
+                band!(ax2, bins[bidx], lower_dlpfc[:], upper_dlpfc[:],color=(colors[2],0.5))
+                lines!(ax2, bins[bidx], mid_dlpfc[:], label="dlpfc",color=colors[2])
+            end
         end
-        axislegend(axes[end-1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
+        if show_zscore
+            linkaxes!(axes...)
+            axislegend(axes[1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
+        else
+            axislegend(axes[1:end-1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
+        end
         for ax in axes[1:end-1]
             ax.xticklabelsvisible = false
         end
