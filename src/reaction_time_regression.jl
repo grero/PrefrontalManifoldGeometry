@@ -62,7 +62,7 @@ function get_projected_energy(X::Array{T,3}, qidx::Vector{T2}, V::Matrix{Float64
     MM
 end
 
-function get_projected_energy(X::Matrix{Float64}, qidx::UnitRange{Int64},V)
+function get_projected_energy(X::Matrix{Float64}, qidx::AbstractVector{Int64},V)
     Xs = X[qidx[1]:qidx[2],:]
     get_projected_energy(Xs, V)
 end
