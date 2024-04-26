@@ -375,7 +375,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, kvs...)
     q = UInt32(0)
     if subjects != ["J","W"]
         q = crc32c(string((:subjects=>subjects)),q)
@@ -393,6 +393,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     end
     qs = string(q, base=16)
     fname = "path_length_regression_$(qs).jld2"
+    if check_only
+        return isfile(fname)
+    end
     if isfile(fname) && redo == false
         qdata = JLD2.load(fname)
     else
