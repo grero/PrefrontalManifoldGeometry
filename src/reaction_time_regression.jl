@@ -280,7 +280,7 @@ end
 """
 Compute
 """
-function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(Z,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],kvs...)
+function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],kvs...)
     nbins = size(L,2)
     nvars = length(args)+1
     β = fill(NaN, nvars, nbins)
