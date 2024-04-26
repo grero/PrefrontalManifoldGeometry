@@ -405,6 +405,12 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     if shuffle_responses
         q = crc32c(string((:shuffle_responses=>true)),q)
     end
+    if shuffle_time
+        q = crc32c(string((:shuffle_time=>true)),q)
+    end
+    if shuffle_trials
+        q = crc32c(string((:shuffle_trials=>true)),q)
+    end
     for k in kvs
         q = crc32c(string(k),q)
     end
@@ -468,10 +474,30 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 # shuffle
                 β_S = fill(0.0, size(βfef)...)
                 r²_S = fill(0.0, size(r²fef)...)
-                do_shuffle = !shuffle_responses 
-                do_shuffle_responses = shuffle_responses 
+                if shuffle_responses
+                    do_shuffle_responses = true
+                    do_shuffle = false
+                    do_shuffle_time = false
+                    do_shuffle_trials = false
+                elseif shuffle_time
+                    do_shuffle_time = true
+                    do_shuffle = false
+                    do_shuffle_responses = false
+                    do_shuffle_trials = false
+                elseif shuffle_trials
+                    do_shuffle_trials = true
+                    do_shuffle = false
+                    do_shuffle_responses = false
+                    do_shuffle_time = false
+                else
+                    do_shuffle = true
+                    do_shuffle_responses = false
+                    do_shuffle_time = false
+                    do_shuffle_trials = false
+                end
+
                 for r in 1:nruns
-                    Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(subject;area=area, raw=true, mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,kvs...);
+                    Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,kvs...);
                     allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],ncells=ncells[tidx], xpos=xpos, ypos=ypos)
                     vars = Any[lrt[tidx]]
                     for vv in use_varnames
