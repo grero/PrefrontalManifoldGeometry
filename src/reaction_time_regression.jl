@@ -575,8 +575,19 @@ function plot_fef_dlpfc_r²(;redo=false, subjects=["J","W"], sessions::Union{Vec
     end
 end
 
-function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W"],nruns=100, tt=65.0,kvs...)
-    qdata = compute_regression(;redo=redo, subjects=subjects, tt=tt, nruns=nruns, kvs...)
+function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W"],nruns=100, tt=65.0,show_zscore=false, kvs...)
+    # a bit of a hack; test if files have already been computed with individual subjects first
+    if subjects == ["J","W"] || subjects == ["W","J"]
+        if !compute_regression(;subjects=subjects, tt=tt, nruns=nruns, check_only=true, kvs...)
+            qdata = Dict()
+            for subject in subjects
+                _qdata = compute_regression(;redo=redo, subjects=[subject],tt=tt,nruns=nruns, kvs...)
+                qdata[subject] = _qdata[subject]
+            end
+        end
+    else 
+        qdata = compute_regression(;redo=redo, subjects=subjects, tt=tt, nruns=nruns, kvs...)
+    end
 
     colors = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     fcolors = [RGB(0.5 + 0.5*c.r, 0.5+0.5*c.g, 0.5+0.5*c.b) for c in colors]
