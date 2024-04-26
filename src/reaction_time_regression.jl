@@ -653,6 +653,7 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
         for ax in axes[1:end-1]
             ax.xticklabelsvisible = false
         end
+        axes[end].xlabel = "Time from go-cue"
         fig
     end
 end
