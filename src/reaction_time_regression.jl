@@ -142,13 +142,25 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::String;rtmin
     warnfirst = true
 	for (ii, session) in enumerate(sessions)
 		X, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
+        _ncells = size(X,3)
+        nbins = size(X,1)
+        _nt = length(_rtime)
+        if do_shuffle_time
+            for k1 in axes(X,2)
+                bidx = shuffle(1:nbins)
+                for k2 in axes(X,3)
+                    X[:,k1,k2] = X[bidx,k1,k2]
+                end
+            end
+        elseif do_shuffle_trials
+            tridx = shuffle(1:_nt)
+            X = X[:,tridx,:]
+        end
         ulabel = unique(_label)
         sort!(ulabel)
         nlabel = length(ulabel)
         nn = countmap(_label)
-        _ncells = size(X,3)
         _lrt = log.(_rtime)
-        _nt = length(_rtime)
         #if smooth_window !== nothing
         #    X2 = mapslices(x->Utils.gaussian_smooth(x,bins,smooth_window), X, dims=1)
         #else
