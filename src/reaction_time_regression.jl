@@ -96,7 +96,7 @@ function get_regression_data(subject;area="fef", align=:cue, raw=false, kvs...)
     get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;kvs...)
 end
 
-function load_data(subject;area="fef",align=:cue, raw=false,kvs...)
+function load_data(subject::Union{String,Nothing}=nothing;area="fef",align=:cue, raw=false,kvs...)
     if subject == "M"
         # this is model data
         fname = joinpath("data","ppsth_model_cue.jld2")
@@ -114,12 +114,16 @@ end
 
 Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
 """
-function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::String;rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
+function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
 
 	# Per session, per target regression, combine across to compute rv
 	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
     subjects = Utils.DPHT.get_level_name.("subject", ppsth.cellnames)
-    cidx = subjects .== subject
+    if subject !== nothing
+        cidx = subjects .== subject
+    else
+        cidx = 1:length(all_sessions)
+    end
 	sessions = unique(all_sessions[cidx])
 	rtp = fill(0.0, 0, size(ppsth.counts,1))
 	rt = fill(0.0, 0)
@@ -264,10 +268,10 @@ function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     nruns = size(trialidx,2)
     nt = size(args[1],1)
     tidx = rand(1:nt,nt)
-    _β,_Δβ, _pv, _r² = compute_regression(args...;trialidx=trialidx[:,1])
+    _β,_Δβ, _pv, _r²,varidx = compute_regression(args...;trialidx=trialidx[:,1],kvs...)
     nvars,nbins = size(_β)
     β = fill(0.0, nvars,nbins,nruns)
-    Δβ = fill(0.0, nvars,nbins,nruns)
+    Δβ = fill(0.0, nvars-1,nbins,nruns)
     pv = fill(0.0, nbins,nruns)
     r² = fill(0.0, nbins, nruns)
     β[:,:,1] = _β
@@ -276,9 +280,9 @@ function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     r²[:,1] = _r² 
     for i in 2:nruns
         tidx = rand(1:nt,nt)
-        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i] = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
+        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],_ = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
     end
-    β,Δβ, pv, r²
+    β,Δβ, pv, r²,varidx
 end
 
 function shuffle_reaction_times(qidx::Vector{UnitRange{Int64}})
@@ -309,10 +313,13 @@ end
 """
 Compute
 """
-function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],kvs...)
+function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, kvs...)
     nbins = size(L,2)
     nvars = length(args)+1
-    β = fill(NaN, nvars, nbins)
+    if save_all_β
+        nvars += div(nvars*(nvars-1),2) - length(exclude_pairs)
+    end
+    β = fill(NaN, nvars+1, nbins)
     Δβ = fill(NaN, nvars, nbins)
     pv = fill(NaN, nbins)
     r² = fill(NaN, nbins)
@@ -321,6 +328,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
     else
         sidx = trialidx
     end
+    varidx = nothing
     for i in axes(L,2) 
         do_skip = false
         for Z in [L,args...]
@@ -357,13 +365,19 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         F /= rss2/(n-p2)
         pv[i] = 1.0 - cdf(FDist(p2-p1, n-p2), F)
         r²[i] = lreg_with_L.r²
-        β[1,i] = lreg_with_L.β[1]
-        Δβ[1,i] = lreg_with_L.Δβ[1]
-        vidx = findall(ii->(length(ii)==2)&&((ii[1]==1)||(ii[2]==1)), lreg_with_L.varidx)
-        β[2:end,i] = lreg_with_L.β[vidx]
-        Δβ[2:end,i] = lreg_with_L.Δβ[vidx]
+        if save_all_β
+            β[:,i] .= lreg_with_L.β
+            Δβ[:,i] .= lreg_with_L.Δβ
+            varidx = lreg_with_L.varidx
+        else
+            β[1,i] = lreg_with_L.β[1]
+            Δβ[1,i] = lreg_with_L.Δβ[1]
+            vidx = findall(ii->(length(ii)==2)&&((ii[1]==1)||(ii[2]==1)), lreg_with_L.varidx)
+            β[2:end,i] = lreg_with_L.β[vidx]
+            Δβ[2:end,i] = lreg_with_L.Δβ[vidx]
+        end
     end
-    β,Δβ, pv, r²
+    β,Δβ, pv, r², varidx
 end
 
 function plot_regression(β, Δβ,pv,r²,bins)
@@ -392,7 +406,8 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, kvs...)
+    # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     if subjects != ["J","W"]
         q = crc32c(string((:subjects=>subjects)),q)
@@ -411,6 +426,15 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     if shuffle_trials
         q = crc32c(string((:shuffle_trials=>true)),q)
     end
+    if combine_subjects
+        q = crc32c(string((:combine_subjects=>true)),q)
+    end
+    if nruns != 100
+        q = crc32c(string((:nruns=>nruns)),q)
+    end
+    if save_all_β
+        q = crc32c(string((:save_all_β=>true)),q)
+    end
     for k in kvs
         q = crc32c(string(k),q)
     end
@@ -423,11 +447,23 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         qdata = JLD2.load(fname)
     else
         qdata = Dict()
-        for subject in subjects 
-            qdata[subject] = Dict()
-            for area in ["fef","dlpfc"]
+        bins = Float64[]
+        for area in ["fef","dlpfc"]
+            qdata[area] = Dict()
+            Za = Vector{Matrix{Float64}}(undef, length(subjects))
+            La = Vector{Matrix{Float64}}(undef, length(subjects))
+            EEa = Vector{Matrix{Float64}}(undef, length(subjects))
+            MMa = Vector{Matrix{Float64}}(undef, length(subjects))
+            ncellsa = Vector{Vector{Int64}}(undef, length(subjects))
+            xposa = Vector{Vector{Float64}}(undef, length(subjects))
+            yposa = Vector{Vector{Float64}}(undef, length(subjects))
+            lrta = Vector{Vector{Float64}}(undef, length(subjects))
+            sessionidxa = Vector{Vector{Int64}}(undef, length(subjects))
+
+            ppsth,tlabels,trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
+
+            for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
-                ppsth,tlabels,trialidx, rtimes = load_data(subject;area=area,raw=true, kvs...)
                 # TODO: Do the shuffling here (hic misce)
                 Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, kvs...);
                 if subject == "J"
@@ -440,73 +476,134 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 end
                 xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
                 ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
-                allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],ncells=ncells[tidx], xpos=xpos, ypos=ypos)
-                # exclude ncells if we are only doing one session
-                #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
-                vars = Any[lrt[tidx]]
-                use_varnames = Symbol[]
-                for vv in varnames
-                    if vv == :ncells 
-                        if length(unique(ncells[tidx])) > 1
-                            push!(vars, ncells[tidx])
-                            push!(use_varnames, :ncells)
-                        end
-                    else
-                        push!(vars, allvars[vv])
-                        push!(use_varnames, vv)
-                    end
-                end
-                if all(in(use_varnames).([:xpos, :ypos]))
-                    exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
-                else
-                    exclude_pairs = Tuple{Int64, Int64}[]
-                end
-                if "trialix" in keys(qdata[subject])
-                    trialidx = qdata[subject]["trialidx"]
-                    βfef,Δβfef,pvfef,r²fef = compute_regression(trialidx,vars...;exclude_pairs=exclude_pairs)
-                else
-                    βfef,Δβfef,pvfef,r²fef,trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs)
-                    qdata[subject]["trialidx"] = trialidx
-                end
-                trialidx = qdata[subject]["trialidx"]
-                qdata[subject]["bins"] = bins
-                qdata[subject]["sessionidx"] = sessionidx
-                # shuffle
-                β_S = fill(0.0, size(βfef)...)
-                r²_S = fill(0.0, size(r²fef)...)
-                if shuffle_responses
-                    do_shuffle_responses = true
-                    do_shuffle = false
-                    do_shuffle_time = false
-                    do_shuffle_trials = false
-                elseif shuffle_time
-                    do_shuffle_time = true
-                    do_shuffle = false
-                    do_shuffle_responses = false
-                    do_shuffle_trials = false
-                elseif shuffle_trials
-                    do_shuffle_trials = true
-                    do_shuffle = false
-                    do_shuffle_responses = false
-                    do_shuffle_time = false
-                else
-                    do_shuffle = true
-                    do_shuffle_responses = false
-                    do_shuffle_time = false
-                    do_shuffle_trials = false
-                end
-
-                for r in 1:nruns
-                    Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,kvs...);
-                    allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],ncells=ncells[tidx], xpos=xpos, ypos=ypos)
-                    vars = Any[lrt[tidx]]
-                    for vv in use_varnames
-                        push!(vars, allvars[vv])
-                    end
-                    β_S[:,:,r],_,_,r²_S[:,r] = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false)
-                end
-                qdata[subject][area] = Dict("β"=>βfef, "β_shuffle"=>β_S,"pvalue"=>pvfef,"r²"=>r²fef,"r²_shuffled"=>r²_S)
+                Za[ss] = Z[tidx,:]
+                La[ss] = L[tidx,:]
+                EEa[ss] = EE[tidx,:]
+                MMa[ss] = MM[tidx,:]
+                ncellsa[ss] = ncells[tidx]
+                xposa[ss] = xpos
+                yposa[ss] = ypos
+                lrta[ss] = lrt[tidx]
+                sessionidxa[ss] = sessionidx[tidx]
             end
+            # concatenate across trials
+            sessionidx = cat(sessionidxa...,dims=1)
+            Z = cat(Za...,dims=1)
+            L = cat(La...,dims=1)
+            EE = cat(EEa..., dims=1)
+            MM = cat(MMa..., dims=1)
+            ncells = cat(ncellsa..., dims=1)
+            xpos = cat(xposa..., dims=1)
+            ypos = cat(yposa..., dims=1)
+            lrt = cat(lrta..., dims=1)
+            allvars = (Z=Z, L=L,EE=EE,MM=MM,ncells=ncells, xpos=xpos, ypos=ypos)
+            # exclude ncells if we are only doing one session
+            #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
+            vars = Any[lrt]
+            use_varnames = Symbol[]
+            for vv in varnames
+                if vv == :ncells 
+                    if length(unique(ncells)) > 1
+                        push!(vars, ncells)
+                        push!(use_varnames, :ncells)
+                    end
+                else
+                    push!(vars, allvars[vv])
+                    push!(use_varnames, vv)
+                end
+            end
+            if all(in(use_varnames).([:xpos, :ypos]))
+                exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
+            else
+                exclude_pairs = Tuple{Int64, Int64}[]
+            end
+            if "trialix" in keys(qdata)
+                _trialidx = qdata["trialidx"]
+                βfef,Δβfef,pvfef,r²fef,varidx = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β)
+            else
+                βfef,Δβfef,pvfef,r²fef,varidx, _trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β)
+                qdata["trialidx"] = _trialidx
+            end
+            qdata[area]["β"] = βfef
+            qdata[area]["Δβ"] = Δβfef
+            qdata[area]["pvalue"] = pvfef
+            qdata[area]["r²"] = r²fef
+            qdata[area]["varidx"] = varidx
+
+            qdata["bins"] = bins
+            qdata["sessionidx"] = sessionidx
+            qdata["subjects"] = subjects
+            # shuffle
+            if shuffle_responses
+                do_shuffle_responses = true
+                do_shuffle = false
+                do_shuffle_time = false
+                do_shuffle_trials = false
+            elseif shuffle_time
+                do_shuffle_time = true
+                do_shuffle = false
+                do_shuffle_responses = false
+                do_shuffle_trials = false
+            elseif shuffle_trials
+                do_shuffle_trials = true
+                do_shuffle = false
+                do_shuffle_responses = false
+                do_shuffle_time = false
+            else
+                do_shuffle = true
+                do_shuffle_responses = false
+                do_shuffle_time = false
+                do_shuffle_trials = false
+            end
+
+            # since we want to shuffle within subject, the other loop is over runs
+            β = qdata[area]["β"]
+            r² = qdata[area]["r²"]
+            β_S = fill(0.0, size(β)...)
+            r²_S = fill(0.0, size(r²)...)
+            @showprogress for r in 1:nruns
+                for (ss, subject) in enumerate(subjects)
+                    _Z,_L,_EE, _MM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,kvs...);
+                    if subject == "J"
+                        tidx = findall(_label.!=9)
+                    else
+                        tidx = 1:size(_Z,1)
+                    end
+                    if sessions != :all
+                        tidx = tidx[findall(in(sessions), _sessionidx[tidx])]
+                    end
+                    _xpos = [p[1] for p in Utils.location_position[subject]][_label[tidx]]
+                    _ypos = [p[2] for p in Utils.location_position[subject][_label[tidx]]]
+                    Za[ss] = _Z[tidx,:]
+                    La[ss] = _L[tidx,:]
+                    EEa[ss] = _EE[tidx,:]
+                    MMa[ss] = _MM[tidx,:]
+                    ncellsa[ss] = _ncells[tidx]
+                    xposa[ss] = _xpos
+                    yposa[ss] = _ypos
+                    lrta[ss] = _lrt[tidx]
+                end
+                # need to again concatente
+                Z = cat(Za...,dims=1)
+                L = cat(La...,dims=1)
+                EE = cat(EEa..., dims=1)
+                MM = cat(MMa..., dims=1)
+                ncells = cat(ncellsa..., dims=1)
+                xpos = cat(xposa..., dims=1)
+                ypos = cat(yposa..., dims=1)
+                lrt = cat(lrta..., dims=1)
+                allvars = (Z=Z, L=L,EE=EE,MM=MM,ncells=ncells, xpos=xpos, ypos=ypos)
+
+                vars = Any[lrt]
+                for vv in use_varnames
+                    push!(vars, allvars[vv])
+                end
+                _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β)
+                β_S[:,:,r] .= _β
+                r²_S[:,r] .= _r²
+            end
+            qdata[area]["β_shuffle"]=β_S
+            qdata[area]["r²_shuffled"]=r²_S
         end
         JLD2.save(fname, qdata)
     end
