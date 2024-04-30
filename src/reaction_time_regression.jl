@@ -8,6 +8,7 @@ using Colors
 using Random
 using CRC32c
 using LinearAlgebra
+using ProgressMeter
 
 include("utils.jl")
 include("trajectories.jl")
@@ -285,12 +286,15 @@ function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     β,Δβ, pv, r²,varidx
 end
 
+# TODO: Does this work?
 function shuffle_reaction_times(qidx::Vector{UnitRange{Int64}})
     ntrials = length(qidx)
     nn = length.(qidx)
     qidxs = Vector{Vector{Int64}}(undef, ntrials)
     for i in 1:ntrials
         k = 0
+        # TODO: What to do with the largest nn? there will be no trials fulfilling the below
+        # Maybe just leave it unshuffled
         for j in shuffle(1:ntrials)
             if i == j
                 continue

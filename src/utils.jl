@@ -2,6 +2,7 @@ module Utils
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 using StatsBase
+using Distributions
 
 export get_session_data, location_position
 
@@ -24,7 +25,8 @@ location_idx = Dict("W" => [3,9,1,7],
 # physical location of each target on the screen, in (approximate) degress of visual angle
 location_position = Dict("W" => [(-10.0, -10.0),(10.0, -10.0), (-10.0, 10.0), (10.0, 10.0)],
 					     "J" => [(-10.0, 10.0),(-10.0, 0.0), (-10.0, -10.0),(0.0, 10.0),
-						         (0.0, -10.0),(10.0, 10.0),(10.0, 0.0),(10.0, -10.0)]
+						         (0.0, -10.0),(10.0, 10.0),(10.0, 0.0),(10.0, -10.0)],
+						 "M" => [(0.0,0.0)] # model data
 						)
 
 areas = Dict("J" => Dict("array01" => "vFEF",
@@ -121,7 +123,7 @@ end
 function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,cellidx::AbstractVector{Int64}=1:size(ppsth.counts,3);rtime_min=100.0,
                                                                         rtime_max=300.0,
                                                                         mean_subtract=false,
-                                                                        variance_stabilize=false)
+                                                                        variance_stabilize=false,kvs...)
 	all_sessions = DPHT.get_level_path.("session", ppsth.cellnames[cellidx])
 	sidx = findall(all_sessions.==session)
 	if isempty(sidx)
@@ -167,5 +169,26 @@ function get_normals(traj::Matrix{T}) where T <: Real
 	nn
 end
 
-export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals
+function gaussian_smooth(X::AbstractVector{T}, bins::AbstractVector{T},σ::T) where T <: Real
+    Δ = mean(diff(bins))
+    Y = fill(0.0, length(X))
+    for i in 1:length(bins)
+        l = bins[end]-bins[i]
+        u = bins[1]-bins[i]
+        N = Truncated(Normal(0.0, σ),min(l,u) ,max(l,u))
+        Y[i] = sum(pdf.(N, bins[i] .- bins).*X*Δ)
+    end
+    Y
 end
+
+function get_keyword_args(m::Method)
+	ms = string(m)
+	idx0 = findfirst(';', ms)
+	idx1 = findlast(')', ms)
+	sig = ms[idx0+1:idx1-1]
+	vars = filter(s->!occursin("...", s), lstrip.(split(ms[idx0:idx1],",")))
+end
+
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals
+
+end #module

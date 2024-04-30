@@ -1,5 +1,6 @@
 using LinearAlgebra
 using TimeResolvedDecoding
+using HypothesisTests
 using MultivariateStats
 using HDF5
 using JLD2
@@ -14,6 +15,33 @@ include("plot_utils.jl")
 # train a decoder to decode target location during delay 2
 # compare the weights for the two decoders
 # color points by preferred location, with perhaps saturation (or something) indicating the strength of tuning
+
+function get_tuning(fname::String,args...;kvs...)
+    ppstht, labelst, rtimest,trialidxt = JLD2.load(joinpath("data",fname), "ppsth", "labels","rtimes","trialidx")
+    get_tuning(ppstht, labelst, args...;kvs...)
+end
+
+function get_tuning(ppsth, labels, window::Tuple{Float64, Float64};α=0.01)
+    nbins,ntrials,ncells = size(ppsth.counts)
+    bins = ppsth.bins
+    idx0 = searchsortedfirst(bins, window[1])
+    idx1 = searchsortedlast(bins, window[2])
+    preferred_location = Vector{Union{Nothing, Int64}}(undef, ncells)
+    for i in axes(ppsth.counts,3)
+        _label = labels[i]
+        ulabel = unique(_label)
+        sort!(ulabel)
+        nt = length(_label)
+        X = dropdims(mean(ppsth.counts[idx0:idx1,1:nt,i],dims=1),dims=1)
+        # Kruskal-Wallis to check whether there is a difference between the activities
+        q = KruskalWallisTest([X[_label .== l] for l in ulabel]...)
+        μl = [mean(X[_label.==l]) for l in ulabel]
+        if pvalue(q) < α 
+            preferred_location[i] = ulabel[argmax(abs.(μl .- mean(μl)))]
+        end
+    end
+    preferred_location
+end
 
 function run(;subject="W", fname="data/ppsth_fef_cue.jld2", window=25.0,nruns=100, kvs...)
     # threshold = 0.5

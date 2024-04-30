@@ -107,7 +107,7 @@ function get_cell_data(alignment::String, args...;suffix="", kvs...)
 end
 
 function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
-                    tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="")
+                    tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="",yticklabelsize=14)
     #TODO: Plot all PSTH in one panel, with the raster per location stacked below
     #movement aligned
     fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
@@ -193,7 +193,7 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     end
 
     with_theme(plot_theme) do
-        axes = [Axis(fig[i,j], xticklabelsize=14, yticklabelsize=14) for i in 1:2, j in 1:ncols]
+        axes = [Axis(fig[i,j], xticks=WilkinsonTicks(3)) for i in 1:2, j in 1:ncols]
         linkyaxes!([axes[1,j] for j in 1:ncols]...)
         for (q, X, X2, bins, bins2, rtimesq, ww, ax1, ax2) in zip(align, _X, _X2, bins, bins2, qq, highlight_window, axes[1,:], axes[2,:])
             if ww !== nothing
@@ -210,7 +210,7 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
             vlines!(ax1, 0.0, color="black")
             bidx = searchsortedfirst(bins2, tmin[q]):searchsortedlast(bins2, tmax[q])
             
-            lines!(ax1, bins2[bidx]/1000.0, 1000.0*dropdims(mean(X2[bidx,:], dims=2)/windowsize, dims=2))
+            lines!(ax1, bins2[bidx], 1000.0*dropdims(mean(X2[bidx,:], dims=2)/windowsize, dims=2))
             ax1.xticklabelsvisible = false
             ax1.xticksvisible = true
             ax1.yticksvisible = true
@@ -220,10 +220,10 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
             Xq =  X[bidx,sidx]
             qidx = findall(Xq .> minimum(Xq))
             #h = heatmap!(ax2, bins[bidx], 1:size(X,2), X[bidx,sidx], colormap=:Greys)
-            scatter!(ax2, bins[bidx[[I.I[1] for I in qidx]]]./1000.0, [I.I[2] for I in qidx], markersize=10px, color="black", marker='|')
+            scatter!(ax2, bins[bidx[[I.I[1] for I in qidx]]], [I.I[2] for I in qidx], markersize=5px, color="black", marker='|')
             vlines!(ax2, 0.0, color="black")
             if rtimesq !== nothing
-                scatter!(ax2, rtimesq[sidx]./1000.0, 1:length(sidx), color="red", markersize=5px)
+                scatter!(ax2, rtimesq[sidx], 1:length(sidx), color="red", markersize=5px,marker='|')
             end
             ax2.xticksvisible = true
             ax2.yticksvisible = true
@@ -851,13 +851,13 @@ function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500,
         colgap!(lg1, 1, 4.0)
         lg2 = GridLayout()
         lg[2,2] = lg2
-        plot_fef_cell!(lg2, 3,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg2, 3,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=true, xticklabelsvisible=true, ylabelvisible=false, showmovspine=showmovspine)
         rowgap!(lg2, 1, 4.0)
         colgap!(lg2, 1, 4.0)
         lg3 = GridLayout()
         lg[1,1] = lg3
         # cue aligned
-        plot_fef_cell!(lg3, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg3, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=true, showmovspine=showmovspine)
         rowgap!(lg3, 1, 4.0)
         colgap!(lg3, 1, 4.0)
         lg4 = GridLayout()

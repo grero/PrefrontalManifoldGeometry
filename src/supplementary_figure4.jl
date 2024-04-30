@@ -1,3 +1,6 @@
+"""
+Go-cue onset and movement onset spaces in DLPFC
+"""
 module SubspaceDLPFC
 include("figure2.jl")
 

@@ -30,8 +30,8 @@ function plot_fef_dlpfc_comparison(;latency::Dict=Dict("cue"=>40.0,"mov"=>0.0),w
                 # barplot
                 nn_dlpfc = size(f1score_dlpfc,4)
                 nn_fef = size(f1score_fef,4)
-                boxplot!(ax, fill(1.0, nn_fef), f1score_fef[idxw, idxl, 1 ,:],label="FEF")
-                boxplot!(ax, fill(2.0, nn_dlpfc), f1score_dlpfc[idxw, idxl, 1 ,:], label="DLPFC")
+                boxplot!(ax, fill(1.0, nn_fef), f1score_fef[idxw, idxl, 1 ,:],label="FEF", color=PlotUtils.fef_color)
+                boxplot!(ax, fill(2.0, nn_dlpfc), f1score_dlpfc[idxw, idxl, 1 ,:], label="DLPFC", color=PlotUtils.dlpfc_color)
                 ax.ylabel = "F₁ score"
                 ax.xticklabelsvisible = false
                 ax.xticksvisible = true

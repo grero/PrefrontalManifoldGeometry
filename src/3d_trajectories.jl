@@ -152,7 +152,7 @@ function get_trajectories(ppsth, labels,trialidx, rtimes;projection_type=FactorA
     Y[:,:,1:offset], rtlabel[1:offset], reaction_time[1:offset], nt
 end
 
-function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict(), indicate_movement_onset=true) where T <: Real
+function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict(), indicate_movement_onset=true, indicate_end=true) where T <: Real
     ulabels = unique(labels)
     sort!(ulabels)
     nlabel = length(ulabels)
@@ -167,13 +167,16 @@ function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict
         for (ii,(_l, _m)) in enumerate(zip(qq[1:end-1], qq[2:end]))
             tidx = findall((labels.==l).&(_l .<= rt .<= _m))
             _rt = mean(rt[tidx])
+            idxx = [idx0]
+            icolors = [:black]
             if indicate_movement_onset
                 idxt = searchsortedfirst(bins, _rt)
-                idxx = [idx0, idxt, idxe]
-                icolors = [:black, :red, :gray]
-            else
-                idxx = [idx0, idxe]
-                icolors = [:black, :gray]
+                push!(idxx, idxt)
+                push!(icolors, :red)
+            end
+            if indicate_end 
+                push!(idxx, idxe)
+                push!(icolors, :grey)
             end
             μ[:,:,ii] = dropdims(mean(trajA[:,:,tidx], dims=3),dims=3)
             lines!(ax, μ[1,:,ii], μ[2,:,ii], μ[3,:,ii],color=colors[l],linewidth=lw[ii])

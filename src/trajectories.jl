@@ -13,6 +13,11 @@ function compute_triangular_path_length(traj::Matrix{T},method=:normal, do_shuff
 	nn = size(traj,1)
 	dm = -Inf
 	qidx = 0
+	if method == :mid
+		return compute_triangular_path_length_mid(traj)
+	elseif method == :en
+		return compute_triangular_path_length_en(traj)
+	end
 	if method == :normal
 		func = compute_triangular_path_length
 	elseif  method == :sq
@@ -22,6 +27,7 @@ function compute_triangular_path_length(traj::Matrix{T},method=:normal, do_shuff
 	end
 	for i in 2:nn-1
 		_d = func(traj, i)
+		@show _d
 		if _d > dm
 			dm = _d
 			qidx = i
@@ -72,6 +78,41 @@ function compute_triangular_path_length_sq(traj::Matrix{T},i::Int64) where T <: 
 	_d += sum(abs2, traj[i,:] - traj[end,:])
 end
 
+function compute_triangular_path_length_mid(traj::Matrix{T}) where T <: Real
+	nn = size(traj,1)
+	ip = div(nn,2)
+	compute_triangular_path_length(traj, ip+1), ip 
+end
+
+function compute_triangular_path_length_mid(traj::Array{T,3}, qidx::Vector{T2}) where T <: Real where T2 <: AbstractVector{Int64}
+	d = fill(0.0, length(qidx))
+	for (i,q) in enumerate(qidx)
+		d[i],_ = compute_triangular_path_length_mid(traj[q, i, :])
+	end
+	d
+end
+
+function compute_triangular_path_length(traj::Array{T,3}, qidx::Vector{T2}) where T <: Real where T2 <: AbstractVector{Int64}
+	d = fill(0.0, length(qidx))
+	for (i,q) in enumerate(qidx)
+		d[i],_ = compute_triangular_path_length(traj[q, i, :])
+	end
+	d
+end
+
+function compute_triangular_path_length_en(traj::Matrix{T}) where T <: Real
+	midx = argmax(dropdims(sum(abs2, traj, dims=2),dims=2))
+	compute_triangular_path_length(traj, midx), midx
+end
+
+function compute_triangular_path_length_en(traj::Array{T,3}, qidx::Vector{T2}) where T <: Real where T2 <: AbstractVector{Int64}
+	d = fill(0.0, length(qidx))
+	for (i,q) in enumerate(qidx)
+		d[i],_ = compute_triangular_path_length_en(traj[q, i, :])
+	end
+	d
+end
+
 function compute_triangular_path_length(X::Array{T,3}, qidx::Matrix{Int64}, args...;do_shuffle=false) where T <: Real
 	nn = qidx[2,:] - qidx[1,:] .+ 1
 	path_lengths = fill(0.0, length(nn))
@@ -95,8 +136,9 @@ function compute_triangular_path_length2(X::Array{T,3}, qidx::Matrix{Int64}) whe
 	path_lengths
 end
 
-function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", do_shuffle=false, do_center=true, kvs...)
-	fname = joinpath("data", "ppsth_fef_cue_raw.jld2")
+function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", alignment="cue", do_shuffle=false, do_center=true, kvs...)
+	@show alignment
+	fname = joinpath("data","ppsth_$(area)_$(alignment)_raw.jld2")
 	ppstht, labelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
 	bins = ppstht.bins
 	subject_index = findall(cell->DPHT.get_level_name("subject", cell)==subject, ppstht.cellnames)
@@ -138,6 +180,10 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operatio
 				S = compute_triangular_path_length(Xl[:, tridx,:], qidx[:,tridx],:sq;do_shuffle=do_shuffle)
 			elseif operation == :path_length_ref
 				S = compute_ref_path_length(Xl[:,tridx,:],  qidx[:,tridx];do_shuffle=do_shuffle)
+			elseif operation == :path_length_mid
+				S = compute_triangular_path_length(Xl[:,tridx,:],  qidx[:,tridx],:mid;do_shuffle=do_shuffle)
+			elseif operation == :path_length_en
+				S = compute_triangular_path_length(Xl[:,tridx,:],  qidx[:,tridx],:en;do_shuffle=do_shuffle)
 			elseif operation == :mean_speed
 				S = fill(0.0, length(tridx))
 				for jj in 1:length(S)

@@ -1,3 +1,6 @@
+"""
+Training on one period and testing on another
+"""
 module CrossSubspace
 using EventOnsetDecoding
 using LinearAlgebra
@@ -9,8 +12,8 @@ using ProgressMeter
 using Makie
 using Distributions
 
-include("plot_utils.jl")
 include("utils.jl")
+include("plot_utils.jl")
 include("figure2.jl")
 
 """

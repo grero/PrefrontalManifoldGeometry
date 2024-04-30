@@ -14,8 +14,8 @@ include("regression.jl")
 include("trajectories.jl")
 #include("plot_utils.jl")
 
-function run_interaction_model()
-    plot_data = get_reaction_time_regressors(;redo=true, do_save=false,do_center=false)
+function run_interaction_model(;area="FEF",kvs...)
+    plot_data = get_reaction_time_regressors(;redo=true, do_save=false,do_center=false,area=area,kvs...)
     for subject in ["J","W"]
         S1 = plot_data["path_length"][subject]["S"]
         S2 = plot_data["postcue"][subject]["S"]
@@ -75,17 +75,19 @@ function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=tru
         stats_results["avg_speed"] = Dict{String,Any}()
         stats_results["delay2"] = Dict{String,Any}()
         stats_results["postcue"] = Dict{String,Any}()
-        stats_results["path_length"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx","location"], get_path_length_and_rtime("W", t0, t1;area=area,do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
-        stats_results["path_length"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1;area=area, do_shuffle=do_shuffle, rtmin=rtmin,kvs...)))
+        stats_results["path_length"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx","location"], get_path_length_and_rtime("W", t0, t1;operation=:path_length_en, area=area,do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
+        stats_results["path_length"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1;operation=:path_length_en, area=area, do_shuffle=do_shuffle, rtmin=rtmin,kvs...)))
         stats_results["path_length2"]["W"] = Dict{String,Any}(zip(["S","lrt","tridx","location"], get_path_length_and_rtime("W", t0, t1; operation=:path_length2,area=area, do_shuffle=do_shuffle, rtmin=rtmin,kvs...)))
         stats_results["path_length2"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1; operation=:path_length2, area=area, do_shuffle=do_shuffle, rtmin=rtmin, kvs...)))
         stats_results["avg_speed"]["W"] = Dict{String,Any}(zip(["S", "lrt", "tridx","location"], get_path_length_and_rtime("W", t0, t1;operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
         stats_results["avg_speed"]["J"] = Dict{String,Any}(zip(["S","lrt", "tridx","location"], get_path_length_and_rtime("J", t0, t1;operation=:mean_speed, area=area, do_shuffle=do_shuffle,rtmin=rtmin,kvs...)))
-        stats_results["delay2"]["W"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"], explain_rtime_variance("W", :cue;realign=true, area=area,rtmin=rtmin,kvs...)))
-        stats_results["delay2"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"], explain_rtime_variance("J", :cue;realign=true,area=area,rtmin=rtmin,kvs...)))
-        stats_results["postcue"]["W"] = Dict{String,Any}(zip(["lrt","S","tridx","location"], explain_rtime_variance("W", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin,kvs...)))
+        salignment = Symbol(get(kvs, :alignment,"cue"))
+        @show salignment
+        stats_results["delay2"]["W"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"], explain_rtime_variance("W", salignment;realign=true, area=area,rtmin=rtmin,kvs...)))
+        stats_results["delay2"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"], explain_rtime_variance("J", salignment;realign=true,area=area,rtmin=rtmin,kvs...)))
+        stats_results["postcue"]["W"] = Dict{String,Any}(zip(["lrt","S","tridx","location"], explain_rtime_variance("W", salignment;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin,kvs...)))
         #TODO: Why are so many trials excluded here?
-        stats_results["postcue"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"],explain_rtime_variance("J", :cue;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin,kvs...)))
+        stats_results["postcue"]["J"] = Dict{String,Any}(zip(["lrt","S", "tridx","location"],explain_rtime_variance("J", salignment;realign=true, reg_window=(0.0, 50.0), area=area,rtmin=rtmin,kvs...)))
       
         if any(isnan.(stats_results["path_length"]["W"]["S"]))
             @warn "NaN encountered"
@@ -160,6 +162,11 @@ function get_reaction_time_regressors(;t0=65.0, t1=35.0, redo=false, do_save=tru
                 rr = Splw*_β[1:end-1]' .+ _β[end] - lrtpcw
                 βr, r²r, pvr, rssr = llsq_stats(repeat(Spcw[qqidx],1,1), rr[qqidx])
                 qq["r²_res"] = r²r
+                XX = S[qqidx,:]
+                dd =  det(XX'*XX)
+                if dd == 0.0
+                    error("Zero determinant for subject $(subject) $k1 $k2")
+                end
                 β2,r², pv,rss2 = llsq_stats(S[qqidx,:], lrt[qqidx])
                 p2 = length(β2)
                 β1,_,_,rss1 =  llsq_stats(S[qqidx,1:1], lrt[qqidx])

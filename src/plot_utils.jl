@@ -11,8 +11,8 @@ plot_theme = Theme(Axis=(xticksvisible=true,
 				ygridvisible=false,
 				topspinevisible=false,
 				rightspinevisible=false,
-				xticklabelsize=14,
-				yticklabelsize=14))
+				xticklabelsize=12,
+				yticklabelsize=12))
 
 
 function make_grid!(ax)
@@ -24,6 +24,8 @@ function get_rectangular_border(x0,y0, x1,y1)
 	[Point2f(x0, y0), Point2f(x0, y1), Point2f(x1, y1), Point2f(x1, y0), Point2f(x0, y0)]
 end
 
+fef_color = RGB(1.0, 0.2, 0.2)
+dlpfc_color = RGB(0.2, 0.2, 1.0)
 """
 ```julia
 function advance(traj::Matrix,i::Int)
