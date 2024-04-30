@@ -672,9 +672,9 @@ function plot_fef_dlpfc_r²(;redo=false, subjects=["J","W"], sessions::Union{Vec
     end
 end
 
-function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W"],nruns=100, tt=65.0,show_zscore=false, kvs...)
+function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W"],nruns=100, tt=65.0,show_zscore=false, βindex=1,kvs...)
     # a bit of a hack; test if files have already been computed with individual subjects first
-    if subjects == ["J","W"] || subjects == ["W","J"]
+    if (subjects == ["J","W"] || subjects == ["W","J"]) && get(kvs, :combine_subjects, false) == false
         if !compute_regression(;subjects=subjects, tt=tt, nruns=nruns, check_only=true, kvs...)
             qdata = Dict()
             for subject in subjects
@@ -683,13 +683,26 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
             end
         end
     else 
-        qdata = compute_regression(;redo=redo, subjects=subjects, tt=tt, nruns=nruns, kvs...)
+        qdata = Dict()
+        kk = join(subjects)
+        _qdata = compute_regression(;redo=redo, subjects=subjects, nruns=nruns, tt=tt, kvs...)
+        if kk in keys(_qdata)
+            qdata = _qdata
+        else
+            qdata[kk] = _qdata
+        end
     end
+    plot_path_length_regression_with_shuffles(qdata;tt=tt,show_zscore=show_zscore,βindex=βindex)
+end
 
+function plot_path_length_regression_with_shuffles(qdata;tt=65.0,show_zscore=false, βindex=1, kvs...)
+    @show βindex
+    subjects = collect(keys(qdata))
     colors = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     fcolors = [RGB(0.5 + 0.5*c.r, 0.5+0.5*c.g, 0.5+0.5*c.b) for c in colors]
     with_theme(PlotUtils.plot_theme) do
-        fig = Figure(size=(500,500))
+        height = 100 + 200*length(subjects)
+        fig = Figure(size=(500,height))
         if show_zscore
             axes = [Axis(fig[i,1]) for i in 1:length(subjects)]
         else
@@ -705,19 +718,20 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
             bidx = findall(isfinite, dropdims(mean(r²fef,dims=2),dims=2))
             idxtt = searchsortedfirst(bins,tt)
 
-            lower_fef,mid_fef, upper_fef = [mapslices(x->percentile(x,pc), βfef[1,bidx,:],dims=2) for pc in [5,50,95]]
-            lower_fef_S,mid_fef_S, upper_fef_S = [mapslices(x->percentile(x,pc), βfef_S[1,bidx,:],dims=2) for pc in [5,50,95]]
-            lower_dlpfc,mid_dlpfc, upper_dlpfc = [mapslices(x->percentile(x,pc), βdlpfc[1,bidx,:],dims=2) for pc in [5,50,95]]
-            lower_dlpfc_S,mid_dlpfc_S, upper_dlpfc_S = [mapslices(x->percentile(x,pc), βdlpfc_S[1,bidx,:],dims=2) for pc in [5,50,95]]
+            lower_fef,mid_fef, upper_fef = [mapslices(x->percentile(x,pc), βfef[βindex,bidx,:],dims=2) for pc in [5,50,95]]
+            lower_fef_S,mid_fef_S, upper_fef_S = [mapslices(x->percentile(x,pc), βfef_S[βindex,bidx,:],dims=2) for pc in [5,50,95]]
+            lower_dlpfc,mid_dlpfc, upper_dlpfc = [mapslices(x->percentile(x,pc), βdlpfc[βindex,bidx,:],dims=2) for pc in [5,50,95]]
+            lower_dlpfc_S,mid_dlpfc_S, upper_dlpfc_S = [mapslices(x->percentile(x,pc), βdlpfc_S[βindex,bidx,:],dims=2) for pc in [5,50,95]]
             
             if show_zscore
                 # compute a `z-score`, that is the mean of the actual data
                 ax1 = axes[ii]
                 ax1.title = "Monkey $(subject)"
                 for (β,βs, color,area) in zip([βfef,βdlpfc],[βfef_S,βdlpfc_S],[PlotUtils.fef_color, PlotUtils.dlpfc_color],["FEF","DLPFC"])
-                    μ = dropdims(mean(β[1,bidx,:],dims=2),dims=2)
-                    μs = dropdims(mean(βs[1,bidx,:],dims=2),dims=2)
-                    σs = dropdims(std(βs[1,bidx,:],dims=2),dims=2)
+                    @show size(βs) 
+                    μ = dropdims(mean(β[βindex,bidx,:],dims=2),dims=2)
+                    μs = dropdims(mean(βs[βindex,bidx,:],dims=2),dims=2)
+                    σs = dropdims(std(βs[βindex,bidx,:],dims=2),dims=2)
                     zs = (μ - μs)./σs
                     lines!(ax1, bins[bidx], zs, label=area, color=color)
                     ax1.ylabel = "Zscored β"
@@ -743,7 +757,7 @@ function plot_path_length_regression_with_shuffles(;redo=false, subjects=["J","W
             linkaxes!(axes...)
             axislegend(axes[1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
         else
-            axislegend(axes[1:end-1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
+            axislegend(axes[end-1], valign=:top, halign=:left,margin=(5.0, -5.0, -5.0, -30.0))
         end
         for ax in axes[1:end-1]
             ax.xticklabelsvisible = false
