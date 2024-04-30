@@ -767,6 +767,35 @@ function plot_path_length_regression_with_shuffles(qdata;tt=65.0,show_zscore=fal
     end
 end
 
+function plot_β_comparison(qdata::Vector{T}, area::String, βindex::Int64;show_zscore=false, tt=65.0) where T <: Dict
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure(size=(500,400))
+        ax = Axis(fig[1,1])
+        vlines!(ax, [0.0, tt];color=[:black, :gray])
+        for _qdata in qdata 
+            bins = _qdata["bins"]
+            _data = _qdata[area]
+            bidx = findall(isfinite, dropdims(mean(_data["r²"],dims=2),dims=2))
+            μ = dropdims(mean(_data["β"][βindex,bidx,:],dims=2),dims=2)
+            if show_zscore
+                βs = _data["β_shuffle"]
+                μs = dropdims(mean(βs[βindex,bidx,:],dims=2),dims=2)
+                σs = dropdims(std(βs[βindex,bidx,:],dims=2),dims=2)
+                μ .= (μ - μs)./σs
+            end
+            lines!(ax, bins[bidx], μ,label=join(_qdata["subjects"]), linewidth=1.5)
+        end
+        if show_zscore
+            ax.ylabel = "Z-scored β $(area)"
+        else
+            ax.ylabel="β"
+        end
+        ax.xlabel = "Time from go-cue [ms]"
+        axislegend(ax,valign=:top, halign=:left)
+        fig
+    end
+end
+
 function plot_regression(Z::Matrix{Float64}, L::Matrix{Float64}, xpos::Vector{Float64}, ypos::Vector{Float64}, ncells::Vector{Int64}, rt::Vector{Float64},bins;include_L=true, include_ncells=true, go_cue_onset=2600.0)
     nbins = size(Z,2)
     r² = fill(NaN,nbins)
