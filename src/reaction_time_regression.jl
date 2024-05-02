@@ -517,7 +517,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 end
             end
             if all(in(use_varnames).([:xpos, :ypos]))
-                exclude_pairs = [(findfirst(use_varnames.==:xpos)-1,findfirst(use_varnames.==:ypos)-1)]
+                exclude_pairs = [(findfirst(use_varnames.==:xpos),findfirst(use_varnames.==:ypos))]
             else
                 exclude_pairs = Tuple{Int64, Int64}[]
             end
