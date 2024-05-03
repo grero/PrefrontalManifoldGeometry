@@ -1,9 +1,17 @@
+module FigureS7
 using CairoMakie
 using HypothesisTests
+using HDF5
+using StatsBase
 
+include("utils.jl")
 include("plot_utils.jl")
 include("figure2.jl")
 
+"""
+Comparing F1 score for at the onset of the go-cue subspace and the movement subspace between
+FEF and DLPFC
+"""
 function plot_fef_dlpfc_comparison(;latency::Dict=Dict("cue"=>40.0,"mov"=>0.0),window::Dict=Dict("cue"=>15.0, "mov"=>35.0),plottype=:scatter)
     fname_cue_dlpfc, fname_mov_dlpfc = Figure2.get_event_subspaces(;subject="ALL", rtime_min=120.0,area="DLPFC")
     fname_cue_fef, fname_mov_fef = Figure2.get_event_subspaces(;subject="ALL", rtime_min=120.0,area="FEF")
@@ -58,3 +66,4 @@ function plot_fef_dlpfc_comparison(;latency::Dict=Dict("cue"=>40.0,"mov"=>0.0),w
         fig
     end
 end
+end #module
