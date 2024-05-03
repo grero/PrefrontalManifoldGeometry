@@ -24,8 +24,8 @@ function get_rectangular_border(x0,y0, x1,y1)
 	[Point2f(x0, y0), Point2f(x0, y1), Point2f(x1, y1), Point2f(x1, y0), Point2f(x0, y0)]
 end
 
-fef_color = RGB(1.0, 0.2, 0.2)
-dlpfc_color = RGB(0.2, 0.2, 1.0)
+dlpfc_color = RGB(0.7, 0.2, 0.2)
+fef_color = RGB(0.0, 0.44, 0.7)
 """
 ```julia
 function advance(traj::Matrix,i::Int)
