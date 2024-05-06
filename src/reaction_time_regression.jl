@@ -150,6 +150,9 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         _ncells = size(X,3)
         nbins = size(X,1)
         _nt = length(_rtime)
+        ulabel = unique(_label)
+        sort!(ulabel)
+        nlabel = length(ulabel)
         if do_shuffle_time
             for k1 in axes(X,2)
                 bidx = shuffle(1:nbins)
@@ -161,9 +164,6 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
             tridx = shuffle(1:_nt)
             X = X[:,tridx,:]
         end
-        ulabel = unique(_label)
-        sort!(ulabel)
-        nlabel = length(ulabel)
         nn = countmap(_label)
         _lrt = log.(_rtime)
         #if smooth_window !== nothing
