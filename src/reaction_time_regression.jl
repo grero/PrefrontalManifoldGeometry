@@ -462,11 +462,14 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     end
 
     for k in kvs
-        q = crc32c(string(k),q)
+        if !(k[1] == :t1 && k[2] == 0.0)
+            q = crc32c(string(k),q)
+        end
     end
     qs = string(q, base=16)
     fname = "path_length_regression_$(qs).jld2"
     if check_only
+        @show fname
         return isfile(fname)
     end
     if isfile(fname) && redo == false
@@ -805,31 +808,93 @@ function plot_path_length_regression_with_shuffles(qdata;tt=65.0,show_zscore=fal
     end
 end
 
-function plot_β_comparison(qdata::Vector{T}, area::String, βindex::Int64;show_zscore=false, tt=65.0) where T <: Dict
+function plot_β_comparison(qdata::Vector{T}, area::Vector{String}, βindex::Int64;kvs...) where T <: Dict
     with_theme(PlotUtils.plot_theme) do
-        fig = Figure(size=(500,400))
+        fig = Figure(size=(400,300))
         ax = Axis(fig[1,1])
-        vlines!(ax, [0.0, tt];color=[:black, :gray])
-        for _qdata in qdata 
+        plot_β_comparison!(ax, qdata, area, βindex;kvs...)
+        fig
+    end
+end
+
+function plot_β_comparison!(ax, qdata::Vector{T}, area::Vector{String}, βindex::Int64;show_zscore=false, show_shuffled=false, tt=65.0, plot_r²=false,tmin=-Inf,tmax=Inf, labels::Union{Vector{String},Nothing}=nothing,fix_colors=true) where T <: Dict
+    with_theme(PlotUtils.plot_theme) do
+        vlines!(ax, [0.0, tt];color=[:black, (:gray, 0.5)])
+        if plot_r²
+            yl = "r²"
+        else
+            yl = "β"
+        end
+        kk = 1
+        for (ii,_qdata) in enumerate(qdata)
             bins = _qdata["bins"]
-            _data = _qdata[area]
-            bidx = findall(isfinite, dropdims(mean(_data["r²"],dims=2),dims=2))
-            μ = dropdims(mean(_data["β"][βindex,bidx,:],dims=2),dims=2)
-            if show_zscore
-                βs = _data["β_shuffle"]
-                μs = dropdims(mean(βs[βindex,bidx,:],dims=2),dims=2)
-                σs = dropdims(std(βs[βindex,bidx,:],dims=2),dims=2)
-                μ .= (μ - μs)./σs
+            tidx = searchsortedfirst(bins, tt)
+            for _area in area
+                _data = _qdata[_area]
+                if plot_r²
+                    Xs = _data["r²_shuffled"]
+                    X = _data["r²"]
+                else
+                    Xs = _data["β_shuffle"][βindex,:,:]
+                    X = _data["β"][βindex,:,:]
+                end
+                μ = dropdims(mean(X,dims=2),dims=2)
+                μs = dropdims(mean(Xs,dims=2),dims=2)
+                σs = dropdims(std(Xs,dims=2),dims=2)
+                bidx = searchsortedfirst(bins, tmin):searchsortedlast(bins, tmax)
+                bidx = intersect(bidx, findall(isfinite, σs))
+                if show_shuffled
+                    # indicate the 
+                    band!(ax, bins[bidx], (μs-σs)[bidx], (μs+σs)[bidx])
+                    μ = μs
+                elseif show_zscore
+                    μ .= (μ - μs)./σs
+                end
+                @show _qdata["subjects"] μ[tidx]
+                if labels === nothing
+                    label = label=join(_qdata["subjects"])
+                else
+                    label = labels[ii]
+                end
+                # kind of hacky
+                if fix_colors
+                    if lowercase(_area) == "fef"
+                        _color = PlotUtils.fef_color
+                    elseif lowercase(_area) == "dlpfc"
+                        _color = PlotUtils.dlpfc_color
+                    else
+                        _color = Cycled(kk) 
+                    end
+                else
+                    _color = Cycled(kk) 
+                end
+                ll = lines!(ax, bins[bidx], μ[bidx],label="$(label) $_area", linewidth=1.5,color=_color)
+                hlines!(ax, μ[tidx], linestyle=:dot, color=_color)
+                kk += 1
             end
-            lines!(ax, bins[bidx], μ,label=join(_qdata["subjects"]), linewidth=1.5)
         end
         if show_zscore
-            ax.ylabel = "Z-scored β $(area)"
+            ax.ylabel = "Z-scored $yl"
         else
-            ax.ylabel="β"
+            ax.ylabel=yl
         end
         ax.xlabel = "Time from go-cue [ms]"
         axislegend(ax,valign=:top, halign=:left)
+    end
+end
+
+function plot_model(qdata,args...;tt=0.0, kvs...)
+    ttidx = searchsortedfirst(qdata["bins"], 0.0)
+    colors = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure(size=(500,300))
+        ax1 = Axis(fig[1,1])
+        plot_β_comparison!(ax1, [qdata],args...;tt=tt,kvs...)
+        ax2 = Axis(fig[1,2])
+        xx = [fill(1, 100);fill(2, 100)]
+        boxplot!(ax2, xx, [qdata["fef"]["r²"][ttidx,:];qdata["dlpfc"]["r²"][ttidx,:]],
+                    color=colors[xx])
+        colsize!(fig.layout, 1, Relative(0.7))
         fig
     end
 end
