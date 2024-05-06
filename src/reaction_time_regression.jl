@@ -77,7 +77,7 @@ function balance_num_trials(label::Vector{T}, args...) where T
     nn,_ = findmin(cc)
     idxt = fill(0, nn*length(cc))
     for (i,l) in enumerate(sort(collect(keys(cc))))
-        idx = findall(label.==l)
+        idx = findall(ll->ll==l, label)
         idxt[(i-1)*nn+1:i*nn] .= sort(shuffle(idx)[1:nn])
     end
     oargs = Any[label[idxt]]
