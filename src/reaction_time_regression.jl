@@ -480,6 +480,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             La = Vector{Matrix{Float64}}(undef, length(subjects))
             EEa = Vector{Matrix{Float64}}(undef, length(subjects))
             MMa = Vector{Matrix{Float64}}(undef, length(subjects))
+            SSa = Vector{Matrix{Float64}}(undef, length(subjects))
             ncellsa = Vector{Vector{Int64}}(undef, length(subjects))
             xposa = Vector{Vector{Float64}}(undef, length(subjects))
             yposa = Vector{Vector{Float64}}(undef, length(subjects))
@@ -491,7 +492,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
                 # TODO: Do the shuffling here (hic misce)
-                Z,L,EE, MM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, kvs...);
+                Z,L,EE, MM, SS, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, kvs...);
                 if subject == "J"
                     tidx = findall(label.!=9)
                 else
@@ -506,6 +507,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 La[ss] = L[tidx,:]
                 EEa[ss] = EE[tidx,:]
                 MMa[ss] = MM[tidx,:]
+                SSa[ss] = SS[tidx,:]
                 ncellsa[ss] = ncells[tidx]
                 xposa[ss] = xpos
                 yposa[ss] = ypos
@@ -518,6 +520,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             L = cat(La...,dims=1)
             EE = cat(EEa..., dims=1)
             MM = cat(MMa..., dims=1)
+            SS = cat(SSa..., dims=1)
             ncells = cat(ncellsa..., dims=1)
             xpos = cat(xposa..., dims=1)
             ypos = cat(yposa..., dims=1)
@@ -593,7 +596,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             r²_S = fill(0.0, size(r²)...)
             @showprogress for r in 1:nruns
                 for (ss, subject) in enumerate(subjects)
-                    _Z,_L,_EE, _MM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,kvs...);
+                    _Z,_L,_EE, _MM, _SS, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, kvs...);
                     if subject == "J"
                         tidx = findall(_label.!=9)
                     else
@@ -608,6 +611,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     La[ss] = _L[tidx,:]
                     EEa[ss] = _EE[tidx,:]
                     MMa[ss] = _MM[tidx,:]
+                    SSa[ss] = _SS[tidx,:]
                     ncellsa[ss] = _ncells[tidx]
                     xposa[ss] = _xpos
                     yposa[ss] = _ypos
@@ -618,11 +622,15 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 L = cat(La...,dims=1)
                 EE = cat(EEa..., dims=1)
                 MM = cat(MMa..., dims=1)
+                SS = cat(SSa..., dims=1)
                 ncells = cat(ncellsa..., dims=1)
                 xpos = cat(xposa..., dims=1)
                 ypos = cat(yposa..., dims=1)
                 lrt = cat(lrta..., dims=1)
-                allvars = (Z=Z, L=L,EE=EE,MM=MM,ncells=ncells, xpos=xpos, ypos=ypos)
+                if balance_positions
+                    _,Z,L,EE,MM,SS,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,ncells,xpos,ypos,lrt)
+                end
+                allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS, ncells=ncells, xpos=xpos, ypos=ypos)
 
                 vars = Any[lrt]
                 for vv in use_varnames
