@@ -177,7 +177,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         idxq = searchsortedfirst(bins, bins[idx1]+Δt)
         # length of transition period, from window + Δt
         for j2 in 1:_nt
-            idxs = searchsortedlast(bins, bins[idx0]+_rtime[j2])
+            idxs = searchsortedlast(bins, bins[idx0]+_rtime[j2]-t1)
             qidx[j2] = 1:(idxs-idxq+1)
             nnmax = max(nnmax, length(qidx[j2]))
         end
