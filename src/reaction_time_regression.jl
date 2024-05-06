@@ -115,7 +115,7 @@ end
 
 Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
 """
-function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, kvs...)
+function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,t1=35.0, realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, shuffle_within_locations=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, use_log=false, kvs...)
 
 	# Per session, per target regression, combine across to compute rv
 	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
