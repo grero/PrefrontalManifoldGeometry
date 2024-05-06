@@ -72,7 +72,7 @@ function get_projected_energy(Xs::Matrix{T},V::Vector{T}) where T <: Real
     maximum(sum(abs2, Xs .- (Xs*V).*permutedims(V),dims=2)) 
 end
 
-function balance_num_trials(label::Vector{Int64}, args...)
+function balance_num_trials(label::Vector{T}, args...) where T
     cc = countmap(label)
     nn,_ = findmin(cc)
     idxt = fill(0, nn*length(cc))
