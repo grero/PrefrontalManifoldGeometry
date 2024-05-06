@@ -161,7 +161,15 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                 end
             end
         elseif do_shuffle_trials
-            tridx = shuffle(1:_nt)
+            tridx = collect(1:_nt)
+            if shuffle_within_locations
+                for l in ulabel       
+                    _tidx = findall(_label.==l)
+                    tridx[_tidx] = shuffle(tridx[_tidx])
+                end
+            else
+                shuffle!(tridx)
+            end
             X = X[:,tridx,:]
         end
         nn = countmap(_label)
