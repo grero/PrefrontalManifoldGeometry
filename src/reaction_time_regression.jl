@@ -141,6 +141,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
     L = fill!(similar(Z),NaN) 
     EE = fill!(similar(Z),NaN)
     MM = fill!(similar(Z),NaN) # modified enerngy
+    SS = fill!(similar(Z), NaN) # speed
     offset = 0
     idxsm = 0 
     nnmax = 0
@@ -253,6 +254,9 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                 EE[offset+j2,j] = maximum(sum(abs2, Xs .- Xs[1:1,:],dims=2))
                 # modified energy; projected onto the line
                 MM[offset+j2,j] = get_projected_energy(Xs, V[:,l])
+                # avg speed
+                SS[offset+j2,j] = mean(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
+
             end
         end
         append!(rt, _lrt)
@@ -261,7 +265,10 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
-    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], rt, label, ncells, bins, sessionidx
+    if use_log
+        rt = log.(rt)
+    end
+    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], rt, label, ncells, bins, sessionidx
 end
 
 function compute_regression(nruns::Int64, args...;kvs...)
