@@ -425,7 +425,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     if subjects != ["J","W"]
@@ -454,6 +454,13 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     if save_all_β
         q = crc32c(string((:save_all_β=>true)),q)
     end
+    if balance_positions
+        q = crc32c(string((:balance_positions=>true)),q)
+    end
+    if use_log
+        q = crc32c(string((:use_log=>true)),q)
+    end
+
     for k in kvs
         q = crc32c(string(k),q)
     end
@@ -515,7 +522,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             xpos = cat(xposa..., dims=1)
             ypos = cat(yposa..., dims=1)
             lrt = cat(lrta..., dims=1)
-            allvars = (Z=Z, L=L,EE=EE,MM=MM,ncells=ncells, xpos=xpos, ypos=ypos)
+            # equalize positions if requested
+            if balance_positions
+                _,Z,L,EE,MM,SS,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,ncells,xpos,ypos,lrt)
+            end
+            allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,ncells=ncells, xpos=xpos, ypos=ypos)
             # exclude ncells if we are only doing one session
             #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
             vars = Any[lrt]
