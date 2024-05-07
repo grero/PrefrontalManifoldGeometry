@@ -9,6 +9,7 @@ using Random
 using CRC32c
 using LinearAlgebra
 using ProgressMeter
+using HypothesisTests
 
 include("utils.jl")
 include("trajectories.jl")
@@ -115,7 +116,7 @@ end
 
 Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
 """
-function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,t1=35.0, realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, shuffle_within_locations=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, use_log=false, kvs...)
+function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,t1=35.0, realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, shuffle_within_locations=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, use_log=false, subtract_location_mean=false, kvs...)
 
 	# Per session, per target regression, combine across to compute rv
 	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
@@ -139,6 +140,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
     n_tot_trials =  sum([length(rtimes[k]) for k in sessions])
     Z = fill(0.0,n_tot_trials, size(ppsth.counts,1))
     L = fill!(similar(Z),NaN) 
+    FL = fill!(similar(Z),NaN) 
     EE = fill!(similar(Z),NaN)
     MM = fill!(similar(Z),NaN) # modified enerngy
     SS = fill!(similar(Z), NaN) # speed
@@ -174,7 +176,11 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
             X = X[:,tridx,:]
         end
         nn = countmap(_label)
-        _lrt = log.(_rtime)
+        if use_log
+            _lrt = log.(_rtime)
+        else
+            _lrt = _rtime
+        end
         #if smooth_window !== nothing
         #    X2 = mapslices(x->Utils.gaussian_smooth(x,bins,smooth_window), X, dims=1)
         #else
@@ -256,6 +262,8 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                 MM[offset+j2,j] = get_projected_energy(Xs, V[:,l])
                 # avg speed
                 SS[offset+j2,j] = mean(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
+                FL[offset+j2,j] = sum(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
+
 
             end
         end
@@ -265,10 +273,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
-    if use_log
-        rt = log.(rt)
-    end
-    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], rt, label, ncells, bins, sessionidx
+    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], rt, label, ncells, bins, sessionidx
 end
 
 function compute_regression(nruns::Int64, args...;kvs...)
@@ -329,6 +334,11 @@ function shuffle_reaction_times(qidx::Vector{UnitRange{Int64}})
     end
     qidxs
 end
+
+function compute_regression(rt::AbstractVector{Float64}, L::Vector{Float64},args...;kvs...)
+    compute_regression(rt, repeat(L,1,1),args...;kvs...)
+end
+
 """
 Compute
 """
@@ -362,24 +372,29 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             continue
         end 
         # run two regression models; one without path length L and one with
-        #X_no_L = [Z[trialidx,i] xpos[trialidx] ypos[trialidx] ncells[trialidx] EE[trialidx,i]]
-        X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx,i] : Z[trialidx] for Z in args]...)
-        #X_with_L = [Z[trialidx,i] xpos[trialidx] ypos[trialidx] L[trialidx,i] ncells[trialidx] EE[trialidx,i]]
-        X_with_L = [L[trialidx,i] X_no_L]
+        if length(args) > 0
+            X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx,i] : Z[trialidx] for Z in args]...)
+            _exclude_pairs = [(k-1,j-1) for (k,j) in exclude_pairs]
+            lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx];do_interactions=true,exclude_pairs=_exclude_pairs, kvs...)
+            X_with_L = [L[trialidx,i] X_no_L]
+            p1 = length(lreg_no_L.β)
+            rss1 = lreg_no_L.rss
+        else
+            X_with_L = L[trialidx,i:i] 
+            p1 = 1
+            rss1 = sum(abs2, rt[sidx] .- mean(rt[sidx]))
+        end
+
 
         #lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx];do_interactions=true, exclude_pairs=[(2,3)])
         #lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx];do_interactions=true, exclude_pairs=[(2,3)])
         # subtract one from the exclude pair index
-        _exclude_pairs = [(i-1,j-1) for (i,j) in exclude_pairs]
-        lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx];do_interactions=true,exclude_pairs=_exclude_pairs, kvs...)
         lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx];do_interactions=true,exclude_pairs=exclude_pairs, kvs...)
 
         # compute the F-stat for whether adding the path length results in a significantly better fit
         n = length(rt)
         rss2 = lreg_with_L.rss
         p2 = length(lreg_with_L.β)
-        rss1 = lreg_no_L.rss
-        p1 = length(lreg_no_L.β)
         F = (rss1 - rss2)/(p2-p1)
         F /= rss2/(n-p2)
         pv[i] = 1.0 - cdf(FDist(p2-p1, n-p2), F)
@@ -425,7 +440,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     if subjects != ["J","W"]
@@ -460,6 +475,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
     if use_log
         q = crc32c(string((:use_log=>true)),q)
     end
+    if !isa(recording_side, Utils.BothSides)
+        q = crc32c(string((:recording_side=>Symbol(recording_side))),q)
+    end
 
     for k in kvs
         if !(k[1] == :t1 && k[2] == 0.0)
@@ -481,10 +499,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             qdata[area] = Dict()
             Za = Vector{Matrix{Float64}}(undef, length(subjects))
             La = Vector{Matrix{Float64}}(undef, length(subjects))
+            FLa = Vector{Matrix{Float64}}(undef, length(subjects))
             EEa = Vector{Matrix{Float64}}(undef, length(subjects))
             MMa = Vector{Matrix{Float64}}(undef, length(subjects))
             SSa = Vector{Matrix{Float64}}(undef, length(subjects))
-            ncellsa = Vector{Vector{Int64}}(undef, length(subjects))
+            ncellsa = Vector{Vector{Float64}}(undef, length(subjects))
             xposa = Vector{Vector{Float64}}(undef, length(subjects))
             yposa = Vector{Vector{Float64}}(undef, length(subjects))
             lrta = Vector{Vector{Float64}}(undef, length(subjects))
@@ -495,7 +514,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
                 # TODO: Do the shuffling here (hic misce)
-                Z,L,EE, MM, SS, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, kvs...);
+                Z,L,EE, MM, SS, FL, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, kvs...);
                 if subject == "J"
                     tidx = findall(label.!=9)
                 else
@@ -504,10 +523,13 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 if sessions != :all
                     tidx = tidx[findall(in(sessions), sessionidx[tidx])]
                 end
+                # use only trials associated with targets in the specfied hemifield
+                tidx = tidx[findall(in(Utils.get_recording_side(recording_side, subject)), label[tidx])]
                 xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
                 ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
                 Za[ss] = Z[tidx,:]
                 La[ss] = L[tidx,:]
+                FLa[ss] = FL[tidx,:]
                 EEa[ss] = EE[tidx,:]
                 MMa[ss] = MM[tidx,:]
                 SSa[ss] = SS[tidx,:]
@@ -521,6 +543,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             sessionidx = cat(sessionidxa...,dims=1)
             Z = cat(Za...,dims=1)
             L = cat(La...,dims=1)
+            FL = cat(FLa...,dims=1)
             EE = cat(EEa..., dims=1)
             MM = cat(MMa..., dims=1)
             SS = cat(SSa..., dims=1)
@@ -530,9 +553,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             lrt = cat(lrta..., dims=1)
             # equalize positions if requested
             if balance_positions
-                _,Z,L,EE,MM,SS,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,ncells,xpos,ypos,lrt)
+                _,Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt)
             end
-            allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,ncells=ncells, xpos=xpos, ypos=ypos)
+            allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, ncells=ncells, xpos=xpos, ypos=ypos)
             # exclude ncells if we are only doing one session
             #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
             vars = Any[lrt]
@@ -548,6 +571,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     push!(use_varnames, vv)
                 end
             end
+            qdata["varnames"] = use_varnames
             if all(in(use_varnames).([:xpos, :ypos]))
                 exclude_pairs = [(findfirst(use_varnames.==:xpos),findfirst(use_varnames.==:ypos))]
             else
@@ -599,7 +623,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             r²_S = fill(0.0, size(r²)...)
             @showprogress for r in 1:nruns
                 for (ss, subject) in enumerate(subjects)
-                    _Z,_L,_EE, _MM, _SS, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, kvs...);
+                    _Z,_L,_EE, _MM, _SS, _FL, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, kvs...);
                     if subject == "J"
                         tidx = findall(_label.!=9)
                     else
@@ -608,10 +632,12 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     if sessions != :all
                         tidx = tidx[findall(in(sessions), _sessionidx[tidx])]
                     end
+                    tidx = tidx[findall(in(Utils.get_recording_side(recording_side, subject)), _label[tidx])]
                     _xpos = [p[1] for p in Utils.location_position[subject]][_label[tidx]]
                     _ypos = [p[2] for p in Utils.location_position[subject][_label[tidx]]]
                     Za[ss] = _Z[tidx,:]
                     La[ss] = _L[tidx,:]
+                    FLa[ss] = _FL[tidx,:]
                     EEa[ss] = _EE[tidx,:]
                     MMa[ss] = _MM[tidx,:]
                     SSa[ss] = _SS[tidx,:]
@@ -623,6 +649,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 # need to again concatente
                 Z = cat(Za...,dims=1)
                 L = cat(La...,dims=1)
+                FL = cat(FLa...,dims=1)
                 EE = cat(EEa..., dims=1)
                 MM = cat(MMa..., dims=1)
                 SS = cat(SSa..., dims=1)
@@ -631,9 +658,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 ypos = cat(yposa..., dims=1)
                 lrt = cat(lrta..., dims=1)
                 if balance_positions
-                    _,Z,L,EE,MM,SS,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,ncells,xpos,ypos,lrt)
+                    _,Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt)
                 end
-                allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS, ncells=ncells, xpos=xpos, ypos=ypos)
+                allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS, FL=FL,ncells=ncells, xpos=xpos, ypos=ypos)
 
                 vars = Any[lrt]
                 for vv in use_varnames
@@ -826,6 +853,7 @@ function plot_β_comparison!(ax, qdata::Vector{T}, area::Vector{String}, βindex
             yl = "β"
         end
         kk = 1
+        acolors = Dict{String,Int64}()
         for (ii,_qdata) in enumerate(qdata)
             bins = _qdata["bins"]
             tidx = searchsortedfirst(bins, tt)
@@ -843,10 +871,35 @@ function plot_β_comparison!(ax, qdata::Vector{T}, area::Vector{String}, βindex
                 σs = dropdims(std(Xs,dims=2),dims=2)
                 bidx = searchsortedfirst(bins, tmin):searchsortedlast(bins, tmax)
                 bidx = intersect(bidx, findall(isfinite, σs))
+                # kind of hacky
+                la = lowercase(_area)
+                if fix_colors
+                    if la == "fef"
+                        if la in keys(acolors)
+                            acolors[la] += 1
+                            _color = PlotUtils.fef_color_dark
+                        else
+                            acolors[la] = 1
+                            _color = PlotUtils.fef_color
+                        end
+                    elseif la == "dlpfc"
+                        if la in keys(acolors)
+                            acolors[la] += 1
+                            _color = PlotUtils.dlpfc_color_dark
+                        else
+                            acolors[la] = 1
+                            _color = PlotUtils.dlpfc_color
+                        end
+                    else
+                        _color = Cycled(kk) 
+                    end
+                else
+                    _color = Cycled(kk) 
+                end
                 if show_shuffled
                     # indicate the 
-                    band!(ax, bins[bidx], (μs-σs)[bidx], (μs+σs)[bidx])
-                    μ = μs
+                    band!(ax, bins[bidx], (μs-σs)[bidx], (μs+σs)[bidx],color=(_color, 0.5))
+                    #μ = μs
                 elseif show_zscore
                     μ .= (μ - μs)./σs
                 end
@@ -856,18 +909,7 @@ function plot_β_comparison!(ax, qdata::Vector{T}, area::Vector{String}, βindex
                 else
                     label = labels[ii]
                 end
-                # kind of hacky
-                if fix_colors
-                    if lowercase(_area) == "fef"
-                        _color = PlotUtils.fef_color
-                    elseif lowercase(_area) == "dlpfc"
-                        _color = PlotUtils.dlpfc_color
-                    else
-                        _color = Cycled(kk) 
-                    end
-                else
-                    _color = Cycled(kk) 
-                end
+                
                 ll = lines!(ax, bins[bidx], μ[bidx],label="$(label) $_area", linewidth=1.5,color=_color)
                 hlines!(ax, μ[tidx], linestyle=:dot, color=_color)
                 kk += 1
@@ -883,7 +925,7 @@ function plot_β_comparison!(ax, qdata::Vector{T}, area::Vector{String}, βindex
     end
 end
 
-function plot_model(qdata,args...;tt=0.0, kvs...)
+function plot_model(qdata,args...;tt=0.0, correct_bias=true, kvs...)
     ttidx = searchsortedfirst(qdata["bins"], 0.0)
     colors = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     with_theme(PlotUtils.plot_theme) do
@@ -892,9 +934,20 @@ function plot_model(qdata,args...;tt=0.0, kvs...)
         plot_β_comparison!(ax1, [qdata],args...;tt=tt,kvs...)
         ax2 = Axis(fig[1,2])
         xx = [fill(1, 100);fill(2, 100)]
-        boxplot!(ax2, xx, [qdata["fef"]["r²"][ttidx,:];qdata["dlpfc"]["r²"][ttidx,:]],
+        if correct_bias
+            μ_fef = mean(qdata["fef"]["r²_shuffled"][ttidx,:])
+            μ_dlpfc = mean(qdata["dlpfc"]["r²_shuffled"][ttidx,:])
+            yy = [qdata["fef"]["r²"][ttidx,:] .- μ_fef;qdata["dlpfc"]["r²"][ttidx,:] .- μ_dlpfc]
+        else
+            yy = [qdata["fef"]["r²"][ttidx,:];qdata["dlpfc"]["r²"][ttidx,:]]
+        end
+        boxplot!(ax2, xx,yy ,
                     color=colors[xx])
+        ax2.ylabel = "r²"
+        ax2.xticklabelsvisible = false
+        ax2.xticks = [1,2]
         colsize!(fig.layout, 1, Relative(0.7))
+        @show MannWhitneyUTest(yy[xx.==1], yy[xx.==2])
         fig
     end
 end
@@ -1060,6 +1113,177 @@ function plot_β_summary(;subjects=["J","W"], kvs...)
         ax.xticks=(range(1.5, step=2.0, length=length(subjects)),["Monkey $subject" for subject in subjects])
         fig
     end
+end
+
+function plot_individual_trials()
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure(size=(700,400))
+        lg1 = GridLayout(fig[1,1])
+        plot_individual_trials!(lg1, "W";label=["A", "B"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        Label(lg1[1,0], "Monkey W", tellwidth=true, tellheight=false, rotation=π/2)
+        lg2 = GridLayout(fig[2,1])
+        plot_individual_trials!(lg2, "J";label=["C","D"],add_legend=true, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        Label(lg2[1,0], "Monkey J", tellwidth=true, tellheight=false, rotation=π/2)
+        fig
+    end
+end
+
+"""
+Show a scatter plot of reaction time vs  each of the variable in `qdata` for one set of trials
+"""
+function plot_individual_trials(qdata,area::String;kvs...)
+    trialidx = qdata["trialidx"][:,1]
+    subject = qdata["subjects"][1]
+
+end
+
+function plot_individual_trials(subject::String, ;kvs...)
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure(size=(700,300))
+        lg = GridLayout(fig[1,1])
+        plot_individual_trials!(lg, subject;kvs...)
+        fig
+    end
+end
+
+function plot_individual_trials!(lg, subject::String, ;label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, kvs...)
+    qdataz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], kvs...)
+    qdatal = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], kvs...)
+    qdatass = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:SS,:ncells,:xpos,:ypos], kvs...)
+
+    qdatalz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], kvs...)
+    qdatazss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z, :SS,:ncells,:xpos,:ypos], kvs...)
+    bins = qdatazss["bins"]
+    bidx = searchsortedfirst(bins, t0)
+
+    r² = Dict()
+    for area in ["fef","dlpfc"]
+        r²[area] = Dict()
+        _r² = r²[area]
+        _r²["MP"] = qdataz[area]["r²"][bidx,:]
+        _r²["PL"] = qdatal[area]["r²"][bidx,:]
+        _r²["AS"] = qdatass[area]["r²"][bidx,:]
+        _r²["MP+PL"] = qdatalz[area]["r²"][bidx,:]
+        _r²["MP+AS"] = qdatazss[area]["r²"][bidx,:]
+    end
+    acolor = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
+    
+    lg2 = GridLayout(lg[1,1])
+    plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SS];xlabelvisible=xlabelvisible, kvs...)
+    ax = Axis(lg[1,2])
+    # boxplot this
+    offset = 1
+    for k in ["MP","PL","MP+PL","AS","MP+AS"]
+        for (cc,a) in zip(acolor, ["fef","dlpfc"])
+            boxplot!(ax, fill(offset,100), r²[a][k],color=cc, markersize=5px)
+            offset += 1
+        end
+    end
+    ax.xticks = (range(1.5, step=2.0, length=5),["MP","PL","MP+PL","AS","MP+AS"])
+    ax.xticklabelsvisible = xlabelvisible
+    ax.xticklabelrotation = -π/6
+    ax.ylabel = "r²"
+    if add_legend
+        Legend(lg[1,2], [PolyElement(color=c) for c in acolor], ["FEF","DLPFC"], valign=:top,
+                halign=:right, tellwidth=false, margin=(10.0, -15.0, 0.0, -15.0), labelsize=12)
+    end
+    if label !== nothing
+        Label(lg[1,1,TopLeft()], label[1])
+        Label(lg[1,2,TopLeft()], label[2])
+    end
+    colsize!(lg,1,Relative(0.7))
+
+    # plot comparison fef vs dlpfc for individual as well as combinations
+    #trialidx = qdata["trialidx"][:,1]
+
+end
+
+function plot_individual_trials(trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};kvs...)
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure()
+        lg = Gridlayout(fig[1,1])
+        plot_individual_trials!(lg, trialidx, area, subject, varnames;kvs...)
+        fig
+    end
+end
+
+function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
+
+    vnames = Dict(:Z=>"MP", :L => "PL", :SS=>"AS")
+    ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
+    Z,L,EE, MM, SS, FL, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,_trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0, kvs...);
+    bidx = searchsortedfirst(bins, t0)
+    if subject == "J"
+        tidx = findall(label.!=9)
+    else
+        tidx = 1:size(Z,1)
+    end
+    if sessions != :all
+        tidx = tidx[findall(in(sessions), sessionidx[tidx])]
+    end
+    # use only trials associated with targets in the specfied hemifield
+    tidx = tidx[findall(in(Utils.get_recording_side(recording_side, subject)), label[tidx])]
+
+    xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
+    ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
+    allvars = (Z=Z[tidx,bidx:bidx], L=L[tidx,bidx:bidx],EE=EE[tidx,bidx:bidx],MM=MM[tidx,bidx:bidx],
+               SS=SS[tidx,bidx:bidx],FL=FL[tidx,bidx:bidx], ncells=ncells[tidx], xpos=xpos, ypos=ypos)
+    # exclude ncells if we are only doing one session
+    #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
+    vars = Any[lrt[tidx]]
+    use_varnames = Symbol[]
+    for vv in varnames
+        if vv == :ncells 
+            if length(unique(ncells)) > 1
+                push!(vars, ncells)
+                push!(use_varnames, :ncells)
+            end
+        else
+            push!(vars, allvars[vv])
+            push!(use_varnames, vv)
+        end
+    end
+    if all(in(use_varnames).([:xpos, :ypos]))
+        exclude_pairs = [(findfirst(use_varnames.==:xpos),findfirst(use_varnames.==:ypos))]
+    else
+        exclude_pairs = Tuple{Int64, Int64}[]
+    end
+    βj = fill(0.0, length(varnames)+1)
+    β = fill(0.0, 2, length(varnames))
+    # joint
+    βj,_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars...;exclude_pairs=exclude_pairs,save_all_β=true)
+    #individual
+    for ii in 1:length(varnames)
+        β[:,ii],_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars[[1,ii+1]]...;exclude_pairs=exclude_pairs,save_all_β=true)
+        # override
+        lreg = LinearRegressionUtils.llsq_stats(vars[1+ii][trialidx,1:1], vars[1][trialidx])
+        @show lreg.β
+    end
+
+    # now plot
+    la = lowercase(area)
+    if la == "dlpfc"
+        acolor = PlotUtils.dlpfc_color
+    elseif la == "fef"
+        acolor = PlotUtils.fef_color
+    else
+        acolor = Makie.wong_colors()[1]
+    end
+    axes = [Axis(lg[1,i]) for i in 1:length(varnames)]
+    linkyaxes!(axes...)
+    for (ii,ax) in enumerate(axes)
+        scatter!(ax,  vars[1+ii][trialidx,1], vars[1][trialidx],color=acolor,markersize=5px)
+        ax.xlabel = vnames[varnames[ii]]
+        ax.xlabelvisible = xlabelvisible
+        # this is hard to interpret without the context of the other variables, so
+        # we probably don't want to show them
+        #ablines!(ax, βj[end], βj[ii],color=:black)
+        ablines!(ax, β[end,ii], β[1,ii],color=:black)
+    end
+    for ax in axes[2:end]
+        ax.yticklabelsvisible = false
+    end
+    axes[1].ylabel = "log(rt)"
 end
 
 """
