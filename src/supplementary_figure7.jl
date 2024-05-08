@@ -12,7 +12,7 @@ include("figure2.jl")
 Comparing F1 score for at the onset of the go-cue subspace and the movement subspace between
 FEF and DLPFC
 """
-function plot_fef_dlpfc_comparison(;latency::Dict=Dict("cue"=>40.0,"mov"=>0.0),window::Dict=Dict("cue"=>15.0, "mov"=>35.0),plottype=:scatter)
+function plot_fef_dlpfc_comparison(;latency::Dict=Dict("cue"=>40.0,"mov"=>0.0),window::Dict=Dict("cue"=>15.0, "mov"=>35.0),plottype=:boxplot)
     fname_cue_dlpfc, fname_mov_dlpfc = Figure2.get_event_subspaces(;subject="ALL", rtime_min=120.0,area="DLPFC")
     fname_cue_fef, fname_mov_fef = Figure2.get_event_subspaces(;subject="ALL", rtime_min=120.0,area="FEF")
 
@@ -38,6 +38,7 @@ function plot_fef_dlpfc_comparison(;latency::Dict=Dict("cue"=>40.0,"mov"=>0.0),w
                 # barplot
                 nn_dlpfc = size(f1score_dlpfc,4)
                 nn_fef = size(f1score_fef,4)
+                hlines!(ax, 0.5, color=:black, linestyle=:dot)
                 boxplot!(ax, fill(1.0, nn_fef), f1score_fef[idxw, idxl, 1 ,:],label="FEF", color=PlotUtils.fef_color)
                 boxplot!(ax, fill(2.0, nn_dlpfc), f1score_dlpfc[idxw, idxl, 1 ,:], label="DLPFC", color=PlotUtils.dlpfc_color)
                 ax.ylabel = "F₁ score"
