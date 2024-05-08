@@ -1115,14 +1115,14 @@ function plot_β_summary(;subjects=["J","W"], kvs...)
     end
 end
 
-function plot_individual_trials()
+function plot_individual_trials(;plottype=:barplot, show_dlpfc=false)
     with_theme(PlotUtils.plot_theme) do
         fig = Figure(size=(700,400))
         lg1 = GridLayout(fig[1,1])
-        plot_individual_trials!(lg1, "W";label=["A", "B"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        plot_individual_trials!(lg1, "W";plottype=plottype, label=["A", "B"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg1[1,0], "Monkey W", tellwidth=true, tellheight=false, rotation=π/2)
         lg2 = GridLayout(fig[2,1])
-        plot_individual_trials!(lg2, "J";label=["C","D"],add_legend=true, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        plot_individual_trials!(lg2, "J";plottype=plottype, label=["C","D"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg2[1,0], "Monkey J", tellwidth=true, tellheight=false, rotation=π/2)
         fig
     end
@@ -1146,7 +1146,7 @@ function plot_individual_trials(subject::String, ;kvs...)
     end
 end
 
-function plot_individual_trials!(lg, subject::String, ;label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, kvs...)
+function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, kvs...)
     qdataz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], kvs...)
     qdatal = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], kvs...)
     qdatass = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:SS,:ncells,:xpos,:ypos], kvs...)
@@ -1157,30 +1157,66 @@ function plot_individual_trials!(lg, subject::String, ;label::Union{Nothing, Vec
     bidx = searchsortedfirst(bins, t0)
 
     r² = Dict()
-    for area in ["fef","dlpfc"]
+    r²z = Dict()
+    areas = ["fef", "dlpfc"]
+    for area in areas 
         r²[area] = Dict()
+        r²z[area] = Dict()
         _r² = r²[area]
+        _r²z = r²z[area]
         _r²["MP"] = qdataz[area]["r²"][bidx,:]
+        _r²z["MP"] = qdataz[area]["r²_shuffled"][bidx,:]
         _r²["PL"] = qdatal[area]["r²"][bidx,:]
+        _r²z["PL"] = qdatal[area]["r²_shuffled"][bidx,:]
         _r²["AS"] = qdatass[area]["r²"][bidx,:]
+        _r²z["AS"] = qdatass[area]["r²_shuffled"][bidx,:]
         _r²["MP+PL"] = qdatalz[area]["r²"][bidx,:]
+        _r²z["MP+PL"] = qdatalz[area]["r²_shuffled"][bidx,:]
         _r²["MP+AS"] = qdatazss[area]["r²"][bidx,:]
+        _r²z["MP+AS"] = qdatazss[area]["r²_shuffled"][bidx,:]
     end
     acolor = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     
     lg2 = GridLayout(lg[1,1])
-    plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SS];xlabelvisible=xlabelvisible, kvs...)
+    β = fill(0.0, 3)
+    for (ii,qdata) in enumerate([qdataz,qdatal,qdatass])
+        β[ii] = qdata["fef"]["β"][1,bidx,1]
+    end
+    axes = plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SS];β=β, npoints=npoints, xlabelvisible=xlabelvisible, kvs...)
+    for (k,ax) in zip(["MP","PL","AS"], axes)
+        μ = mean(r²["fef"][k])
+        ax.title = @sprintf("r² = %0.2f", μ)
+        ax.titlefont = :regular
+    end
     ax = Axis(lg[1,2])
-    # boxplot this
     offset = 1
+
     for k in ["MP","PL","MP+PL","AS","MP+AS"]
-        for (cc,a) in zip(acolor, ["fef","dlpfc"])
-            boxplot!(ax, fill(offset,100), r²[a][k],color=cc, markersize=5px)
-            offset += 1
+        for (cc,a) in zip(acolor,areas) 
+            μ = mean(r²[a][k])
+            zscore = (μ - mean(r²z[a][k]))/std(r²z[a][k])
+            if zscore > 3.72 
+                aa = "**"
+            elseif zscore > 2.33 
+                aa = "*"
+            else
+                aa = ""
+            end
+            if a == "dlpfc" && show_dlpfc == false
+                # just print the value
+                print("$k: zscore = $(zscore)\n")
+            else
+                if plottype == :boxplot
+                    boxplot!(ax, fill(offset,100), r²[a][k],color=cc, markersize=5px)
+                else
+                    barplot!(ax, [offset], [mean(r²[a][k])], color=cc)
+                end
+                text!(ax, (offset, μ), text=aa, valign=:bottom,halign=:center)
+                offset += 1
+            end
         end
     end
-    ax.xticks = (range(1.5, step=2.0, length=5),["MP","PL","MP+PL","AS","MP+AS"])
-    ax.xticklabelsvisible = xlabelvisible
+    ax.xticks = (range(1.0, step=1, length=offset-1),["MP","PL","MP+PL","AS","MP+AS"])
     ax.xticklabelrotation = -π/6
     ax.ylabel = "r²"
     if add_legend
@@ -1207,7 +1243,7 @@ function plot_individual_trials(trialidx::Vector{Int64},area::String,subject::St
     end
 end
 
-function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
+function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
 
     vnames = Dict(:Z=>"MP", :L => "PL", :SS=>"AS")
     ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
@@ -1248,18 +1284,17 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
     else
         exclude_pairs = Tuple{Int64, Int64}[]
     end
-    βj = fill(0.0, length(varnames)+1)
-    β = fill(0.0, 2, length(varnames))
+    β0 = fill(0.0, 2, length(varnames))
     # joint
-    βj,_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars...;exclude_pairs=exclude_pairs,save_all_β=true)
+    if β === nothing
+        β,_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars...;exclude_pairs=exclude_pairs,save_all_β=true)
+    end
     #individual
     for ii in 1:length(varnames)
-        β[:,ii],_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars[[1,ii+1]]...;exclude_pairs=exclude_pairs,save_all_β=true)
-        # override
-        lreg = LinearRegressionUtils.llsq_stats(vars[1+ii][trialidx,1:1], vars[1][trialidx])
-        @show lreg.β
+       # _β,_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars[[1,ii+1]]...;exclude_pairs=exclude_pairs,save_all_β=true)
+       # β0[:,ii] = _β
+        β0[2,ii] = mean(vars[1] .- β[ii].*vars[ii+1])
     end
-
     # now plot
     la = lowercase(area)
     if la == "dlpfc"
@@ -1269,21 +1304,22 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
     else
         acolor = Makie.wong_colors()[1]
     end
-    axes = [Axis(lg[1,i]) for i in 1:length(varnames)]
+    axes = [Axis(lg[1,i],xticks=WilkinsonTicks(3)) for i in 1:length(varnames)]
     linkyaxes!(axes...)
     for (ii,ax) in enumerate(axes)
-        scatter!(ax,  vars[1+ii][trialidx,1], vars[1][trialidx],color=acolor,markersize=5px)
+        _tidx = sort(shuffle(1:length(trialidx))[1:npoints])
+        scatter!(ax,  vars[1+ii][trialidx[_tidx],1], vars[1][trialidx[_tidx]],color=acolor,markersize=5px)
         ax.xlabel = vnames[varnames[ii]]
         ax.xlabelvisible = xlabelvisible
         # this is hard to interpret without the context of the other variables, so
         # we probably don't want to show them
-        #ablines!(ax, βj[end], βj[ii],color=:black)
-        ablines!(ax, β[end,ii], β[1,ii],color=:black)
+        ablines!(ax, β0[end,ii], β[ii],color=:black)
     end
     for ax in axes[2:end]
         ax.yticklabelsvisible = false
     end
     axes[1].ylabel = "log(rt)"
+    axes
 end
 
 """
