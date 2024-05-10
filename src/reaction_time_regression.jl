@@ -10,6 +10,8 @@ using CRC32c
 using LinearAlgebra
 using ProgressMeter
 using HypothesisTests
+using Printf
+using DrWatson
 
 include("utils.jl")
 include("trajectories.jl")
@@ -452,47 +454,67 @@ end
 function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
+    input_args = Dict{String,Any}()
     if subjects != ["J","W"]
         q = crc32c(string((:subjects=>subjects)),q)
     end
+    input_args["subjects"] = subjects
     if sessions != :all
         q = crc32c(string((:sessions=>sessions)),q)
     end
     q = crc32c(string(:varnames=>varnames),q)
+    input_args["varnames"] = varnames
     q = crc32c(string((:use_midpoint=>use_midpoint)),q)
+    input_args["use_midpoint"] = use_midpoint
     if shuffle_responses
         q = crc32c(string((:shuffle_responses=>true)),q)
     end
+    input_args["shuffle_responses"] = shuffle_responses
     if shuffle_time
         q = crc32c(string((:shuffle_time=>true)),q)
     end
+    input_args["shuffle_time"] = shuffle_time
     if shuffle_trials
         q = crc32c(string((:shuffle_trials=>true)),q)
     end
+    input_args["shuffle_trials"] = shuffle_trials
     if combine_subjects
         q = crc32c(string((:combine_subjects=>true)),q)
     end
+    input_args["combine_subjects"] = combine_subjects
     if nruns != 100
         q = crc32c(string((:nruns=>nruns)),q)
     end
+    input_args["nruns"] = nruns
     if save_all_β
         q = crc32c(string((:save_all_β=>true)),q)
     end
+    input_args["save_all_β"] = save_all_β
     if balance_positions
         q = crc32c(string((:balance_positions=>true)),q)
     end
+    input_args["balance_positions"] = balance_positions
     if use_log
         q = crc32c(string((:use_log=>true)),q)
     end
+    input_args["use_log"] = use_log
     if !isa(recording_side, Utils.BothSides)
         q = crc32c(string((:recording_side=>Symbol(recording_side))),q)
     end
+    input_args["recording_side"] = recording_side
+    if locations !== :all
+        q = crc32c(string(:locations=>locations),q)
+    end
+    input_args["locations"] = locations
 
     for k in kvs
         if !(k[1] == :t1 && k[2] == 0.0)
             q = crc32c(string(k),q)
         end
+        input_args[string(k[1])] = k[2]
     end
+    # apply git-tag
+    tag!(input_args)
     qs = string(q, base=16)
     fname = "path_length_regression_$(qs).jld2"
     if check_only
