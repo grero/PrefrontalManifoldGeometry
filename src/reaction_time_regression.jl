@@ -449,7 +449,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     if subjects != ["J","W"]
@@ -533,6 +533,10 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 if sessions != :all
                     tidx = tidx[findall(in(sessions), sessionidx[tidx])]
                 end
+                if locations != :all
+                    tidx = tidx[findall(in(locations), label[tidx])]
+                end
+
                 # use only trials associated with targets in the specfied hemifield
                 tidx = tidx[findall(in(Utils.get_recording_side(recording_side, subject)), label[tidx])]
                 xpos = [p[1] for p in Utils.location_position[subject]][label[tidx]]
