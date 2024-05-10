@@ -1,295 +1,262 @@
-"""
-Training on one period and testing on another
-"""
-module CrossSubspace
-using EventOnsetDecoding
+module OrthognoalSubspaces
+using ProgressMeter
+using OrthogonalLDA
+using CRC32c
+using HDF5
 using LinearAlgebra
 using StatsBase
-using Random
-using JLD2
-using HDF5
-using ProgressMeter
-using Makie
-using Distributions
 
 include("utils.jl")
 include("plot_utils.jl")
-include("figure2.jl")
-
-using .PlotUtils: plot_theme
-using .Utils: sessions_j, sessions_w
 
 """
-    get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbol;redo=false)
-
-Get the performance of a decoder trained on one period and tested on another
+````
+function find_orthogonal_subpspaces(subject;redo=false, do_pca=false,
+````
+The a orthogonal sub-spaces for for activity in the specified windows
 """
-function get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbol;redo=false,baseline_end=-300.0,nruns=100)
-	if subject == "W"
-		args =[sessions_w, [1:4;]]
-	elseif subject == "J"
-		args =[sessions_j, [1:8;]]
-	elseif subject == "ALL"
-		args = [[sessions_j;sessions_w], [1:8;]]
-	end
-	outfname = "$(subject)_train_$(train)_test_$(test).jld2"
-    window = [range(5.0, step=10.0, stop=50.0);]
-    latency = range(100.0, step=-10.0, stop=0.0)
-	if isfile(outfname) && !redo
-		f1score = JLD2.load(outfname, "f1score")
-	else
-        ppsth, trialidx, tlabels, rtimes = JLD2.load(joinpath("data","ppsth_$(test).jld2"), "ppsth","trialidx","labels", "rtimes")
-		
-		fef_idx = findall(get_area_index(ppsth.cellnames, "FEF"))
-        push!(args, fef_idx)
-		kvs = Pair{Symbol, Any}[]
-		#window = range(5.0, step=10.0, stop=50.0)
-		#window = [1,2,3,4]
-		#remove_window=(4.0, 4.0)
-		remove_window = nothing
-		reverse_bins = train == :cue
-		push!(kvs, :nruns => nruns)
-		push!(kvs, :shuffle_bins => false)
-		push!(kvs, :use_new_decoder => false)
-		push!(kvs, :difference_decoder => true)
-		push!(kvs, :windows => window)
-		push!(kvs, :latencies => latency)
-		push!(kvs, :combine_locations => true)
-		push!(kvs, :combine_training_only => false)
-		push!(kvs, :shuffle_each_trial => false)
-		push!(kvs, :simple_shuffle => false)
-		push!(kvs, :restricted_shuffle => false)
-		push!(kvs, :shuffle_latency => false)
-		push!(kvs, :reverse_bins => reverse_bins)
-		push!(kvs ,:fix_resolution => false)
-		push!(kvs, :at_source => false)
-		push!(kvs, :shuffle_training => false)
-		push!(kvs, :remove_window => remove_window)
-		push!(kvs, :max_shuffle_latency => 50.0)
-		push!(kvs, :rtime_min => 120.0)
-		push!(kvs, :mixin_postcue => true)
-        push!(kvs, :baseline_end => baseline_end)
-        push!(kvs, :save_sample_indices => true)
-		dargs = EventOnsetDecoding.DecoderArgs(args...;kvs...)
-		fname = joinpath("data", EventOnsetDecoding.get_filename(dargs))
+function find_orthogonal_subpspaces(;redo=false, do_pca=false,
+    nruns=20,
+    windowsize=40.0,
+    window1=(-600.0, 0.0), 
+    window2=(0.0, 400.0),
+    window3=(-100.0, 0.0),
+    window4=(0.0, 100.0),
+    use_locations::Union{Vector{Int64},Symbol}=:all, use_corners=false)
+
+    h = CRC32c.crc32c(string(window1))
+    h = CRC32c.crc32c(string(window2),h)
+    h = CRC32c.crc32c(string(window3), h)
+    h = CRC32c.crc32c(string(window4),h)
+    h = CRC32c.crc32c(string(nruns),h)
+    if windowsize != 40.0
+        h = CRC32c.crc32c(string(windowsize),h)
+    end
+    if !do_pca
+        h = CRC32c.crc32c("no pace",h)
+    end
+    if use_locations != :all
+        h = CRC32c.crc32c(string(use_locations),h)
+    end
+    if use_corners
+        h = CRC32c.crc32c("use_corners",h)
+    end
+    qq = string(h, base=16)
+    fname = joinpath("data","delay_response_orthogonal_subspace_$(qq).hdf5")
+
+    if HDF5.ishdf5(fname) & !redo
         @show fname
-		weights, pmeans, windows, latencies,trainidx = h5open(fname) do fid
-			read(fid, "weights"), read(fid, "pmeans"), read(fid, "window"), read(fid,"latency"), read(fid, "training_trial_idx")
-		end
-        @show dargs.baseline_end
-		bins = ppsth.bins
-        @show bins
-        binsize = bins[2] - bins[1]
-		if test == :cue
-			bins = -1*reverse(bins)[ppsth.windowsize+1:end]
-			bidx = findall(maximum(dargs.windows) .< bins .< -dargs.baseline_end - maximum(dargs.windows))
-        else
-            bidx = findall(bins[1] + maximum(dargs.windows) .< bins .< dargs.baseline_end)
-		end
-        @show bins, bidx
-		Xtot = fill(0.0, size(ppsth.counts,1), size(ppsth.counts, 2), length(fef_idx))
-		label_tot = Vector{Vector{Int64}}(undef, length(fef_idx))
-		celloffset = 0
-		for i in dargs.sessionidx
-			X, _label, _rtime = EventOnsetDecoding.get_session_data(dargs.sessions[i],ppsth, trialidx, tlabels, rtimes, fef_idx;rtime_min=dargs.rtime_min,rtime_max=dargs.rtime_max)
-			if test == :cue
-				# reverse the bins
-				X .= X[end:-1:1,:,:]
-			end
-			ttidx = findall(in(dargs.locations), _label)
-			_label = [findfirst(dargs.locations.==l) for l in _label[ttidx]]
-			X = X[:, ttidx,:]
-			_rtime = _rtime[ttidx]
-			if dargs.combine_locations
-				fill!(_label, 1)
-			end
-			_ncells = size(X,3)
-			cidx = celloffset+1:celloffset+_ncells
-			Xtot[:, 1:size(X,2),cidx] .= X
-			for (jj, cc) in enumerate(cidx)
-				label_tot[cc] = _label
-			end
-			celloffset += _ncells
-		end
-		Xtot = Xtot[:,:,1:celloffset]
-		label_tot = label_tot[1:celloffset]
-		ncells = size(Xtot,3)
-		ulabel = union(map(unique, label_tot)...)
-		use_locations = ulabel
-		sort!(use_locations)
-		nlocations = length(use_locations)
-		RNGs = [MersenneTwister(rand(UInt32)) for r in 1:nruns]
-		f1score = fill(0.0, length(windows), length(latencies), length(RNGs))
-        ntest = 300
-        prog = Progress(nruns*length(windows)*length(latencies))
-        
-		Threads.@threads for r in 1:length(RNGs)
-            # TODO: Make sure to not use the trainidx here.
-            Ytest = fill(0.0, size(Xtot,1), ntest, size(Xtot,3))
-            testidx = [Int64[] for i in 1:size(Xtot,3)]
-            for i in axes(Ytest,3)
-                _trainidx = unique(trainidx[i,:,r])
-                _testidx = setdiff(1:length(label_tot[i]), _trainidx)
-                sort!(_testidx)
-                testidx[i] = _testidx
+        σ1, σ2, σ3, μ1, μ2, μ3, bins = HDF5.h5open(fname) do fid
+            read(fid, "sigma1"), read(fid, "sigma2"), read(fid, "sigma3"), read(fid, "mu1"), read(fid,"mu2"), read(fid, "mu3"), read(fid, "bins")
+        end
+    else
+        ppstht, labelst, rtimest = JLD2.load(joinpath("data","ppsth_fef_cue.jld2"), "ppsth", "labels","rtimes")
+        X = ppstht.counts
+        bins = ppstht.bins
+        label = Vector{Vector{Int64}}(undef, length(labelst))
+        X2 = fill(0.0, size(X,1), size(X,2), length(label))
+        for ii in 1:length(label) 
+            subject = DPHT.get_level_name("subject", ppstht.cellnames[ii])
+            if use_corners
+                lab = filter_corner_locations(subject, labelst[ii])
+                tidx = findall(lab.!=nothing)
+                label[ii] = lab[tidx]
+                X2[:,1:length(tidx), ii] = X[:, tidx, ii]
+            elseif use_locations != :all
+                func = in(use_locations)
+                tidx = findall(func, label[ii])
+                label[i] = [findfirst(use_locations.==l) for l in label[ii][tidx]]
+                X2[:,1:length(tidx), ii] = X[:, tidx, ii]
+            else
+                label[ii] = labelst[ii]
+                X2[:, :, ii] .= X[:, :, ii]
             end
-            EventOnsetDecoding.sample_trials!(Ytest, Xtot, label_tot, testidx;RNG=RNGs[r])
-			#Yt, train_label,test_label =  EventOnsetDecoding.sample_trials(permutedims(Xtot,[3,2,1]), label_tot;RNG=RNGs[r])
-			
-			for (iw,w) in enumerate(dargs.windows)
-				for (il, l) in enumerate(dargs.latencies)
-                    # mayb doesn't work for cue?
-                    if test == :cue
-                        eidx = findall(-l .<= bins .< -l + w)
+        end
+        nc = maximum([maximum(l) for l in label])
+        bins = bins[1:size(X,1)]
+
+        RNG = MersenneTwister(1234)
+
+        σ1 = fill(0.0, length(bins), nruns)
+        σ2 = fill!(similar(σ1), 0.0)
+        σ3 = fill!(similar(σ1), 0.0)
+        σ4 = fill!(similar(σ1), 0.0)
+        # hold the mean trajectories for each location for the decoder surfaces.
+        μ1 = fill(0.0, nc-1, length(bins), nc, size(σ1,2))
+        μ2 = fill(0.0, nc-1, length(bins), nc, size(σ1,2))
+        μ3 = fill(0.0, nc-1, length(bins), nc, size(σ1,2))
+        @showprogress 1.0 for jj in axes(σ1,2)
+            Yt, train_label, test_label = EventOnsetDecoding.sample_trials(permutedims(X2, [3,2,1]), label; RNG=RNG, ntrain=1500, ntest=300)
+            idx0 = searchsortedfirst(bins, window1[1])
+            idx1 = searchsortedlast(bins, window1[2])
+            Ytrain1 = permutedims(dropdims(mean(Yt[idx0:idx1,1:1500,:], dims=1),dims=1), [2,1])
+
+            idx0 = searchsortedfirst(bins, window2[1])
+            idx1 = searchsortedlast(bins, window2[2])
+            Ytrain2 = permutedims(dropdims(mean(Yt[idx0:idx1,1:1500,:], dims=1),dims=1), [2,1])
+
+            #go-cue
+            idx0 = searchsortedfirst(bins, window3[1])
+            idx1 = searchsortedlast(bins, window3[2])
+            Ytrain3 = permutedims(dropdims(mean(Yt[idx0:idx1,1:1500,:], dims=1),dims=1), [2,1])
+
+            idx0 = searchsortedfirst(bins, window4[1])
+            idx1 = searchsortedlast(bins, window4[2])
+            Ytrain4 = permutedims(dropdims(mean(Yt[idx0:idx1,1:1500,:], dims=1),dims=1), [2,1])
+
+            #center
+            for Y in [Ytrain1, Ytrain2]
+                Y .-= mean(Y, dims=2)
+            end
+            if do_pca
+                pca = fit(PCA, cat(Ytrain1, Ytrain2, Ytrain3, Ytrain4, dims=2), pratio=0.9)
+                _Ytrain1 = predict(pca, Ytrain1)
+                _Ytrain2 = predict(pca, Ytrain2)
+                _Ytrain3 = predict(pca, Ytrain3)
+                _Ytrain4 = predict(pca, Ytrain4)
+            else
+                _Ytrain1 = Ytrain1
+                _Ytrain2 = Ytrain2
+                _Ytrain3 = Ytrain3
+                _Ytrain4 = Ytrain4
+            end
+
+            mstats1 = MultivariateStats.multiclass_lda_stats(Ytrain1, train_label)
+            d1 = size(mstats1.Sb, 1)			
+
+            mstats2 = MultivariateStats.multiclass_lda_stats(Ytrain2, train_label)
+            d2 = size(mstats2.Sb, 1)
+
+            mstats3 = MultivariateStats.multiclass_lda_stats(cat(_Ytrain3, _Ytrain4,dims=2), [fill(1, size(_Ytrain3,2));fill(2, size(_Ytrain4,2))])
+
+            W = OrthogonalLDA.orthogonal_lda([mstats1.Sb, mstats2.Sb,mstats3.Sb], [mstats1.Sw,mstats2.Sw, mstats3.Sw], [nc-1,nc-1,1];debug=missing)
+
+            W1 = W[:,1:nc-1]
+            W2 = W[:, nc:end-1]
+            W3 = W[:,end:end]
+            #compute the projected means
+            pmeans1 = fill(0.0, nc-1, nc)
+            pmeans2 = fill(0.0, nc-1, nc)
+            for l in 1:nc
+                pmeans1[:,l] = mean(W1'*_Ytrain1[:,train_label.==l],dims=2)
+                pmeans2[:,l] = mean(W2'*_Ytrain2[:,train_label.==l],dims=2)
+            end
+            pmeans3 = fill(0.0, 1, 2)
+            pmeans3[:,1] = mean(W3'*_Ytrain3,dims=2)
+            pmeans3[:,2] = mean(W3'*_Ytrain4,dims=2)
+
+            _Yt,bins2 = rebin2(Yt[:,1501:end, :],bins, windowsize) 
+            Ytest = permutedims(_Yt, [3,2,1])
+            ntest = length(test_label)
+            nlabel = fill(0, nc)
+            for kk in axes(Ytest,3)
+                fill!(nlabel, 0)
+                for ll in axes(Ytest,2)
+                    if do_pca
+                        y = predict(pca, Ytest[:,ll,kk])
                     else
-                        eidx = findall(-l - w .<= bins .< -l)
+                        y = Ytest[:,ll,kk]
                     end
-					midx = first(eidx)
-					W = weights[:,1:1,iw,il,1,r]
-					pm = pmeans[1:1,:,iw,il,1,r]
-					tp = 0.0
-					fp = 0.0
-					fn = 0.0
-					nn = 0
-					np = 0
-                    wl = round(Int64, w/binsize)
-                    midx = searchsortedfirst(bins[1+wl:end], bins[midx])
-                    Q = fill(0, size(Ytest,1)-2*wl, size(Ytest,2))
-                    # restrict the baseline indices
-                    b2idx = findall(in(bidx), wl:(wl+size(Q,1)-1))
-                    #@show b2idx, size(Q)
-					for tt in 1:size(Ytest,2)
-						#project onto space
-                        j = midx
-                        for j in axes(Q,1)
-                            y = sum(Ytest[j+wl:j+2*wl-1,tt,:],dims=1) - sum(Ytest[j:j+wl-1,tt,:],dims=1)
-                            #q = (Ytest2[2:end,tt,:] -Ytest2[1:end-1,tt,:])*W
-                            # [1xnc] [ncxm]
-                            q = permutedims(y*W)
-                            # [mx1]
-                            if tt == 1 && j == 1
-                                #@show size(q) size(pm)
-                            end
-                            d = dropdims(sum(abs2,q .- pm,dims=1),dims=1)
-                            cq = argmin(d)
-                            Q[j,tt] = cq
-                            #cq = dropdims(argmin(d,dims=2),dims=2)
-                        end
-						#llb = dropdims(argmin(d,dims=))
-						if rand() < 0.5
-                            # TODO: Check if this works
-							_bidx = rand(b2idx)
-							#fp += cq[_bidx].I[2] == 2
-                            fp += Q[_bidx,tt] == 2
-							nn += 1
-						else
-							#tp += cq[midx].I[2] .== 2
-							#fn += cq[midx].I[2] .== 1
-                            tp += Q[midx, tt] .== 2
-                            fn += Q[midx, tt] .== 1
-							np += 1
-						end
-					end
-					tp /= np
-					fn /= np
-					fp /= nn
-					#find the closest
-                    # artificially high f1score could be because either fn or fp are too low.
-					f1score[iw,il,r] = tp/(tp + 0.5*(fn + fp))
-                    next!(prog; showvalues=[(:run, r)])
-				end
-			end
-		end
-		JLD2.save(outfname, Dict("f1score" => f1score, "windows"=>windows, "latencies"=>latencies))
-	end
-	f1score, train, test, window, latency;
+                    nlabel[test_label[ll]] += 1
+                    for (σ, w, μ, pmeans) in zip([σ1, σ2], [W1, W2], [μ1, μ2], [pmeans1, pmeans2])
+                        yp = w'*y
+                        μ[:, kk,test_label[ll],jj] .+= yp
+                        d = dropdims(sum(abs2, yp .- pmeans, dims=1),dims=1)
+                        σ[kk,jj] += test_label[ll] == argmin(d)
+                    end
+                    yp = W3'*y
+                    μ3[:, kk,test_label[ll],jj] .+= yp
+                    d = dropdims(sum(abs2, yp .- pmeans3, dims=1),dims=1)
+                    σ3[kk, jj] += argmin(d) == 2
+                end
+                σ1[kk,jj] /= ntest
+                σ2[kk,jj] /= ntest
+                σ3[kk,jj] /= ntest
+                for ii in 1:nc
+                    μ1[:,kk,ii,jj] ./= nlabel[ii]
+                    μ2[:,kk,ii,jj] ./= nlabel[ii]
+                    μ3[:,kk,ii,jj] ./= nlabel[ii]
+                end
+            end
+        end
+        HDF5.h5open(fname, "w") do fid
+            fid["sigma1"] = σ1
+            fid["sigma2"] = σ2
+            fid["sigma3"] = σ3
+            fid["mu1"] = μ1
+            fid["mu2"] = μ2
+            fid["mu3"] = μ3
+            fid["bins"] = [bins;]
+        end
+    end
+    σ1, σ2, σ3, μ1, μ2, μ3, bins
 end
 
-function plot(window, latency;width=350, height=250, do_save=true)
+"""
+```
+function plot_orthogonal_subspaces!(lg;windowsize=40.0, add_label=true, kvs...)
+```
+Plot the time resolved decoding performance of 3 orthognoal decoders
+"""
+function plot_orthogonal_subspaces!(lg;windowsize=40.0, add_label=true, kvs...)
+    fontsize = get(kvs, :fontsize, 12)
+    σ1, σ2, σ3, μ1, μ2, μ3, bins = find_orthogonal_subpspaces(; use_corners=true, redo=false, windowsize=windowsize)
+
+    qqidx = 1:length(bins)-8
+    Δb = windowsize/2.0 # half the window size of 40ms
     with_theme(plot_theme) do
-        fig = Figure(size=(width,height))
+        ax1 = Axis(lg[1,1],xlabelsize=fontsize, xticklabelsize=fontsize, ylabelsize=fontsize, yticklabelsize=fontsize)
+        ax2 = Axis(lg[2,1],xlabelsize=fontsize, xticklabelsize=fontsize, ylabelsize=fontsize, yticklabelsize=fontsize)
+
+        linkxaxes!(ax1, ax2)
+        m1 = dropdims(mean(σ1[qqidx,:],dims=2),dims=2)
+        s1 = dropdims(std(σ1[qqidx,:],dims=2),dims=2)
+        m2 = dropdims(mean(σ2[qqidx,:],dims=2),dims=2)
+        s2 = dropdims(std(σ2[qqidx,:],dims=2),dims=2)
+        m3 = dropdims(mean(σ3[qqidx,:],dims=2),dims=2)
+        s3 = dropdims(std(σ3[qqidx,:],dims=2),dims=2)
+        binsq = bins[qqidx] .+ Δb
+        band!(ax1, binsq, m1 - s1, m1 + s1)
+        band!(ax1, binsq, m2 - s2, m2 + s2)
+        band!(ax2, binsq, m3 - s3, m3 + s3, color=Cycled(3))
+        lines!(ax1, binsq, m1, linewidth=2.0, label="Movement prep")
+        lines!(ax1, binsq, m2, linewidth=2.0, label="Movement exc")
+        lines!(ax2, binsq, m3, linewidth=2.0, color=Cycled(3), label="CI")
+        hlines!(ax1, 1.0/size(μ1,3), linestyle=:dot, color="black")
+        hlines!(ax2, 0.5, linestyle=:dot, color="black")
+        for ax in [ax1, ax2]
+            vlines!(ax, 0.0, color="black", linestyle=:dot)
+        end
+        axislegend(ax1, valign=:top, halign=:left, margin=(10.0, 0.0, 0.0, -17.0), padding=(10.0, 10.0, 10.0, 10.0))
+        axislegend(ax2, valign=:top, halign=:left, margin=(10.0, 0.0, 0.0, -17.0), padding=(10.0, 10.0, 10.0, 10.0))
+
+        ax1.ylabel = "Mov direction perf"
+        ax2.ylabel = "Condition inv perf"
+        ax2.xlabel = "Time from go-cue [ms]"
+        ax1.xticklabelsvisible = false
+        if add_label
+            label_padding = (0.0, 0.0, 5.0, 0.0)
+            
+            labels = [Label(lg[1,1,TopLeft()], "A", padding=label_padding),
+                    Label(lg[2,1,TopLeft()], "B", padding=label_padding)]
+        end
+    end
+    lg
+end
+
+function plot(;do_save=true, kvs...)
+    width = 9.7*72
+    height = 0.75*width
+    with_theme(plot_theme) do
+		fig = Figure(resolution=(width,height))
         lg = GridLayout()
         fig[1,1] = lg
-        plot!(lg, window, latency)
+        plot_orthogonal_subspaces!(lg;add_label=false, fontsize=16)
+        if do_save
+            fname = joinpath("figures","manuscript","orthogonal_subspaces.pdf")
+            save(fname, fig;pt_per_unit=1)
+        end
         fig
     end
-end 
-
-function plot!(lg, window, latency;ylabelvisible=true)
-    fname_cue, fname_mov = Figure2.get_event_subspaces(;subject="ALL", rtime_min=120.0,area="FEF",save_sample_indices=false,nruns=100)
-    f1score_cue = h5open(fname_cue) do fid
-        read(fid,"f1score")
-    end
-    f1score_mov = h5open(fname_mov) do fid
-        read(fid, "f1score")
-    end
-    with_theme(plot_theme)  do
-        ax = Axis(lg[1,1])
-        # train on cue, test on mov 
-        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :cue, :mov;redo=false,baseline_end=-250.0)
-        iw = searchsortedfirst(windows, window.cue)
-        il = searchsortedfirst(latencies, latency.cue, rev=true)
-        y11 = f1score_cue[iw,il,1,:]
-        y12 = f1score[iw, il,:]
-        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :mov, :cue;redo=false,baseline_end=-300.0)
-        iw = searchsortedfirst(windows, window.mov)
-        il = searchsortedfirst(latencies, latency.mov, rev=true)
-        y21 = f1score[iw, il,:]
-        y22 = f1score_mov[iw,il,1,:]
-        yy = [y11,y12,y22,y21]
-        ll,mm,uu = [fill(0.0, 4) for _ in 1:3]
-        for i in 1:4
-            y = yy[i]
-            pp = fit(Beta, y)
-            ll[i],mm[i],uu[i] = quantile.(pp, [0.05, 0.5, 0.95])
-        end
-        #ll = percentile.(yy, 5)
-        #uu = percentile.(yy, 95)
-        barplot!(ax, [1:4;], mm,color=:gray,width=0.7)
-        rangebars!(ax, [1:4;], ll, uu,color=:black)
-        ax.xticks = ([1:4;],["train on cue\ntest on cue", "train on cue\ntest on mov","train on mov\ntest on mov", "train on mov\ntest on cue"])
-        #ax.xticks = ([1:4;], ["cue→cue","cue→mov","mov→mov","mov→cue"])
-        ax.xticklabelrotation = π/6
-        if ylabelvisible
-            ax.ylabel = "F₁ score"
-        end
-        lg 
-    end
-        
 end
-
-function plot(;do_save=false, width=605, height=400, kvs...)
-    fig = Figure(resolution=(width,height))
-    lg = GridLayout()
-    fig[1,1] = lg
-    plot!(lg;kvs...)
-    if do_save
-        fname = joinpath("figures","manuscript","supplementary_figure4.pdf")
-        save(fname, fig;pt_per_unit=1)
-    end
-    fig
 end
-
-function plot!(lg;kvs...)
-    with_theme(plot_theme)  do
-        # train on cue, test on mov 
-        lg1 = GridLayout()
-        lg[1,1] = lg1
-        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :cue, :mov;redo=false,baseline_end=-250.0)
-        h1,ax1 = Figure2.plot_performance!(lg1, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72), kvs...)
-        ax1.title = "Trained on go-cue,\ntested on movement"
-        ax1.ylabel = "Latency [ms]"
-        ax1.xlabel = "Window [ms]"
-
-        # train on mov test on cue 
-        lg2 = GridLayout()
-        lg[1,2] = lg2
-        f1score, trainq, testq, windows,latencies = get_cross_subspace_decoding("ALL", :mov, :cue;redo=false,baseline_end=-300.0)
-        h2,ax2 = Figure2.plot_performance!(lg2, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72), kvs...)
-        ax2.title = "Trained on movement,\ntested on go-cue"
-        ax2.yticklabelsvisible = false
-        Colorbar(lg[1,3], h2, label="F₁ sccore")
-        lg
-   end
-end
-end # module
