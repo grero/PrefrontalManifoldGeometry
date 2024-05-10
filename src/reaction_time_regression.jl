@@ -308,7 +308,7 @@ function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     r²[:,1] = _r² 
     for i in 2:nruns
         tidx = rand(1:nt,nt)
-        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],_ = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
+        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],_,_ = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
     end
     β,Δβ, pv, r²,varidx
 end
@@ -359,6 +359,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
     Δβ = fill(NaN, nvars, nbins)
     pv = fill(NaN, nbins)
     r² = fill(NaN, nbins)
+    rss = fill(NaN, nbins)
     if shuffle_trials
         sidx = shuffle(trialidx)
     else
@@ -401,6 +402,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         # compute the F-stat for whether adding the path length results in a significantly better fit
         n = length(rt)
         rss2 = lreg_with_L.rss
+        rss[i] = rss2
         p2 = length(lreg_with_L.β)
         F = (rss1 - rss2)/(p2-p1)
         F /= rss2/(n-p2)
@@ -418,7 +420,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             Δβ[2:end,i] = lreg_with_L.Δβ[vidx]
         end
     end
-    β,Δβ, pv, r², varidx
+    β,Δβ, pv, r², rss, varidx
 end
 
 function plot_regression(β, Δβ,pv,r²,bins)
