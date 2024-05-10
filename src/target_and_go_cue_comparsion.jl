@@ -195,44 +195,56 @@ function create_weight_correlation_figure(;kvs...)
     D = get_correlation_results(;kvs...)
     create_weight_correlation_figure(D)
 end
-    
+
+function create_weight_correlation_figure!(lg;kvs...)
+    D = get_correlation_results(;kvs...)
+    create_weight_correlation_figure!(lg, D;kvs...)
+end
+
 function create_weight_correlation_figure(D)
-    
     with_theme(PlotUtils.plot_theme) do
         fig = Figure()
-        axes = [Axis(fig[i,j]) for i in 1:2, j in 1:2]
-        for (jj,subject) in enumerate(["J","W"])
-            for (ii,align) in enumerate(["cue","mov"])
-                DX = D[align][subject]["DX"]
-                DD = D[align][subject]["DD"]
-                ax = axes[jj,ii]
-                x = [fill(1.0, length(DX));fill(2.0, length(DD))]
-                boxplot!(ax, fill(1.0, length(DX)), DX[:];width=0.5,label="Target↔Subspace")
-                boxplot!(ax, fill(2.0, length(DD)), DD[:];width=0.5, label="Target↔Target")
-                ax.ylabel = "Correlation $subject"
-                ax.xlabel = align 
-                ax.xticklabelsvisible = false
-                ax.xticksvisible = false
-                ax.bottomspinevisible = false
-            end
-        end
-        linkyaxes!(axes[1,:]...,)
-        linkyaxes!(axes[2,:]...,)
-        for ax in axes[:,2]
-            ax.yticklabelsvisible = false
-            ax.yticksvisible = false
-            ax.leftspinevisible = false
-            ax.ylabelvisible = false
-        end
-        for ax in axes[1,:]
-            ax.xticklabelsvisible = false
-            ax.xlabelvisible = false
-        end
-        # legend
-        axislegend(axes[1,1],halign=:left)
+        create_weight_correlation_figure!(lg, D)
         fig
     end
-
+end
+    
+function create_weight_correlation_figure!(lg, D;legend_ontop=false,kvs...)
+    axes = [Axis(lg[i,j]) for i in 1:2, j in 1:2]
+    labels = Dict("cue"=>"Go-cue onset","mov"=>"Movement onset")
+    for (jj,subject) in enumerate(["J","W"])
+        for (ii,align) in enumerate(["cue","mov"])
+            DX = D[align][subject]["DX"]
+            DD = D[align][subject]["DD"]
+            ax = axes[jj,ii]
+            x = [fill(1.0, length(DX));fill(2.0, length(DD))]
+            boxplot!(ax, fill(1.0, length(DX)), DX[:];width=0.5,label="Target↔Subspace",markersize=5px)
+            boxplot!(ax, fill(2.0, length(DD)), DD[:];width=0.5, label="Target↔Target", markersize=5px)
+            ax.ylabel = "Correlation $subject"
+            ax.xlabel = labels[align]
+            ax.xticklabelsvisible = false
+            ax.xticksvisible = false
+            ax.bottomspinevisible = false
+        end
+    end
+    linkyaxes!(axes[1,:]...,)
+    linkyaxes!(axes[2,:]...,)
+    for ax in axes[:,2]
+        ax.yticklabelsvisible = false
+        ax.yticksvisible = true
+        ax.leftspinevisible = true 
+        ax.ylabelvisible = false
+    end
+    for ax in axes[1,:]
+        ax.xticklabelsvisible = false
+        ax.xlabelvisible = false
+    end
+    # legend
+    if legend_ontop
+        Legend(lg[0,1:2], axes[1,1], tellwidth=false,tellheight=true)
+    else
+        axislegend(axes[1,1],halign=:left)
+    end
 end
 
 function create_decoding_figure()
