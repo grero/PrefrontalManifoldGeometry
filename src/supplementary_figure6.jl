@@ -15,6 +15,7 @@ using Distributions
 include("utils.jl")
 include("plot_utils.jl")
 include("figure2.jl")
+include("target_and_go_cue_comparsion.jl")
 
 using .PlotUtils: plot_theme
 using .Utils: sessions_j, sessions_w
@@ -258,11 +259,25 @@ function plot!(lg, window, latency;ylabelvisible=true)
         
 end
 
-function plot(;do_save=false, width=605, height=400, kvs...)
+function plot(;window=(cue=15.0, mov=35.0),latency=(cue=40.0, mov=0.0),kvs...)
+    with_theme(plot_theme) do
+        fig = Figure()
+        lgA = GridLayout(fig[1,1])
+        Label(fig[1,1,TopLeft()], "A")
+        plot!(lgA, window, latency;kvs...)
+        lgB = GridLayout(fig[1,2])
+        Label(fig[1,2,TopLeft()], "B")
+        create_weight_correlation_figure!(lgB;legend_ontop=true)
+        colsize!(fig.layout, 1, Relative(0.4))
+        fig
+    end
+end
+
+function plot2(;do_save=false, width=605, height=400, kvs...)
     fig = Figure(resolution=(width,height))
     lg = GridLayout()
     fig[1,1] = lg
-    plot!(lg;kvs...)
+    plot2!(lg;kvs...)
     if do_save
         fname = joinpath("figures","manuscript","supplementary_figure4.pdf")
         save(fname, fig;pt_per_unit=1)
@@ -270,7 +285,7 @@ function plot(;do_save=false, width=605, height=400, kvs...)
     fig
 end
 
-function plot!(lg;kvs...)
+function plot2!(lg;kvs...)
     with_theme(plot_theme)  do
         # train on cue, test on mov 
         lg1 = GridLayout()
