@@ -205,11 +205,14 @@ function get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbo
 	f1score, train, test, window, latency;
 end
 
-function plot(window, latency;width=605, height=400, do_save=true)
-    fig = Figure(resolution=(width,height))
-    lg = GridLayout()
-    fig[1,1] = lg
-    plot!(lg, window, latency)
+function plot(window, latency;width=350, height=250, do_save=true)
+    with_theme(plot_theme) do
+        fig = Figure(size=(width,height))
+        lg = GridLayout()
+        fig[1,1] = lg
+        plot!(lg, window, latency)
+        fig
+    end
 end 
 
 function plot!(lg, window, latency;ylabelvisible=true)
