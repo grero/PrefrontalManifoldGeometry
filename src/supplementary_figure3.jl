@@ -245,10 +245,10 @@ function plot!(lg, window, latency;ylabelvisible=true)
         end
         #ll = percentile.(yy, 5)
         #uu = percentile.(yy, 95)
-        barplot!(ax, [1:4;], mm)
-        rangebars!(ax, [1:4;], ll, uu)
-        #ax.xticks = ([1:4;],["train on cue\ntest on cue", "train on cue\ntest on mov","train on mov\ntest on mov", "train on mov\ntest on cue"])
-        ax.xticks = ([1:4;], ["cue→cue","cue→mov","mov→mov","mov→cue"])
+        barplot!(ax, [1:4;], mm,color=:gray,width=0.7)
+        rangebars!(ax, [1:4;], ll, uu,color=:black)
+        ax.xticks = ([1:4;],["train on cue\ntest on cue", "train on cue\ntest on mov","train on mov\ntest on mov", "train on mov\ntest on cue"])
+        #ax.xticks = ([1:4;], ["cue→cue","cue→mov","mov→mov","mov→cue"])
         ax.xticklabelrotation = π/6
         if ylabelvisible
             ax.ylabel = "F₁ score"
