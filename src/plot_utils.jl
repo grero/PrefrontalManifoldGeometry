@@ -12,7 +12,9 @@ plot_theme = Theme(Axis=(xticksvisible=true,
 				topspinevisible=false,
 				rightspinevisible=false,
 				xticklabelsize=12,
-				yticklabelsize=12))
+				yticklabelsize=12,
+				titlefont=:regular,
+				))
 
 
 function make_grid!(ax)
