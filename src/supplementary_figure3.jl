@@ -288,8 +288,8 @@ function plot!(lg;kvs...)
         h2,ax2 = Figure2.plot_performance!(lg2, f1score, windows, latencies;show_colorbar=false, colormap=:Blues, colorrange=(0.0, 0.72), kvs...)
         ax2.title = "Trained on movement,\ntested on go-cue"
         ax2.yticklabelsvisible = false
-        Colorbar(fig[1,3], h2, label="F₁ sccore")
-        fig
+        Colorbar(lg[1,3], h2, label="F₁ sccore")
+        lg
    end
 end
 end # module
