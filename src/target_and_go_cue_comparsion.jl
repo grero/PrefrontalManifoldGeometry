@@ -10,6 +10,7 @@ using ProgressMeter
 using CairoMakie
 include("utils.jl")
 include("plot_utils.jl")
+include("figure2.jl")
 
 # get the weights for the go-cue and movement decoders
 # train a decoder to decode target location during delay 2
