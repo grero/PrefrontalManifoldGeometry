@@ -16,6 +16,9 @@ include("utils.jl")
 include("plot_utils.jl")
 include("figure2.jl")
 
+using .PlotUtils: plot_theme
+using .Utils: sessions_j, sessions_w
+
 """
     get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbol;redo=false)
 
