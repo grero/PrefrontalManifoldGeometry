@@ -144,6 +144,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
     EE = fill!(similar(Z),NaN)
     MM = fill!(similar(Z),NaN) # modified enerngy
     SS = fill!(similar(Z), NaN) # speed
+    SM = fill!(similar(Z), NaN) # speed
     offset = 0
     idxsm = 0 
     nnmax = 0
@@ -244,6 +245,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                 end
                 # transition period
                 Xs = X[_idxv,j2,:]
+                _bins = bins[_idxv]
                 if use_midpoint
                     # midpoint
                     ip = div(length(_idxv),2)+1
@@ -252,10 +254,15 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                     ee = dropdims(sum(abs2, Xs,dims=2),dims=2)
                     ip = argmax(ee)
                 end
+                δt = [_bins[ip]-_bins[1], _bins[end]-_bins[ip]]
                 if smooth_window !== nothing
                     Xs = mapslices(x->Utils.gaussian_smooth(x, bins[_idxv], smooth_window), Xs, dims=1)
                 end
                 L[offset+j2,j] = compute_triangular_path_length(Xs, ip)
+                s1 = sqrt(sum(abs2,(Xs[1,:]-Xs[ip,:])./δt[1]))
+                s2 = sqrt(sum(abs2, (Xs[end,:]-Xs[ip,:])./δt[2]) )
+                ss = [s1,s2]
+                SM[offset+j2,j] = mean(filter(isfinite, ss))
                 # energy
                 EE[offset+j2,j] = maximum(sum(abs2, Xs .- Xs[1:1,:],dims=2))
                 # modified energy; projected onto the line
@@ -273,7 +280,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
-    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], rt, label, ncells, bins, sessionidx
+    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], SM[1:offset,:], rt, label, ncells, bins, sessionidx
 end
 
 function compute_regression(nruns::Int64, args...;kvs...)
@@ -503,6 +510,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             EEa = Vector{Matrix{Float64}}(undef, length(subjects))
             MMa = Vector{Matrix{Float64}}(undef, length(subjects))
             SSa = Vector{Matrix{Float64}}(undef, length(subjects))
+            SMa = Vector{Matrix{Float64}}(undef, length(subjects))
             ncellsa = Vector{Vector{Float64}}(undef, length(subjects))
             xposa = Vector{Vector{Float64}}(undef, length(subjects))
             yposa = Vector{Vector{Float64}}(undef, length(subjects))
@@ -514,7 +522,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
                 # TODO: Do the shuffling here (hic misce)
-                Z,L,EE, MM, SS, FL, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, kvs...);
+                Z,L,EE, MM, SS, FL, SM,lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, kvs...);
                 if subject == "J"
                     tidx = findall(label.!=9)
                 else
@@ -533,6 +541,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 EEa[ss] = EE[tidx,:]
                 MMa[ss] = MM[tidx,:]
                 SSa[ss] = SS[tidx,:]
+                SMa[ss] = SM[tidx,:]
                 ncellsa[ss] = ncells[tidx]
                 xposa[ss] = xpos
                 yposa[ss] = ypos
@@ -547,15 +556,16 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             EE = cat(EEa..., dims=1)
             MM = cat(MMa..., dims=1)
             SS = cat(SSa..., dims=1)
+            SM = cat(SMa..., dims=1)
             ncells = cat(ncellsa..., dims=1)
             xpos = cat(xposa..., dims=1)
             ypos = cat(yposa..., dims=1)
             lrt = cat(lrta..., dims=1)
             # equalize positions if requested
             if balance_positions
-                _,Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt)
+                _,Z,L,EE,MM,SS,FL,SM, ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,FL,SM, ncells,xpos,ypos,lrt)
             end
-            allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, ncells=ncells, xpos=xpos, ypos=ypos)
+            allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, SM=SM, ncells=ncells, xpos=xpos, ypos=ypos)
             # exclude ncells if we are only doing one session
             #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
             vars = Any[lrt]
@@ -623,7 +633,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             r²_S = fill(0.0, size(r²)...)
             @showprogress for r in 1:nruns
                 for (ss, subject) in enumerate(subjects)
-                    _Z,_L,_EE, _MM, _SS, _FL, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, kvs...);
+                    _Z,_L,_EE, _MM, _SS, _FL, _SM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, kvs...);
                     if subject == "J"
                         tidx = findall(_label.!=9)
                     else
@@ -641,6 +651,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     EEa[ss] = _EE[tidx,:]
                     MMa[ss] = _MM[tidx,:]
                     SSa[ss] = _SS[tidx,:]
+                    SMa[ss] = _SM[tidx,:]
                     ncellsa[ss] = _ncells[tidx]
                     xposa[ss] = _xpos
                     yposa[ss] = _ypos
@@ -653,14 +664,15 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 EE = cat(EEa..., dims=1)
                 MM = cat(MMa..., dims=1)
                 SS = cat(SSa..., dims=1)
+                SM = cat(SMa..., dims=1)
                 ncells = cat(ncellsa..., dims=1)
                 xpos = cat(xposa..., dims=1)
                 ypos = cat(yposa..., dims=1)
                 lrt = cat(lrta..., dims=1)
                 if balance_positions
-                    _,Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,FL,ncells,xpos,ypos,lrt)
+                    _,Z,L,EE,MM,SS,FL,SM, ncells,xpos,ypos,lrt = balance_num_trials(collect(zip(xpos,ypos)),Z,L,EE,MM,SS,FL,SM,ncells,xpos,ypos,lrt)
                 end
-                allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS, FL=FL,ncells=ncells, xpos=xpos, ypos=ypos)
+                allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS, FL=FL,SM=SM,ncells=ncells, xpos=xpos, ypos=ypos)
 
                 vars = Any[lrt]
                 for vv in use_varnames
