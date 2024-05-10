@@ -156,7 +156,7 @@ function get_all_results()
     results, bins_cue, bins_mov
 end
 
-function get_correlation_results(;latency::Dict=Dict("mov"=>0.0, "cue"=>40.0), window::Dict=Dict("mov"=>35.0, "cue"=>15.0))
+function get_correlation_results(;latency::Dict=Dict("mov"=>0.0, "cue"=>40.0), window::Dict=Dict("mov"=>35.0, "cue"=>15.0),kvs...)
     results,bins_cue, bins_mov = get_all_results()
     D = Dict()
     D["mov"] = Dict()
