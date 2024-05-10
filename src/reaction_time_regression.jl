@@ -573,13 +573,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             vars = Any[lrt]
             use_varnames = Symbol[]
             for vv in varnames
-                if vv == :ncells 
-                    if length(unique(ncells)) > 1
-                        push!(vars, ncells)
-                        push!(use_varnames, :ncells)
-                    end
-                else
-                    push!(vars, allvars[vv])
+                vk = allvars[vv]
+                if length(unique(vk)) > 1
+                    push!(vars,vk) 
                     push!(use_varnames, vv)
                 end
             end
