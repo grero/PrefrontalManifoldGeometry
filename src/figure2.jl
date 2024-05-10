@@ -676,7 +676,7 @@ function plot_performance!(lg, f1score::Array{Float64,3}, windows::AbstractVecto
 end
 
 function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, α=0.001, threshold=0.5, ymin=Inf,
-                                                               ymax=-Inf, show_colorbar=true,kvs...)
+                                                               ymax=-Inf, show_colorbar=true,colormap=:Blues, bordercolor=:red, kvs...)
     plot_data = Dict{Symbol, Any}(:cue => Dict{Symbol, Any}(), :mov => Dict{Symbol, Any}())
     for (k,fname) in zip([:cue, :mov], [fname_cue, fname_mov])
         bins, f1score,windows,latencies = h5open(fname) do fid
@@ -716,7 +716,7 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
             lower_limit = plot_data[k][:lower_limit]
             pidx = plot_data[k][:pidx]
             qidx = pidx[(in(lidx)).([p.I[2] for p in pidx])]
-            h = heatmap!(ax, windows, latencies[lidx], μ[:,lidx],  colormap=:Blues,colorrange=(ymin, ymax))
+            h = heatmap!(ax, windows, latencies[lidx], μ[:,lidx],  colormap=colormap,colorrange=(ymin, ymax))
             if k == :mov && show_colorbar
                 # TODO: Maybe put this below instead of at the side?
                 cb = Colorbar(lg0[1,3], h, label="F1-score",ticklabelsize=12)
@@ -724,10 +724,10 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
             # highlight some bins
             if k == :cue
                 pp = get_rectangular_border(10.0, 35.0, 20.0, 45.0)
-                lines!(ax, pp, color="red")
+                lines!(ax, pp, color=bordercolor)
             else
                 pp = get_rectangular_border(30.0, -5.0, 40.0, 5.0)
-                lines!(ax, pp, color="red")
+                lines!(ax, pp, color=bordercolor)
             end
             scatter!(ax, windows[[p.I[1] for p in qidx]], latencies[[p.I[2] for p in qidx]], marker='*', color="red", markersize=20px)
             ax.xticks = windows
