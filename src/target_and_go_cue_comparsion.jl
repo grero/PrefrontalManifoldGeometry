@@ -250,13 +250,13 @@ end
 function create_decoding_figure()
     # plot target decoding performance for both monkeys, aligned to both go-cue and movement onset
 
-    results = get_all_results()
+    results,bins_cue,bins_mov = get_all_results()
     with_theme(PlotUtils.plot_theme) do
         fig = Figure()
         axes = [Axis(fig[i,j]) for i in 1:2, j in 1:2] 
         for (ii,(align,bins)) in enumerate(zip(["cue","mov"], [bins_cue, bins_mov]))
             for (jj,subject) in enumerate(["J","W"])
-                perf = cat([results[align][subject][i].perf[:,1,1] for i in 1:length(results_mov)]..., dims=2)
+                perf = cat([results[align][subject][i].perf[:,1,1] for i in 1:length(results[align][subject])]..., dims=2)
                 μ = dropdims(mean(perf,dims=2),dims=2)
                 σ = dropdims(std(perf,dims=2),dims=2)
                 ax = axes[jj,ii]
