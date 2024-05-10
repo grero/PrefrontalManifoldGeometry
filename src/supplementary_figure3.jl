@@ -267,6 +267,7 @@ function plot(;do_save=false, width=605, height=400, kvs...)
         fname = joinpath("figures","manuscript","supplementary_figure4.pdf")
         save(fname, fig;pt_per_unit=1)
     end
+    fig
 end
 
 function plot!(lg;kvs...)
