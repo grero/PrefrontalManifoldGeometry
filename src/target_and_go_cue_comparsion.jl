@@ -167,7 +167,7 @@ function get_correlation_results(;latency::Dict=Dict("mov"=>0.0, "cue"=>40.0), w
     D["cue"]["W"] = Dict()
 
     for subject in ["J","W"]
-        fname_cue, fname_mov = PrefrontalManifoldGeometry.Figure2.get_event_subspaces(;nruns=100,subject=subject)
+        fname_cue, fname_mov = Figure2.get_event_subspaces(;nruns=100,subject=subject)
         for (fname,align,bins) in zip([fname_cue, fname_mov],["cue","mov"],[bins_cue, bins_mov])
             weights, _latency, _window = h5open(fname) do fid
                 read(fid, "weights"), read(fid, "latency"), read(fid, "window")
