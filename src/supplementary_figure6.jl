@@ -1,7 +1,7 @@
 """
 Training on one period and testing on another
 """
-module CrossSubspace
+module FigureS6
 using EventOnsetDecoding
 using LinearAlgebra
 using StatsBase
