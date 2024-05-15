@@ -678,20 +678,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
         # reaction time
         ax11 = Axis(lg4[1,3])
         _rtime =results.rt_sample[tqidx] 
-        dd = StatsBase.fit(Gamma, _rtime)
-        x = sort(_rtime)
-        y = pdf.(dd,x)
-        y ./= sum(y)
-        scatter!(ax11, rand(length(tqidx)),_rtime)
-        ax112 = Axis(lg4[1,3])
-        linkyaxes!(ax11, ax112)
-        lines!(ax112, y, x, color="black")
-        ax112.xticklabelsvisible = false 
-        ax112.xticksvisible = false 
-        ax112.yticklabelsvisible = false
-        ax112.yticksvisible = false
-        ax112.bottomspinevisible = false
-        ax112.leftspinevisible = false
+        rainclouds!(ax11, fill(1.0, length(_rtime)), _rtime)
         ax11.xticklabelsvisible = false
         ax11.xticksvisible = false
         ax11.bottomspinevisible = false
