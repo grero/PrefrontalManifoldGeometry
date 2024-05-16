@@ -431,9 +431,9 @@ function plot_schematic!(ax;fontsize=10,markersize=25px)
         x = range(1.0, stop=5.0, length=100)
         y = spl.(x)
         v = derivative(spl, [2.4, 3.7])
-        poly!(ax, Rect(4.1, 1.2,1.1, 0.6),color=RGB(1.0, 0.8, 0.8))
+        poly!(ax, Rect(4.4, 1.4,1.1, 0.6),color=RGB(1.0, 0.8, 0.8))
         lines!(ax, x, y,color=:black,linewidth=1.5)
-        ppoints = [(1.95, 1.6),(2.0,2.9),(3.1, 3.4), (4.2, 2.6),(4.7, 1.5), (5.3, 0.7)] 
+        ppoints = [(1.95, 1.6),(2.0,2.9),(3.1, 3.4), (4.2, 2.6),(4.9, 1.7), (5.3, 0.7)] 
         scatter!(ax, ppoints,markersize=markersize,color=RGB(0.8, 0.8, 0.8))
         u = [0.5, 0.5]
         arrows!(ax, [2.1, 3.4],[2.3, 2.5], u,v.*u)
