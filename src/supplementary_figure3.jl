@@ -1,4 +1,4 @@
-module OrthognoalSubspaces
+module FigureS3
 using ProgressMeter
 using OrthogonalLDA
 using CRC32c
