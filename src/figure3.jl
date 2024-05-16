@@ -1,3 +1,4 @@
+module Figure3
 using MultivariateStats
 using JLD2
 using LinearRegressionUtils
@@ -14,9 +15,9 @@ using StatsBase
 using Printf
 using DrWatson
 
-include("utils.jl")
-include("trajectories.jl")
-include("plot_utils.jl")
+using ..Utils
+using ..PlotUtils
+using ..Trajectories
 
 """
     get_projected_energy(X, bins, rt)
@@ -1535,3 +1536,4 @@ function plot_trajectory_illustration!(lg)
         end
     end 
 end
+end #module
