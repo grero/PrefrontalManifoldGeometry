@@ -155,7 +155,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         results = NamedTuple(Symbol.(keys(qq)) .=> values(qq))
     else
         xy2 = [7.0 -13.0] # pre-mov basin
-        w2 = 35.0 # pre-mov basin width
+        w2 = 47.0
         curvex, curvey = JLD2.load(curve_data_file,"curvex","curvey")
         # split into trials
         pidx = findall(isnan, curvex)
