@@ -1,10 +1,11 @@
+module Regression
 using MultivariateStats
 using Distributions
 using LinearAlgebra
 using StatsBase
 using Random
 
-include("utils.jl")
+using ..Utils
 
 """
 ```julia
@@ -233,3 +234,4 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
    end
    lrt, Yp, qridx,location
 end
+end #module
