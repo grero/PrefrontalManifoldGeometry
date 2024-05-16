@@ -1185,10 +1185,10 @@ function plot(;plottype=:barplot, show_dlpfc=false)
         plot_trajectory_illustration!(lg1)
         Label(lg1[1,1,TopLeft()], "A")
         lg2 = GridLayout(fig[2,1])
-        plot_individual_trials!(lg2, "W";plottype=plottype, label=["B", "C"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        plot_individual_trials!(lg2, "W";plottype=plottype, label=["B","C","D","E"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg2[1,0], "Monkey W", tellwidth=true, tellheight=false, rotation=π/2)
         lg3 = GridLayout(fig[3,1])
-        plot_individual_trials!(lg3, "J";plottype=plottype, label=["D","E"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        plot_individual_trials!(lg3, "J";plottype=plottype, label=["F","G","H","I"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg3[1,0], "Monkey J", tellwidth=true, tellheight=false, rotation=π/2)
         rowsize!(fig.layout, 1, Relative(0.2))
         fig
@@ -1257,7 +1257,7 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
     for (ii,qdata) in enumerate([qdataz,qdatal,qdatass])
         β[ii] = qdata["fef"]["β"][1,bidx,1]
     end
-    axes = plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SM];β=β, npoints=npoints, xlabelvisible=xlabelvisible, kvs...)
+    axes = plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SM];β=β, npoints=npoints, xlabelvisible=xlabelvisible, plotlabel=label[1:end-1], kvs...)
     for (k,ax) in zip(["MP","PL","AS"], axes)
         μ = mean(r²["fef"][k])
         ax.title = @sprintf("r² = %0.2f", μ)
@@ -1302,8 +1302,8 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
                 halign=:right, tellwidth=false, margin=(10.0, -15.0, 0.0, -15.0), labelsize=12)
     end
     if label !== nothing
-        Label(lg[1,1,TopLeft()], label[1])
-        Label(lg[1,2,TopLeft()], label[2])
+        #Label(lg[1,1,TopLeft()], label[1])
+        Label(lg[1,2,TopLeft()], label[end])
     end
     colsize!(lg,1,Relative(0.7))
 
@@ -1359,7 +1359,7 @@ function test_hiearchical_dependence()
     1.0 - cdf(FDist(p2-p1, n-p2), F[1])
 end
 
-function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
+function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};plotlabel::Union{Vector{String},Nothing}=nothing, β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
 
     vnames = Dict(:Z=>"MP", :L => "PL", :SM=>"AS")
     ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
@@ -1435,6 +1435,11 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
         ax.yticklabelsvisible = false
     end
     axes[1].ylabel = "log(rt)"
+    if plotlabel !== nothing
+        for (i,l) in enumerate(plotlabel)
+            Label(lg[1,i,TopLeft()], l)
+        end
+    end
     axes
 end
 
