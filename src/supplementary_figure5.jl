@@ -1,4 +1,4 @@
-module FigureS6
+module FigureS5
 using Makie
 using CairoMakie
 using ..PlotUtils
