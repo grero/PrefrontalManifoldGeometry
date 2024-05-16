@@ -388,7 +388,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         do_skip = false
         for Z in [L,args...]
             if ndims(Z)==2
-                _tidx = findall(isfinite, Z[trialidx,i])
+                _tidx = intersect(_tidx,findall(isfinite, Z[trialidx,i]))
                 if isempty(_tidx)
                     do_skip = true
                     break
