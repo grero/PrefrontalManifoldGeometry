@@ -1,7 +1,7 @@
 """
 Go-cue onset and movement onset spaces in DLPFC
 """
-module FigureS5
+module FigureS7
 include("figure2.jl")
 
 function plot(;do_save=true, kvs...)
