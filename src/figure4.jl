@@ -575,15 +575,17 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		single_cell_responses[jj] = Point2f[]
 		response_colors[jj] = eltype(colors)[]
 		for i in 1:size(results.Y,3)
-			y = results.Y[idx0-15:results.eeidx_sample[i],cidx,i]
-			x = [-results.eeidx_sample[i]+idx0-15:0;]
+			y = results.Y[idx0-25:results.eeidx_sample[i],cidx,i]
+			#x = [-results.eeidx_sample[i]+idx0-25:0;]
+            δt = results.rt_sample[i]/(results.eeidx_sample[i]-idx0+1)
+            x = range(-results.rt_sample[i]+(idx0-25)*δt, stop=0.0, length=length(y))
 			# smooth out the noise
 			model = loess(x, y, span=0.5)
 			us = range(extrema(x)...; step = 0.1)
 			vs = Loess.predict(model, us)
-			append!(single_cell_responses[jj], Point2f.(zip(us,vs)))
+			append!(single_cell_responses[jj], Point2f.(zip(x,y)))
 			push!(single_cell_responses[jj], Point2f(NaN, NaN))
-			append!(response_colors[jj], fill(colors[i], length(us)+1))
+			append!(response_colors[jj], fill(colors[i], length(x)+1))
 		end
 	end
 	# find a trial with long reaction time
