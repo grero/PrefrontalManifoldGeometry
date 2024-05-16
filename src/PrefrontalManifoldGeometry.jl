@@ -1,6 +1,7 @@
 module PrefrontalManifoldGeometry
 include("utils.jl")
 include("plot_utils.jl")
+include("trajectories.jl")
 
 using .Utils
 using .PlotUtils
