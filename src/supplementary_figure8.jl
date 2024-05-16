@@ -4,11 +4,9 @@ using HypothesisTests
 using HDF5
 using StatsBase
 
-include("utils.jl")
-include("plot_utils.jl")
-include("figure2.jl")
-
-using .PlotUtils: plot_theme
+using ..Utils
+using ..PlotUtils
+using ..Figure2
 
 function plot_fef_dlpfc_comparison(;kvs...)
     with_theme(PlotUtils.plot_theme) do
