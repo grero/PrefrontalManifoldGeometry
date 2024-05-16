@@ -1,3 +1,4 @@
+module FigureS2
 # Per monkey subspace analysis
 using EventOnsetDecoding
 using HypothesisTests
@@ -34,4 +35,5 @@ function plot(;do_save=true,kvs...)
     rowgap!(fig.layout, 1, 0.0)
     fig
 end
+end #module
 
