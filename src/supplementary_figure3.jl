@@ -5,9 +5,17 @@ using CRC32c
 using HDF5
 using LinearAlgebra
 using StatsBase
+using Makie
+using CairoMakie
+using JLD2
+using Random
+using DataProcessingHierarchyTools
+using EventOnsetDecoding
+using MultivariateStats
+const DPHT = DataProcessingHierarchyTools 
 
-include("utils.jl")
-include("plot_utils.jl")
+using ..Utils
+using ..PlotUtils
 
 """
 ````
@@ -15,7 +23,7 @@ function find_orthogonal_subpspaces(subject;redo=false, do_pca=false,
 ````
 The a orthogonal sub-spaces for for activity in the specified windows
 """
-function find_orthogonal_subpspaces(;redo=false, do_pca=false,
+function find_orthogonal_subpspaces(;redo=false, do_pca=false,shuffle_trials=false,
     nruns=20,
     windowsize=40.0,
     window1=(-600.0, 0.0), 
@@ -41,6 +49,10 @@ function find_orthogonal_subpspaces(;redo=false, do_pca=false,
     if use_corners
         h = CRC32c.crc32c("use_corners",h)
     end
+    if shuffle_trials
+        h = CRC32c.crc32c("shuffle_trials",h)
+    end
+
     qq = string(h, base=16)
     fname = joinpath("data","delay_response_orthogonal_subspace_$(qq).hdf5")
 
@@ -58,7 +70,7 @@ function find_orthogonal_subpspaces(;redo=false, do_pca=false,
         for ii in 1:length(label) 
             subject = DPHT.get_level_name("subject", ppstht.cellnames[ii])
             if use_corners
-                lab = filter_corner_locations(subject, labelst[ii])
+                lab = Utils.filter_corner_locations(subject, labelst[ii])
                 tidx = findall(lab.!=nothing)
                 label[ii] = lab[tidx]
                 X2[:,1:length(tidx), ii] = X[:, tidx, ii]
@@ -87,6 +99,9 @@ function find_orthogonal_subpspaces(;redo=false, do_pca=false,
         μ3 = fill(0.0, nc-1, length(bins), nc, size(σ1,2))
         @showprogress 1.0 for jj in axes(σ1,2)
             Yt, train_label, test_label = EventOnsetDecoding.sample_trials(permutedims(X2, [3,2,1]), label; RNG=RNG, ntrain=1500, ntest=300)
+            if shuffle_trials
+                shuffle!(test_label)
+            end
             idx0 = searchsortedfirst(bins, window1[1])
             idx1 = searchsortedlast(bins, window1[2])
             Ytrain1 = permutedims(dropdims(mean(Yt[idx0:idx1,1:1500,:], dims=1),dims=1), [2,1])
@@ -145,7 +160,7 @@ function find_orthogonal_subpspaces(;redo=false, do_pca=false,
             pmeans3[:,1] = mean(W3'*_Ytrain3,dims=2)
             pmeans3[:,2] = mean(W3'*_Ytrain4,dims=2)
 
-            _Yt,bins2 = rebin2(Yt[:,1501:end, :],bins, windowsize) 
+            _Yt,bins2 = Utils.rebin2(Yt[:,1501:end, :],bins, windowsize) 
             Ytest = permutedims(_Yt, [3,2,1])
             ntest = length(test_label)
             nlabel = fill(0, nc)
@@ -201,6 +216,7 @@ Plot the time resolved decoding performance of 3 orthognoal decoders
 function plot_orthogonal_subspaces!(lg;windowsize=40.0, add_label=true, kvs...)
     fontsize = get(kvs, :fontsize, 12)
     σ1, σ2, σ3, μ1, μ2, μ3, bins = find_orthogonal_subpspaces(; use_corners=true, redo=false, windowsize=windowsize)
+    σ1s, σ2s, σ3s, μ1s, μ2s, μ3s, _ = find_orthogonal_subpspaces(; use_corners=true, redo=false, windowsize=windowsize, shuffle_trials=true)
 
     qqidx = 1:length(bins)-8
     Δb = windowsize/2.0 # half the window size of 40ms
@@ -210,20 +226,23 @@ function plot_orthogonal_subspaces!(lg;windowsize=40.0, add_label=true, kvs...)
 
         linkxaxes!(ax1, ax2)
         m1 = dropdims(mean(σ1[qqidx,:],dims=2),dims=2)
+        m1s = dropdims(mean(σ1s[qqidx,:],dims=2),dims=2)
         s1 = dropdims(std(σ1[qqidx,:],dims=2),dims=2)
         m2 = dropdims(mean(σ2[qqidx,:],dims=2),dims=2)
+        m2s = dropdims(mean(σ2s[qqidx,:],dims=2),dims=2)
         s2 = dropdims(std(σ2[qqidx,:],dims=2),dims=2)
         m3 = dropdims(mean(σ3[qqidx,:],dims=2),dims=2)
+        m3s = dropdims(mean(σ3s[qqidx,:],dims=2),dims=2)
         s3 = dropdims(std(σ3[qqidx,:],dims=2),dims=2)
         binsq = bins[qqidx] .+ Δb
         band!(ax1, binsq, m1 - s1, m1 + s1)
         band!(ax1, binsq, m2 - s2, m2 + s2)
         band!(ax2, binsq, m3 - s3, m3 + s3, color=Cycled(3))
         lines!(ax1, binsq, m1, linewidth=2.0, label="Movement prep")
+        lines!(ax1, binsq, m1s, linewidth=1.0, label="Chance", color=Cycled(1),linestyle=:dot)
         lines!(ax1, binsq, m2, linewidth=2.0, label="Movement exc")
+        lines!(ax1, binsq, m2s, linewidth=1.0, label="Chance", color=Cycled(2),linestyle=:dot)
         lines!(ax2, binsq, m3, linewidth=2.0, color=Cycled(3), label="CI")
-        hlines!(ax1, 1.0/size(μ1,3), linestyle=:dot, color="black")
-        hlines!(ax2, 0.5, linestyle=:dot, color="black")
         for ax in [ax1, ax2]
             vlines!(ax, 0.0, color="black", linestyle=:dot)
         end
