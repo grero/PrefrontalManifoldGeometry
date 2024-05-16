@@ -323,10 +323,25 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                     end
                     # add correlated noise
                     Y[:,:,i] .+= A[kk]*randn(RNG, size(A[kk],1),_ncells)
-                    plf[trial_offset+i,r] = sum(sqrt.(sum(abs2, diff(Y[offset+1:_eeidx[i],:,i],dims=1),dims=2)))
-                    plftr[trial_offset+i,r],pidx = compute_triangular_path_length(Y[offset+1:_eeidx[i],:,i],path_length_method)
+                    # transition period for this trial
+                    Ytr = Y[offset+1:_eeidx[i],:,i]
+                    if use_midpoint
+                        ip = div(_eeidx[i] - offset,2)
+                    else
+                        ip,_ = get_maximum_energy_point(Ytr)
+                    end
+                    if use_new_path_length
+                        plftr[trial_offset+i,r] = compute_triangular_path_length(Ytr, ip)
+                    else
+                        plftr[trial_offset+i,r],pidx = compute_triangular_path_length(Ytr,path_length_method)
+                    end
+                    plf[trial_offset+i,r] = sum(sqrt.(sum(abs2, diff(Ytr,dims=1),dims=2)))
                     # compute speed
-                    asftr[trial_offset+i, r] = plf[trial_offset+i,r]/(_eeidx[i]-offset+2)
+                    if use_new_speed
+                        asftr[trial_offset+i, r] = get_triangular_speed(Ytr, (offset+1):_eeidx[i], ip)
+                    else
+                        asftr[trial_offset+i, r] = plf[trial_offset+i,r]/(_eeidx[i]-offset+2)
+                    end
                 end
                 min_rt_idx = argmin(_rt)
                 Δ = plf[trial_offset + min_rt_idx,r]/np_min
