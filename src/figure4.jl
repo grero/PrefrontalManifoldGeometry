@@ -91,7 +91,9 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                                                curve_data_file="model_output_more_trials_longer.jld2",
                                                idx0=30,nruns=50, ntrials::Union{Int64, Vector{Int64}}=0,rseed=UInt32(1234),
                                                go_cue=idx0, path_length_method::Symbol=:normal,
-                                               remove_outliers=false, do_interpolation=true, do_remove_dependence=true, h0=UInt32(0))
+                                               remove_outliers=false, do_interpolation=true, do_remove_dependence=true, h0=UInt32(0),
+                                               use_new_speed=false, use_new_path_length=false, use_midpoint=false)
+    @show σ²0
     @assert σ²0 >= σ²n
     h = h0
     h = crc32c(string(σ²0),h)
