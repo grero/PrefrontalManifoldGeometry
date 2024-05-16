@@ -11,13 +11,13 @@ using Colors
 using Loess
 using ..Utils
 using ..PlotUtils
+using ..Trajectories
 using Dierckx
 
 using Makie.GeometryBasics
 
 
 #include("utils.jl")
-include("trajectories.jl")
 include("regression.jl")
 #include("plot_utils.jl")
 
