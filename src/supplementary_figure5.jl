@@ -1,7 +1,7 @@
 """
 Training on one period and testing on another
 """
-module FigureS7
+module FigureS5
 using EventOnsetDecoding
 using LinearAlgebra
 using StatsBase
@@ -12,13 +12,13 @@ using ProgressMeter
 using Makie
 using Distributions
 
-include("utils.jl")
-include("plot_utils.jl")
-include("figure2.jl")
+using ..Utils
+using ..PlotUtils
+using ..Figure2
+
 include("target_and_go_cue_comparsion.jl")
 
-using .PlotUtils: plot_theme
-using .Utils: sessions_j, sessions_w
+using ..Utils: sessions_j, sessions_w
 
 """
     get_cross_subspace_decoding(subject::String, train::Symbol, test::Symbol;redo=false)
