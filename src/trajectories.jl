@@ -84,7 +84,6 @@ function compute_triangular_path_length(traj::Matrix{T},method::Symbol=:normal, 
 	end
 	for i in 2:nn-1
 		_d = func(traj, i)
-		@show _d
 		if _d > dm
 			dm = _d
 			qidx = i
