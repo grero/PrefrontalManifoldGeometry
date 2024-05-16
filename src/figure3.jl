@@ -1177,7 +1177,7 @@ function plot_β_summary(;subjects=["J","W"], kvs...)
     end
 end
 
-function plot_individual_trials(;plottype=:barplot, show_dlpfc=false)
+function plot(;plottype=:barplot, show_dlpfc=false)
     with_theme(PlotUtils.plot_theme) do
         fig = Figure(size=(700,600))
         # shematic
