@@ -1288,7 +1288,7 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
                 else
                     barplot!(ax, [offset], [mean(r²[a][k])], color=cc)
                 end
-                text!(ax, (offset, μ), text=aa, valign=:bottom,halign=:center)
+                text!(ax, offset, μ, text=aa, align=(:center, :bottom))
                 offset += 1
             end
         end
