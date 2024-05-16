@@ -56,12 +56,12 @@ function plot(;do_save=true, kvs...)
 		legend = Legend(fig[1:2,2], [group_color1, group_color2], [["" for i in 1:length(colors1)],["" for i in 1:length(colors2)]], ["Monkey W", "Monkey J"],tellwidth=false, valign=:top, halign=:right)
 		ax.ylabel = "PDF"
 		ax.xticklabelsvisible = false
+		ax.yticklabelsvisible = false
 		ax2.xlabel = "Reaction time [ms]"
        #ax2.xticks = [100.0, 200.0, 300.0]
 		ax2.yticklabelsvisible = false
 		ax2.yticksvisible = false
 		ax2.leftspinevisible = false
-		ax.yticklabelsvisible = true
 		linkxaxes!(ax, ax2)
 		ax.xticksvisible = false
 		ax.bottomspinevisible = false
