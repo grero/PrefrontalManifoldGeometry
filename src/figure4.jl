@@ -502,8 +502,21 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
     avg_speed = fill!(similar(path_length), 0.0)
 	for i in 1:size(results.Y,3)
 		y = results.Y[idx0+1:results.eeidx_sample[i],:,i]
-		path_length[i],dm = compute_triangular_path_length2(y)
-        avg_speed[i] = sum(sqrt.(sum(abs2,diff(y,dims=1),dims=2)))/(results.eeidx_sample[i]-idx0+2)
+        if use_midpoint
+            ip = div(results.eeidx_sample[i]-idx0,2)
+        else
+            ip,_ = get_maximum_energy_point(y)
+        end
+        if use_new_path_length
+            path_length[i] = compute_triangular_path_length(y,ip)
+        else
+            path_length[i],dm = Trajectories.compute_triangular_path_length2(y)
+        end
+        if use_new_speed
+            avg_speed[i] = get_triangular_speed(y, (idx0+1):results.eeidx_sample[i], ip)
+        else
+            avg_speed[i] = sum(sqrt.(sum(abs2,diff(y,dims=1),dims=2)))/(results.eeidx_sample[i]-idx0+2)
+        end
 	end
 	fa = MultivariateStats.fit(MultivariateStats.FactorAnalysis, results.Y[idx0,:,:];method=:em, maxoutdim=1)
 	z0 = MultivariateStats.predict(fa, results.Y[idx0,:,:])
@@ -521,11 +534,11 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 	icidx = Bool[]
 	ucidx = Bool[]
 	flat_colors = eltype(cm)[]
-    do_interpolate = true
+    do_interpolate = false
 	for (ii,curve) in enumerate(results.curves)
         # do interpolation
         if do_interpolate
-            spl = ParametricSpline(permutedims(curve, [2,1]))
+            spl = ParametricSpline(permutedims(curve[idx0:end,:], [2,1]))
             _curve = permutedims(Dierckx.evaluate(spl, range(extrema(spl.t)...; length=20*length(spl.t))),[2,1])
         else
             _curve = curve
