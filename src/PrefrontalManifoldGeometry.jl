@@ -14,5 +14,10 @@ include("figure5.jl")
 
 # supplementaru
 include("supplementary_figure1.jl")
+include("supplementary_figure2.jl")
+include("supplementary_figure3.jl")
 include("supplementary_figure5.jl")
+include("supplementary_figure6.jl")
+include("supplementary_figure7.jl")
+include("supplementary_figure8.jl")
 end
