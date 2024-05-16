@@ -158,7 +158,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         w2 = 47.0
         curvex, curvey = JLD2.load(curve_data_file,"curvex","curvey")
         # split into trials
-        pidx = findall(isnan, curvex)
+        pidx = [0;findall(isnan, curvex)]
         curves = [[curvex[pp0+1:pp1-1] curvey[pp0+1:pp1-1]] for (pp0,pp1) in zip(pidx[1:end-1], pidx[2:end])]
         # compute reaction time
         eeidx = fill(0, length(curves))
