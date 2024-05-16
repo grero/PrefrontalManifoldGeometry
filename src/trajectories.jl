@@ -1,6 +1,62 @@
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools
 using StatsBase
+using LinearAlgebra
+using TestItems
+
+export get_maximum_energy_point, get_triangular_speed, compute_triangular_path_length
+
+"""
+Return the point of maximum energy
+"""
+function get_maximum_energy_point(X::Matrix{T}) where T <: Real
+	# get the vector orthogonal to the vector connecting the starting and the ending point
+	v = X[end,:] - X[1,:]
+	nv = norm(v)
+	if nv == 0
+		return 0
+	end
+	v ./= nv
+	n = nullspace(adjoint(v))
+	get_maximum_energy_point(X,n), n
+end
+
+function get_maximum_energy_point(X::Matrix{T}, v::AbstractVector{T}) where T <: Real
+	get_maximum_energy_point(X, permutedims(v))
+end
+
+function get_maximum_energy_point(X::Matrix{T}, v::AbstractMatrix{T}) where T <: Real
+	ee = dropdims(sum(abs2,((X .- X[1:1,:])*v),dims=2),dims=2)
+	argmax(ee)
+end
+
+function get_triangular_speed(X::Matrix{T}, bins::AbstractVector{T2}, ip::Int64) where T <: Real where T2 <: Real
+	δt = [bins[ip]-bins[1], bins[end]-bins[ip]]
+	s1 = sqrt(sum(abs2,(X[1,:]-X[ip,:])./δt[1]))
+	s2 = sqrt(sum(abs2, (X[end,:]-X[ip,:])./δt[2]) )
+	n = 0
+	ss = 0.0
+	if isfinite(s1)
+		ss += s1
+		n += 1
+	end
+	if isfinite(s2)
+		ss += s2
+		n += 1
+	end
+	ss/n
+end
+
+@testitem "Triangular speed" begin
+	t = range(0.0, stop=2π, length=100)		
+	y = [sin.(t) t]
+	ip = PrefrontalManifoldGeometry.Trajectories.get_maximum_energy_point(y)
+	@test ip == 26 
+	ss = PrefrontalManifoldGeometry.Trajectories.get_triangular_speed(y, t, ip)
+	@test ss ≈ 0.4215354734654138
+	pl = PrefrontalManifoldGeometry.Trajectories.compute_triangular_path_length(y, ip)
+	@test pl ≈ 1.9997482553477504
+end
 
 """
 ```julia
