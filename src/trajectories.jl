@@ -66,7 +66,7 @@ function compute_triangular_path_length(traj::Matrix{Float64})
 Find the largest combined Euclidean distance from the first point to a point on the trajectory, and from that point to the last point.
 ```
 """
-function compute_triangular_path_length(traj::Matrix{T},method=:normal, do_shuffle=false) where T <: Real
+function compute_triangular_path_length(traj::Matrix{T},method::Symbol=:normal, do_shuffle=false) where T <: Real
 	nn = size(traj,1)
 	dm = -Inf
 	qidx = 0
