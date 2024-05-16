@@ -137,6 +137,16 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     if !do_remove_dependence
         h = crc32c("keep_dependence",h)
     end
+    if use_new_speed
+        h = crc32c("use_new_speed",h)
+    end
+    if use_new_path_length
+        h = crc32c("use_new_path_length",h)
+    end
+    if use_midpoint
+        h = crc32c("use_midpoint",h)
+    end
+        
     q = string(h, base=16)
     fname = joinpath("data","model_full_space_results_$q.jld2")
     @show fname
