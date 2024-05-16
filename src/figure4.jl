@@ -688,17 +688,17 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		lg3 = GridLayout()
 		lg1[2,1] = lg3
 		rowsize!(lg1, 1, Relative(0.8))
-		ax5 = Axis(lg3[1,1])
+		ax5 = Axis(lg3[1,1], xticks=WilkinsonTicks(3))
 		scatter!(ax5, z0[:], log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax5, βpc[end], βpc[1], color="black", linestyle=:dot)
 		ax5.xlabel = "Initial (MP)"
 		ax5.ylabel = "log(rt)"
-		ax6 = Axis(lg3[1,3],xticks=LinearTicks(4))
+		ax6 = Axis(lg3[1,3],xticks=WilkinsonTicks(3))
 		scatter!(ax6, path_length, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax6, βpl[end], βpl[1], color="black", linestyle=:dot)
 		ax6.xlabel = "Path length (PL)"
 		ax6.yticklabelsvisible = false
-        ax73 = Axis(lg3[1,2], xticks=LinearTicks(4))
+        ax73 = Axis(lg3[1,2], xticks=WilkinsonTicks(3))
 		scatter!(ax73, avg_speed, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax73, βas[end], βas[1], color="black", linestyle=:dot)
 		ax73.xlabel = "Avg speed (AS)"
@@ -717,6 +717,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ax7.xticklabelsvisible = false
 		axislegend(ax7,valign=:top, halign=:right, margin=(0.0, -0.0, 0.0, -20.0))
 		ax7.ylabel = "r²"
+        vlines!(ax7, 0.0, color=:black, linestyle=:dot)
         # reaction time
         ax11 = Axis(lg4[1,3])
         _rtime =results.rt_sample[tqidx] 
@@ -725,6 +726,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
         ax11.xticksvisible = false
         ax11.bottomspinevisible = false
         ax11.ylabel = "Reaction time"
+
 		ax8 = Axis(lg4[1,2])
         colsize!(lg4, 1, Relative(0.6))
         colsize!(lg4, 3, Relative(0.2))
