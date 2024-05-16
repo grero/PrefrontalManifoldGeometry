@@ -1,3 +1,4 @@
+module Trajectories
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools
 using StatsBase
@@ -288,3 +289,4 @@ function get_transition_period(bins::AbstractVector{Float64}, rtime::AbstractVec
 	end
 	qidx
 end
+end #module
