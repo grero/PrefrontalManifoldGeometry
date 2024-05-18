@@ -1257,7 +1257,12 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
     for (ii,qdata) in enumerate([qdataz,qdatal,qdatass])
         β[ii] = qdata["fef"]["β"][1,bidx,1]
     end
-    axes = plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SM];β=β, npoints=npoints, xlabelvisible=xlabelvisible, plotlabel=label[1:end-1], kvs...)
+    if label != nothing
+        plotlabel = label[1:end-1]
+    else
+        plotlabel = nothing
+    end
+    axes = plot_individual_trials!(lg2, qdatal["trialidx"][:,1],"fef", subject, [:Z,:L,:SM];β=β, npoints=npoints, xlabelvisible=xlabelvisible, plotlabel=plotlabel, kvs...)
     for (k,ax) in zip(["MP","PL","AS"], axes)
         μ = mean(r²["fef"][k])
         ax.title = @sprintf("r² = %0.2f", μ)
