@@ -1289,6 +1289,8 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
                 print("DLPFC: \n")
                 print("\t$k: zscore = $(zscore)\n")
             else
+                print("FEF: \n")
+                print("\t$k: zscore = $(zscore)\n")
                 if plottype == :boxplot
                     boxplot!(ax, fill(offset,100), r²[a][k],color=cc, markersize=5px)
                 else
