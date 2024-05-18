@@ -63,8 +63,8 @@ function plot(;do_save=true, kvs...)
 		ax2.yticksvisible = false
 		ax2.leftspinevisible = false
 		linkxaxes!(ax, ax2)
-		ax.xticksvisible = false
-		ax.bottomspinevisible = false
+		ax.xticksvisible = true
+		ax.bottomspinevisible = true
 		rowsize!(fig.layout, 1, Relative(0.6))
         if do_save
             fname = joinpath("figures","manuscript","reaction_time_distributions.pdf")
