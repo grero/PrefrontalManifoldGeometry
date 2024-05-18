@@ -196,17 +196,18 @@ function plot!(lg, Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=1
         if !per_percentile_threshold
             hlines!(ax, θ[1], color=:black, linestyle=:dot)
         end
-        cb = Colorbar(fig[1,2],colormap=:thermal, colorrange=(extrema(rt)...,),label="Reaction time")
-        ax.xlabel = "Time from go-cue onset"
-        ax2 = Axis(fig[2,1:2])
+        cb = Colorbar(lg[2,1],colormap=:thermal, colorrange=(extrema(rt)...,),label="Reaction time [ms]")
+        ax.xlabel = "Time from go-cue onset [ms]"
+        ax.ylabel = ylabel
+        ax2 = Axis(lg[2,2])
         scatter!(ax2, crossing, rt,color=colors2)
         if show_equality_line
             linesegments!(ax2, [Point2(minimum(rt))=>Point2(maximum(rt))],color=:black)
         end
         ablines!(ax2, lreg.β[2], lreg.β[1],color=:red)
-        ax2.ylabel = "Reaction time"
-        ax2.xlabel = "Crossing"
-        fig
+        ax2.yticklabelsvisible = false
+        #ax2.ylabel = "Reaction time [ms]"
+        ax2.xlabel = "Crossing [ms]"
     end
 end
 
@@ -253,7 +254,7 @@ function plot2(Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0)
             end
         end
         cb = Colorbar(fig[1,2],colormap=:thermal, colorrange=(extrema(rt)...,),label="Reaction time")
-        ax.xlabel = "Time from go-cue onset"
+        ax.xlabel = "Time from go-cue onset [ms]"
         fig
     end
 end
