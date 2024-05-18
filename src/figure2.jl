@@ -8,9 +8,10 @@ using HDF5
 using CRC32c
 using Colors
 using ColorSchemes
+using StatsBase
 const DPHT = DataProcessingHierarchyTools
 
-include("regression.jl")
+using ..Regression
 #include("plot_utils.jl")
 
 using ..Utils
