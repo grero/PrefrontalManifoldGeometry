@@ -1,3 +1,4 @@
+module CSIAnalysis
 using StatsBase
 using DemixedPCA
 using JLD2
@@ -8,8 +9,8 @@ using Colors
 using LinearRegressionUtils
 const DPHT =DataProcessingHierarchyTools 
 
-include("utils.jl")
-include("plot_utils.jl")
+using ..Utils
+using ..PlotUtils
 
 
 function run(sessionidx;window::Union{Nothing, Float64}=nothing)
@@ -244,3 +245,4 @@ function plot2(Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0)
         fig
     end
 end
+end #module
