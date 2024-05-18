@@ -103,7 +103,21 @@ function find_crossings(Y::Matrix{T}, bins, rt;rt_percentile_bin=10.0) where T <
     crossing[rridx], rt[rridx], lreg
 end
 
-function plot(Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0,per_percentile_threshold=true,tmin=bins[1],tmax=bins[end],show_equality_line=false) where T <: Real
+function plot!(lg;kvs...)
+    dmpca,Y,bins,rt = run_analysis(5,;window=20.0)
+    plot!(lg, Y[1,:,:], bins, rt;kvs...)
+end
+
+function plot(;kvs...)
+    with_theme(plot_theme) do
+        fig = Figure()
+        lg = GridLayout(fig[1,1])
+        plot!(lg;kvs...)
+        fig
+    end
+end
+
+function plot!(lg, Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0,per_percentile_threshold=true,tmin=bins[1],tmax=bins[end],show_equality_line=false, ylabel="CSI 1") where T <: Real
     # set a threshold equal to 50% of the global maximum
     bidx = searchsortedfirst(bins, tmin):searchsortedlast(bins, tmax)
     idx0 = searchsortedfirst(bins, 0.0)
@@ -164,8 +178,7 @@ function plot(Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0,p
     lreg = LinearRegressionUtils.llsq_stats(repeat(crossing[rridx],1,1),rt[rridx])
     @show lreg.r², lreg.pv
     with_theme(PlotUtils.plot_theme)  do
-        fig = Figure(size=(400,500))
-        ax = Axis(fig[1,1])
+        ax = Axis(lg[1,1:2])
         vlines!(ax, 0.0, color=:black, linestyle=:dot)
         for i in 1:length(rtbins)
             tidx = rtlabel .== i
