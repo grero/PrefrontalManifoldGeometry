@@ -12,8 +12,7 @@ const DPHT =DataProcessingHierarchyTools
 using ..Utils
 using ..PlotUtils
 
-
-function run(sessionidx;window::Union{Nothing, Float64}=nothing)
+function run_analysis(sessionidx;window::Union{Nothing, Float64}=nothing)
     ppstht, labelst, rtimest,trialidxt = JLD2.load(joinpath("..","PrefrontalManifoldGeometry","data","ppsth_fef_cue.jld2"), "ppsth", "labels","rtimes","trialidx");
     all_sessions = DPHT.get_level_path.("session", ppstht.cellnames)
     sessions = unique(all_sessions)
