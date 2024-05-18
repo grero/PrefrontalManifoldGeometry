@@ -37,7 +37,9 @@ function plot(;do_save=true, kvs...)
 		colors2 = [LCHuv(cc2.l, a*cc2.c, cc2.h) for a in range(0.5, stop=1.8,length=length(rtimes_subject["J"]))]
 		offset = 0
 		for (subject,colors) in zip(["W","J"],[colors1, colors2])
+			all_rt = Float64[]
 			for (color,rtime) in zip(colors, rtimes_subject[subject])
+				append!(all_rt, rtime)
 				dd = StatsBase.fit(Gamma, rtime)
 				x = sort(rtime)
 				y = pdf.(dd,x)
@@ -50,6 +52,7 @@ function plot(;do_save=true, kvs...)
 				scatter!(ax2, rtime, offset .+ 0.7*rand(length(rtime)), markersize=2.5px, color=color)
 				offset += 1
 			end
+			@show subject percentile(all_rt, [25,50,75])
 		end
 		group_color1 = [PolyElement(color = color, strokecolor = :transparent) for color in colors1] 
 		group_color2 = [PolyElement(color = color, strokecolor = :transparent) for color in colors2]
