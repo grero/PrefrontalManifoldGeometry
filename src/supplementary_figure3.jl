@@ -16,6 +16,7 @@ const DPHT = DataProcessingHierarchyTools
 
 using ..Utils
 using ..PlotUtils
+using ..CSIAnalysis
 
 """
 ````
@@ -246,13 +247,13 @@ function plot_orthogonal_subspaces!(lg;windowsize=40.0, add_label=true, kvs...)
         for ax in [ax1, ax2]
             vlines!(ax, 0.0, color="black", linestyle=:dot)
         end
-        axislegend(ax1, valign=:top, halign=:left, margin=(10.0, 0.0, 0.0, -17.0), padding=(10.0, 10.0, 10.0, 10.0))
+        axislegend(ax1, valign=:top, halign=:left, margin=(10.0, 0.0, 0.0, -17.0), padding=(10.0, 10.0, 10.0, 10.0), backgroundcolor=(:white, 0.5))
         axislegend(ax2, valign=:top, halign=:left, margin=(10.0, 0.0, 0.0, -17.0), padding=(10.0, 10.0, 10.0, 10.0))
 
         ax1.ylabel = "Mov direction perf"
         ax2.ylabel = "Condition inv perf"
-        ax2.xlabel = "Time from go-cue [ms]"
         ax1.xticklabelsvisible = false
+        ax2.xticklabelsvisible = false
         if add_label
             label_padding = (0.0, 0.0, 5.0, 0.0)
             
@@ -265,12 +266,19 @@ end
 
 function plot(;do_save=true, kvs...)
     width = 9.7*72
-    height = 0.75*width
+    height = width
     with_theme(plot_theme) do
 		fig = Figure(resolution=(width,height))
         lg = GridLayout()
         fig[1,1] = lg
-        plot_orthogonal_subspaces!(lg;add_label=false, fontsize=16)
+        labelpadding = [0.0, 0.0, 15.0, 0.0]
+        Label(lg[1,1,TopLeft()],"A", padding=labelpadding)
+        Label(lg[2,1,TopLeft()], "B", padding=labelpadding)
+        plot_orthogonal_subspaces!(lg;add_label=false)
+        lg2 = GridLayout(fig[2,1])
+        Label(lg2[1,1,TopLeft()], "C", padding=labelpadding)
+        Label(lg2[2,1,TopLeft()], "D", padding=labelpadding)
+        CSIAnalysis.plot!(lg2;per_percentile_threshold=false)
         if do_save
             fname = joinpath("figures","manuscript","orthogonal_subspaces.pdf")
             save(fname, fig;pt_per_unit=1)
