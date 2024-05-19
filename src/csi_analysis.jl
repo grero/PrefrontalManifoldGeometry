@@ -117,7 +117,7 @@ function plot(;kvs...)
     end
 end
 
-function plot!(lg, Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0,per_percentile_threshold=true,tmin=bins[1],tmax=bins[end],show_equality_line=false, ylabel="CSI 1") where T <: Real
+function plot!(lg, Y::Matrix{T}, bins, rt::AbstractVector{T};rt_percentile_bin=10.0,per_percentile_threshold=true,tmin=bins[1],tmax=bins[end],show_equality_line=false, ylabel="CIS 1") where T <: Real
     # set a threshold equal to 50% of the global maximum
     bidx = searchsortedfirst(bins, tmin):searchsortedlast(bins, tmax)
     idx0 = searchsortedfirst(bins, 0.0)
