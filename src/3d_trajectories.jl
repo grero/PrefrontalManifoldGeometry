@@ -111,6 +111,7 @@ function get_trajectories(ppsth, labels,trialidx, rtimes, subject::String;projec
     ncells = fill(0, length(sessions))
     Y = fill(0.0, 3, size(ppsth.counts,1),sum(length.(labels)))
     rtlabel = fill(0, size(Y,3))
+    llabel = fill(0, length(rtlabel))
     reaction_time = fill(0.0, length(rtlabel))
     rtbins = range(0.0, step=rt_percentile_bin, stop=100.0)
     offset = 0
@@ -133,6 +134,7 @@ function get_trajectories(ppsth, labels,trialidx, rtimes, subject::String;projec
             _offset += idx1-idx0+1
         end
         Xtr = Xtr[:,1:_offset]
+
         #Xtr = dropdims(mean(X[idx0:idx1,:,:],dims=1),dims=1)
         fa = fit(projection_type, Xtr;maxoutdim=3)
         if window !== nothing 
@@ -149,9 +151,10 @@ function get_trajectories(ppsth, labels,trialidx, rtimes, subject::String;projec
             rtlabel[offset+i] = searchsortedlast(rtbins, qidx[i])
         end
         reaction_time[offset+1:offset+_nt] .= _rtimes
+        llabel[offset+1:offset+_nt] .= _labels
         offset += _nt
     end
-    Y[:,:,1:offset], rtlabel[1:offset], reaction_time[1:offset], nt
+    Y[:,:,1:offset], rtlabel[1:offset], reaction_time[1:offset], llabel[1:offset], nt
 end
 
 function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict(), indicate_movement_onset=true, indicate_end=true) where T <: Real
