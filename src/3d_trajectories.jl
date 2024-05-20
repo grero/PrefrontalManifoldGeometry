@@ -157,7 +157,7 @@ function get_trajectories(ppsth, labels,trialidx, rtimes, subject::String;projec
     Y[:,:,1:offset], rtlabel[1:offset], reaction_time[1:offset], llabel[1:offset], nt
 end
 
-function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict(), indicate_movement_onset=true, indicate_end=true) where T <: Real
+function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict(), indicate_movement_onset=true, indicate_end=true, gaussian_window::Union{Nothing, Float64}=nothing) where T <: Real
     ulabels = unique(labels)
     sort!(ulabels)
     nlabel = length(ulabels)
@@ -184,6 +184,11 @@ function plot_trajectories(trajA::Array{T,3}, bins, rt, labels;events::Dict=Dict
                 push!(icolors, :grey)
             end
             μ[:,:,ii] = dropdims(mean(trajA[:,:,tidx], dims=3),dims=3)
+            if gaussian_window !== nothing
+                for kk in 1:size(μ,1)
+                    μ[kk,:,ii] = Utils.gaussian_smooth(μ[kk,:,ii], bins, gaussian_window)
+                end
+            end
             lines!(ax, μ[1,:,ii], μ[2,:,ii], μ[3,:,ii],color=colors[l],linewidth=lw[ii])
             scatter!(ax, μ[1,idxx,ii], μ[2,idxx,ii], μ[3, idxx,ii], color=icolors)
         end
