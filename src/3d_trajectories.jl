@@ -100,12 +100,14 @@ Create trajectory in 3D space by creating a subspace using the window defined by
 Since we want these trajectories to correlate with reaction time, we use Factor Analysis, which allows
 us to create a space representing the shared variance among the neurons
 """
-function get_trajectories(ppsth, labels,trialidx, rtimes;projection_type=FactorAnalysis, t0::AbstractTimeReference=TimePoint(-50.0), t1::AbstractTimeReference=TrialEnd(),rt_percentile_bin=5.0, window::Union{Nothing,Float64}=nothing,kvs...)
+function get_trajectories(ppsth, labels,trialidx, rtimes, subject::String;projection_type=FactorAnalysis, t0::AbstractTimeReference=TimePoint(-50.0), t1::AbstractTimeReference=TrialEnd(),rt_percentile_bin=5.0, window::Union{Nothing,Float64}=nothing,kvs...)
     bins = ppsth.bins
     nbins = length(bins)
 
     all_sessions = DPHT.get_level_path.("session", ppsth.cellnames)
-    sessions = unique(all_sessions)
+    subjects = DPHT.get_level_name.("subject", ppsth.cellnames)
+    sidx = findall(subjects.==subject)
+    sessions = unique(all_sessions[sidx])
     ncells = fill(0, length(sessions))
     Y = fill(0.0, 3, size(ppsth.counts,1),sum(length.(labels)))
     rtlabel = fill(0, size(Y,3))
