@@ -401,6 +401,9 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         # run two regression models; one without path length L and one with
         if length(args) > 0
             X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in args]...)
+            if size(X_no_L,1) < 10
+                continue
+            end
             _exclude_pairs = [(k-1,j-1) for (k,j) in exclude_pairs]
             lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx[_tidx]];do_interactions=true,exclude_pairs=_exclude_pairs, kvs...)
             X_with_L = [L[trialidx[_tidx],i] X_no_L]
@@ -416,27 +419,36 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         #lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx];do_interactions=true, exclude_pairs=[(2,3)])
         #lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx];do_interactions=true, exclude_pairs=[(2,3)])
         # subtract one from the exclude pair index
-        lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx[_tidx]];do_interactions=true,exclude_pairs=exclude_pairs, kvs...)
+        if size(X_with_L,1) < 10
+            continue
+        end
+        try
+            lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx[_tidx]];do_interactions=true,exclude_pairs=exclude_pairs, kvs...)
 
-        # compute the F-stat for whether adding the path length results in a significantly better fit
-        n = length(rt)
-        rss2 = lreg_with_L.rss
-        rss[i] = rss2
-        p2 = length(lreg_with_L.β)
-        F = (rss1 - rss2)/(p2-p1)
-        F /= rss2/(n-p2)
-        pv[i] = 1.0 - cdf(FDist(p2-p1, n-p2), F)
-        r²[i] = lreg_with_L.r²
-        if save_all_β
-            β[:,i] .= lreg_with_L.β
-            Δβ[:,i] .= lreg_with_L.Δβ
-            varidx = lreg_with_L.varidx
-        else
-            β[1,i] = lreg_with_L.β[1]
-            Δβ[1,i] = lreg_with_L.Δβ[1]
-            vidx = findall(ii->(length(ii)==2)&&((ii[1]==1)||(ii[2]==1)), lreg_with_L.varidx)
-            β[2:end,i] = lreg_with_L.β[vidx]
-            Δβ[2:end,i] = lreg_with_L.Δβ[vidx]
+            # compute the F-stat for whether adding the path length results in a significantly better fit
+            n = length(rt)
+            rss2 = lreg_with_L.rss
+            rss[i] = rss2
+            p2 = length(lreg_with_L.β)
+            F = (rss1 - rss2)/(p2-p1)
+            F /= rss2/(n-p2)
+            pv[i] = 1.0 - cdf(FDist(p2-p1, n-p2), F)
+            r²[i] = lreg_with_L.r²
+            if save_all_β
+                β[:,i] .= lreg_with_L.β
+                Δβ[:,i] .= lreg_with_L.Δβ
+                varidx = lreg_with_L.varidx
+            else
+                β[1,i] = lreg_with_L.β[1]
+                Δβ[1,i] = lreg_with_L.Δβ[1]
+                vidx = findall(ii->(length(ii)==2)&&((ii[1]==1)||(ii[2]==1)), lreg_with_L.varidx)
+                β[2:end,i] = lreg_with_L.β[vidx]
+                Δβ[2:end,i] = lreg_with_L.Δβ[vidx]
+            end
+        catch ee
+            if !isa(ee, PosDefException) && !isa(ee, SingularException) && !isa(ee, DomainError)
+                rethrow(ee)
+            end
         end
     end
     β,Δβ, pv, r², rss, varidx
