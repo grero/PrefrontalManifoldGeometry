@@ -1586,10 +1586,17 @@ end
 function compute_regression_with_residuals(subject::String, varnames::Vector{Symbol}, area="fef";t0=0.0, nruns=100, kvs...)
     ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area="fef", raw=true)
     Z,L,EE, MM, SS, FL, SM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth, tlabels, _trialidx, rtimes, subject;tmin=t0, tmax=t0, kvs...)
-    xpos = [p[1] for p in Utils.location_position[subject][label]]
-    ypos = [p[2] for p in Utils.location_position[subject][label]]
+    
+    if subject == "J"
+        tidx = findall(label.!=9)
+    else
+        tidx = 1:size(Z,1)
+    end
+    xpos = [p[1] for p in Utils.location_position[subject][label[tidx]]]
+    ypos = [p[2] for p in Utils.location_position[subject][label[tidx]]]
 
-    allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, SM=SM, ncells=ncells, xpos=xpos, ypos=ypos)
+    allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],
+            SS=SS[tidx,:],FL=FL[tidx,:], SM=SM[tidx,:], ncells=ncells[tidx], xpos=xpos, ypos=ypos)
 
     use_varnames = Symbol[]
 
@@ -1624,7 +1631,8 @@ function compute_regression_with_residuals(subject::String, varnames::Vector{Sym
     r²s = fill(0.0, nruns)
     @showprogress "Shuffling..." for i in 1:nruns
         Z,L,EE, MM, SS, FL, SM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth, tlabels, _trialidx, rtimes, subject;do_shuffle_trials=true, shuffle_within_location=true, tmin=t0,tmax=t0, kvs...)
-        allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, SM=SM, ncells=ncells, xpos=xpos, ypos=ypos)
+        allvars = (Z=Z[tidx,:], L=L[tidx,:],EE=EE[tidx,:],MM=MM[tidx,:],
+               SS=SS[tidx,:],FL=FL[tidx,:], SM=SM[tidx,:], ncells=ncells[tidx], xpos=xpos, ypos=ypos)
 
         X0, trialidx0 = get_regression_variables(allvars[use_varnames[1]])
         trialidx = intersect(trialidx1, trialidx0)
