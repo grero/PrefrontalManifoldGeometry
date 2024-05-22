@@ -1643,4 +1643,40 @@ function compute_regression_with_residuals(subject::String, varnames::Vector{Sym
     r²,r²s
 end
 
+function plot_joint_regression()
+    with_theme(plot_theme) do
+        fig = Figure(size=(400,300))
+        lg1 = GridLayout(fig[1,1])
+        plot_joint_regression!(lg1, "W")
+        Label(lg1[1,0], "Monkey W", rotation=π/2, tellheight=false)
+        lg2 = GridLayout(fig[2,1])
+        plot_joint_regression!(lg2, "J")
+        Label(lg2[1,0], "Monkey J", rotation=π/2, tellheight=false)
+        fig
+    end
+end 
+
+function plot_joint_regression!(lg, subject::String;redo=false)
+    fname = "joint_regression_subjec_$(subject).jld2"
+    if !redo && isfile(fname)
+        r², r²s = JLD2.load(fname, "r²", "r²s") 
+    else
+        r² = Dict()
+        r²s = Dict()
+        r²["AS→MP"], r²s["AS→MP"] = compute_regression_with_residuals(subject, [:SM, :Z,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
+        r²["PL→MP"], r²s["PL→MP"] = compute_regression_with_residuals(subject, [:L, :Z,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
+        r²["AS→PL"], r²s["AS→PL"] = compute_regression_with_residuals(subject, [:SM, :L,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
+        JLD2.save(fname, Dict("r²"=>r²,"r²s"=>r²s ))
+    end
+    for k in keys(r²s) 
+        r²s[k] = percentile(r²s[k], [5,50,95])
+    end
+
+    ax = Axis(lg[1,1])
+    barplot!(ax, 1:3, [r²[k] for k in keys(r²)])
+    scatter!(ax, 1:3, [r²s[k][2] for k in keys(r²)],color=:black)
+    rangebars!(ax, 1:3, [r²s[k][1] for k in keys(r²)],[r²s[k][3] for k in keys(r²)],color=:black)
+    ax.xticks = (1:3, collect(keys(r²)))
+    ax.ylabel = "residual r²"
+end
 end #module
