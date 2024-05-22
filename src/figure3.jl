@@ -1560,4 +1560,79 @@ function plot_trajectory_illustration!(lg)
         end
     end 
 end
+
+"""
+Set up variable for regression
+"""
+function get_regression_variables(vars...;bidx=1, trialidx=1:size(vars[1],1), kvs...)
+    _tidx = 1:length(trialidx)
+    do_skip = false
+    for Z in vars 
+        _tidx = intersect(_tidx,findall(isfinite, Z[trialidx,bidx]))
+        if isempty(_tidx)
+            do_skip = true
+            break
+        end
+    end
+    if do_skip
+        return nothing
+    end
+    trialidx = trialidx[_tidx]
+    # include all but the first variable
+    X = hcat([ndims(Z)== 2 ? Z[trialidx,bidx] : Z[trialidx] for Z in vars]...)
+    X, trialidx
+end
+
+function compute_regression_with_residuals(subject::String, varnames::Vector{Symbol}, area="fef";t0=0.0, nruns=100, kvs...)
+    ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area="fef", raw=true)
+    Z,L,EE, MM, SS, FL, SM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth, tlabels, _trialidx, rtimes, subject;tmin=t0, tmax=t0, kvs...)
+    xpos = [p[1] for p in Utils.location_position[subject][label]]
+    ypos = [p[2] for p in Utils.location_position[subject][label]]
+
+    allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, SM=SM, ncells=ncells, xpos=xpos, ypos=ypos)
+
+    use_varnames = Symbol[]
+
+    vars = Any[]
+    for kk in varnames
+        vv = allvars[kk]
+        if length(unique(vv)) > 1
+            push!(vars, vv)
+            push!(use_varnames, kk)
+        end
+    end
+    if all(in(use_varnames[2:end]).([:xpos, :ypos]))
+        exclude_pairs = [(findfirst(use_varnames[2:end].==:xpos),findfirst(use_varnames[2:end].==:ypos))]
+    else
+        exclude_pairs = Tuple{Int64, Int64}[]
+    end
+
+    # full model
+    X1, trialidx1 = get_regression_variables(vars[2:end]...;exclude_pairs=exclude_pairs)
+    X0, trialidx0 = get_regression_variables(vars[1])
+    trialidx = intersect(trialidx1, trialidx0)
+    tidx1 = findall(in(trialidx), trialidx1)
+    tidx0 = findall(in(trialidx), trialidx0)
+
+    @show size(X1) size(lrt[trialidx])
+    lreg1 = LinearRegressionUtils.llsq_stats(X1[tidx1,:], lrt[trialidx];do_interactions=true,exclude_pairs=exclude_pairs)
+
+    # residual
+    lreg0 = LinearRegressionUtils.llsq_stats(X0[tidx0,:], lreg1.residual[tidx1];do_interactions=false)
+
+    r² = lreg0.r²
+    r²s = fill(0.0, nruns)
+    @showprogress "Shuffling..." for i in 1:nruns
+        Z,L,EE, MM, SS, FL, SM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth, tlabels, _trialidx, rtimes, subject;do_shuffle_trials=true, shuffle_within_location=true, tmin=t0,tmax=t0, kvs...)
+        allvars = (Z=Z, L=L,EE=EE,MM=MM,SS=SS,FL=FL, SM=SM, ncells=ncells, xpos=xpos, ypos=ypos)
+
+        X0, trialidx0 = get_regression_variables(allvars[use_varnames[1]])
+        trialidx = intersect(trialidx1, trialidx0)
+        tidx0 = findall(in(trialidx), trialidx0)
+        lreg0 = LinearRegressionUtils.llsq_stats(X0[tidx0,:], lreg1.residual[tidx1];do_interactions=false)
+        r²s[i] = lreg0.r²
+    end
+    r²,r²s
+end
+
 end #module
