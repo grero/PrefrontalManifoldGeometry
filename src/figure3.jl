@@ -297,7 +297,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
-    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], SM[1:offset,:], rt, label, ncells, bins, sessionidx
+    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], SM[1:offset,:], rt, label, ncells, bins[start_index:end_idx], sessionidx
 end
 
 function compute_regression(nruns::Int64, args...;kvs...)
