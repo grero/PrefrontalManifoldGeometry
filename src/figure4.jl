@@ -491,15 +491,16 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
                 curve_data_file="data/manifold_curves_2d.jld2", kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
-	w2 = 47.0
 	results = run_model(;redo=redo,σ²0=0.3,τ=30.0,σ²n=0.0,nd=ncells["W"],
                                           n_init_points=1, curve_data_file=curve_data_file,
                                           idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["W"],
                                           path_length_method=:normal, remove_outliers=true,
                                           do_interpolation=do_interpolation, do_remove_dependence=false, do_save=do_save,h0=h0, 
                                           use_new_path_length=use_new_path_length, use_new_speed=use_new_speed, use_midpoint=use_midpoint, kvs...);
+    w2 = get(results, :w2, 47.0)
+    #w2 = 45.0
 	# the function that was used to generate the trajectories
-	func,gfunc,ifunc = get_functions(w2=sqrt(47.0/2), ϵ2=1.5, zmin=-3.7, ϕ=0.56π) 
+	func,gfunc,ifunc = get_functions(w2=sqrt(results.w2/2), ϵ2=1.5, zmin=-3.7, ϕ=0.56π) 
 
 	xx = range(-8.0, stop=20.0, length=200);
 	yy = range(-22.0, stop=5.0, length=200)
