@@ -628,10 +628,10 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 	βpc, r²pc, pvpc, rsspc = llsq_stats(permutedims(z0,[2,1])[tqidx,:], lrt)
 	βas, r²as, pvas, rssas = llsq_stats(repeat(avg_speed[tqidx],1,1), lrt)	
 	@info r²pl r²pc r²as
-	μr = fill(0.0,5)
-	lr = fill(0.0,5)
-	ur = fill(0.0,5)
-	for (ii,r²) in enumerate([results.r²0,results.r²pl, results.r²hr,results.r²asftr, results.r²pcas])
+	μr = fill(0.0,6)
+	lr = fill(0.0,6)
+	ur = fill(0.0,6)
+	for (ii,r²) in enumerate([results.r²0,results.r²pl, results.r²hr,results.r²asftr, results.r²pcas, results.r²plas])
 		dd = fit(Beta, r²)
 		μr[ii] = mean(dd)
 		lr[ii] = quantile(dd, 0.05)
@@ -746,7 +746,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 
 		barplot!(ax8, 1:length(ur), μr)
 		rangebars!(ax8, 1:length(ur), lr, ur)
-		ax8.xticks=([1:length(μr);], ["MP","PL", "MP+PL","AS", "MP+AS"])
+		ax8.xticks=([1:length(μr);], ["MP","PL", "MP+PL","AS", "MP+AS","PL+AS"])
         ax8.xticklabelrotation = -π/3
         ax8.ylabel = "r²"
 		colgap!(lg4, 1, 30.0)
