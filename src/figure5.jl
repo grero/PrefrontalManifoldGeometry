@@ -291,49 +291,68 @@ function plot_schematic(fig,bbox)
 	saccade_color =RGB(1.0, 0.0, 0.0) 
 	with_theme(plot_theme) do
 		# drawing to illustrate stimulation
+		factor = 1.15
+		go_cue_onset = 0.0
+		go_cue_width = 5.0*factor
+		mp_onset = go_cue_width
+		mp_width = 40.0*factor
+		go_cue_signal_onset = go_cue_width+mp_width
+		go_cue_signal_width = 15.0*factor
+		transition_period_onset = go_cue_signal_onset+go_cue_signal_width
+		transition_period_width=50.0*factor
+		execution_threshold_onset = transition_period_onset+transition_period_width
+		execution_threshold_width=20.0*factor
+		saccade_onset = execution_threshold_onset+execution_threshold_width
+		saccade_width = 5.0*factor
+		total_length = go_cue_width + mp_width+go_cue_signal_width+transition_period_width
+		total_length += execution_threshold_width
+		total_length += saccade_width
+		box_height = 0.3
+
 		ax = Axis(fig, xticksvisible=false, xticklabelsvisible=false, yticksvisible=false, yticklabelsvisible=false, bottomspinevisible=false, leftspinevisible=false,bbox=bbox)
-		ylims!(ax, -0.1, 0.7)
-		arrows!(ax, [0.0], [0.0], [1.0], [0.0],linewidth=2.0)
-		poly!(ax, Rect2(0.1, 0.0, 0.05, 0.3), color=cue_color)
+		ylims!(ax, -0.15, 0.75)
+		arrows!(ax, [0.0], [-0.01], [total_length], [0.0],linewidth=2.0)
+		poly!(ax, Rect2(0.0, 0.0, go_cue_width, 0.3), color=cue_color)
 
 		offset = 0.17
 		width = 0.22
 		#poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=0.0)
-		text!(ax, offset+width/2, 0.15, text=rich(rich("60 ms",font=:bold), rich("\nMotor \nPreparation")), align=(:center, :center), color=:black)
+		text!(ax, mp_onset+0.5*mp_width, box_height/2, text=rich(rich("40 ms",font=:bold), rich("\nMotor \nPreparation")), align=(:center, :center), color=:black)
 
 		# label for stimulation
 		label_color = :yellow
 		yoffset = 0.32
-		height = 0.25
-		poly!(ax, Rect2(offset, yoffset, width, height), color=label_color, strokewidth=1.0)
-		text!(ax, offset+width/2, yoffset+height/2, text="5-55 ms\n(early stim)", align=(:center, :center))
+		height = 0.23
+		# this should end at the beginning of the go-cue
+		poly!(ax, Rect2(mp_onset+5.0*factor, yoffset, 50.0*factor, height), color=label_color, strokewidth=1.0)
+		text!(ax, mp_onset+5.0*factor + 25.0*factor, yoffset+height/2, text="5-55 ms\n(early stim)", align=(:center, :center))
 
 		_offset = offset + 0.9*width
 		_width = 1.1*width
-		poly!(ax, Rect2(_offset, yoffset+0.1, _width, height), color=label_color, strokewidth=1.0)
-		text!(ax, _offset+_width/2, yoffset+0.1+height/2, text="40-90 ms\n(late stim)", align=(:center, :center))
+		poly!(ax, Rect2(40.0*factor, yoffset+0.2, 50.0*factor, height), color=label_color, strokewidth=1.0)
+		text!(ax, (40.0+25.0)*factor, yoffset+0.2+height/2, text="40-90 ms\n(late stim)", align=(:center, :center))
 
 		offset = offset+width
 		width = 0.16
-		poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=2.0)
-		text!(ax, offset+width/2, 0.15, text=rich(rich("25 ms", font=:bold),rich("\n Go Cue\nSignal")), align=(:center, :center),color=cue_color)
+		poly!(ax, Rect2(go_cue_signal_onset, 0.0, go_cue_signal_width, box_height), color=:white, strokewidth=2.0)
+		text!(ax, go_cue_signal_onset + 0.5*go_cue_signal_width, 0.15, text=rich(rich("15 ms", font=:bold),rich("\n Go Cue\nSignal")), align=(:center, :center),color=cue_color)
 		# lightning bolt
 		#scatter!(ax, [0.2], [0.4], marker='⚡', color=RGB(1.0, 0.9, 0.0), markersize=25px)
 
 		offset = offset + width
 		width = 0.18
-		text!(ax, offset+width/2, 0.15, text="Transition\n Period", align=(:center, :center),color=:black)
+		text!(ax, transition_period_onset+0.5*transition_period_width, 0.15, text="Transition\n Period", align=(:center, :center),color=:black)
 
 		offset = offset + width
 		width = 0.20
-		poly!(ax, Rect2(offset, 0.0, width, 0.29), color=:white, strokewidth=2.0)
-		text!(ax, offset+width/2, 0.15, text=rich(rich("35 ms",font=:bold), rich("\nExecution\nThreshold")), align=(:center, :center),color=saccade_color)
+		poly!(ax, Rect2(execution_threshold_onset, 0.0, execution_threshold_width, box_height), color=:white, strokewidth=2.0)
+		text!(ax, execution_threshold_onset+0.5*execution_threshold_width, 0.15, text=rich(rich("35 ms",font=:bold), rich("\nExecution\nThreshold")), align=(:center, :center),color=saccade_color)
 
 		offset = offset + width
 		width = 0.05
-		poly!(ax, Rect2(offset, 0.0, width, 0.3), color=saccade_color)
+		poly!(ax, Rect2(saccade_onset, 0.0, saccade_width, box_height), color=saccade_color)
 
-		text!(ax, [0.1,offset],[-0.05, -0.05], text=["Go cue","Saccade"], color=[cue_color, saccade_color], align=(:center, :center))
+		text!(ax, [2.5,saccade_onset+0.5*saccade_width],[-0.06, -0.06], text=["Go cue","Saccade"], color=[cue_color, saccade_color], align=(:center, :center))
 	end
 end
 
@@ -347,10 +366,10 @@ function plot(;show_schematic=true)
 		lg1 = GridLayout()
 		fig[1,1] = lg1
 		if show_schematic
-			hh = 160
+			hh = 180
 			rowsize!(fig.layout, 1, hh)
 			_top = fheight-5
-			bbox = BBox(100, fwidth-100, _top-hh, _top) 
+			bbox = BBox(75, fwidth-75, _top-hh, _top) 
 			plot_schematic(fig, bbox)
 			lg2 = GridLayout()
 			fig[2,1] = lg2
