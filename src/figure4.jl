@@ -538,7 +538,8 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 	# get curves for plotting
 	# TODO: Plot fewer paths
 	# plot 10 trials spanning the reaction time distribution
-	qidx = sortperm(results.path_length)
+	qidx = sortperm(results.path_length_tr)
+
 	flat_curves_x = Float64[] 
 	flat_curves_y = Float64[]
 	ttidx = qidx[[1,div(length(qidx),2),length(qidx)]]
