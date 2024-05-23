@@ -1643,14 +1643,14 @@ function compute_regression_with_residuals(subject::String, varnames::Vector{Sym
     r²,r²s
 end
 
-function plot_joint_regression()
+function plot_joint_regression(;kvs...)
     with_theme(plot_theme) do
         fig = Figure(size=(400,300))
         lg1 = GridLayout(fig[1,1])
-        plot_joint_regression!(lg1, "W")
+        plot_joint_regression!(lg1, "W";kvs...)
         Label(lg1[1,0], "Monkey W", rotation=π/2, tellheight=false)
         lg2 = GridLayout(fig[2,1])
-        plot_joint_regression!(lg2, "J")
+        plot_joint_regression!(lg2, "J";kvs...)
         Label(lg2[1,0], "Monkey J", rotation=π/2, tellheight=false)
         fig
     end
