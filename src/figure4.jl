@@ -192,9 +192,9 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                 spl = ParametricSpline(permutedims(curve[idx0:end,:], [2,1]))
                 curvesp[ii] = permutedims(Dierckx.evaluate(spl, range(extrema(spl.t)...; length=10*length(spl.t))),[2,1])
             end
-            d = sqrt.(dropdims(sum(abs2, curvesp[ii] .- xy2,dims=2),dims=2))
-            _eeidx = findfirst(d .< 0.01*w2)
-            if _eeidx != nothing
+            d = sqrt.(dropdims(sum(abs2, curve .- xy2,dims=2),dims=2))
+            _eeidx = findfirst(d .< sqrt(0.1*w2))
+            if _eeidx !== nothing
                 eeidx[ii] = _eeidx
                 path_length[ii] = sum(sqrt.(sum(abs2, diff(curvesp[ii][offset+1:_eeidx,:],dims=1),dims=2)))
                 path_length_tr[ii],_ = compute_triangular_path_length(curvesp[ii][offset+1:_eeidx,:], path_length_method)
