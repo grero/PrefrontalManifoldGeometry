@@ -507,12 +507,8 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 
 	#sub-sample to 50 curves
 	#tidx = sort(shuffle(RNG, 1:length(curves))[1:50])
+    idx0 = results.idx0
 
-	if do_interpolation
-		idx0 = 50 
-	else
-		idx0 = 50
-	end
 	# compute path length and initial conditions
 	path_length = fill(0.0, size(results.Y,3))
     avg_speed = fill!(similar(path_length), 0.0)
