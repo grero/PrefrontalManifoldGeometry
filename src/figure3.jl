@@ -1656,7 +1656,7 @@ function plot_joint_regression(;kvs...)
     end
 end 
 
-function plot_joint_regression!(lg, subject::String;redo=false)
+function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=true)
     fname = "joint_regression_subjec_$(subject).jld2"
     if !redo && isfile(fname)
         r², r²s = JLD2.load(fname, "r²", "r²s") 
@@ -1670,15 +1670,36 @@ function plot_joint_regression!(lg, subject::String;redo=false)
         JLD2.save(fname, Dict("r²"=>r²,"r²s"=>r²s ))
     end
     for k in keys(r²s) 
-        r²s[k] = percentile(r²s[k], [5,50,95])
+        B = fit(Beta, r²s[k])
+        r²s[k] = Dict("percentiles" => percentile(r²s[k], [5,50,95]), "distr"=>B)
     end
 
     ax = Axis(lg[1,1])
     _keys = collect(keys(r²))
     barplot!(ax, 1:length(_keys), [r²[k] for k in keys(r²)])
-    scatter!(ax, 1:length(_keys), [r²s[k][2] for k in keys(r²)],color=:black)
-    rangebars!(ax, 1:length(_keys), [r²s[k][1] for k in keys(r²)],[r²s[k][3] for k in keys(r²)],color=:black)
+    ymax = maximum([r²[k] for k in _keys])
+    if show_null_distr
+        scatter!(ax, 1:length(_keys), [r²s[k]["percentiles"][2] for k in keys(r²)],color=:black)
+        rangebars!(ax, 1:length(_keys), [r²s[k]["percentiles"][1] for k in keys(r²)],[r²s[k]["percentiles"][3] for k in keys(r²)],color=:black)
+    else
+        # just indicate significance
+        for (ii,_k) in enumerate(_keys)
+            y = r²[_k]
+            B = r²s[_k]["distr"]
+            pv = 1 - cdf(B, y)
+            @show pv
+            tt = ""
+            if pv < 0.001
+                tt = "**"
+            elseif pv < 0.01
+                tt = "*"
+            end
+            text!(ax, ii, y,text=tt, align=(:center,:bottom))
+            ymax = 1.05*ymax
+        end
+    end
     ax.xticks = (1:length(_keys), collect(keys(r²)))
     ax.ylabel = "residual r²"
+    ylims!(ax, 0.0, ymax)
 end
 end #module
