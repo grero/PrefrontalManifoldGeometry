@@ -176,10 +176,10 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         # split into trials
         pidx = [0;findall(isnan, curvex)]
         curves = [[curvex[pp0+1:pp1-1] curvey[pp0+1:pp1-1]] for (pp0,pp1) in zip(pidx[1:end-1], pidx[2:end])]
+        curvesp = [[curvep1[pp0+1:pp1-1] curvep2[pp0+1:pp1-1]] for (pp0,pp1) in zip(pidx[1:end-1], pidx[2:end])]
         # compute reaction time
         eeidx = fill(0, length(curves))
         eeidxs = fill!(similar(eeidx), 0)
-        curvesp = Vector{Matrix{Float64}}(undef, length(curves))
         path_length = fill(0.0, length(curves))
         path_length_tr = fill(0.0, length(curves))
         offset = idx0 + (go_cue - idx0)
@@ -191,8 +191,6 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             if do_interpolation
                 spl = ParametricSpline(permutedims(curve[idx0:end,:], [2,1]))
                 curvesp[ii] = permutedims(Dierckx.evaluate(spl, range(extrema(spl.t)...; length=10*length(spl.t))),[2,1])
-            else
-                curvesp[ii] = curve
             end
             d = sqrt.(dropdims(sum(abs2, curvesp[ii] .- xy2,dims=2),dims=2))
             _eeidx = findfirst(d .< 0.01*w2)
