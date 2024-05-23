@@ -17,8 +17,9 @@ using Dierckx
 using Makie.GeometryBasics
 
 
+using ..Regression
+
 #include("utils.jl")
-include("regression.jl")
 #include("plot_utils.jl")
 
 get_functions(;kvs...) = AttractorModels.get_attractors2(;w1=sqrt(10.0/2), w2=sqrt(45.0/2.0), wf=sqrt(5.0/2),
