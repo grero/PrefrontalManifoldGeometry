@@ -1,6 +1,7 @@
 module Figure4
 using AttractorModels
 using ProgressMeter
+using Distributions
 using Makie: Point2f, Point3f
 using GLMakie
 using CRC32c
@@ -12,6 +13,10 @@ using Loess
 using ..Utils
 using ..PlotUtils
 using ..Trajectories
+using MultivariateStats
+using LinearAlgebra
+using StatsBase
+using Random
 using Dierckx
 
 using Makie.GeometryBasics
