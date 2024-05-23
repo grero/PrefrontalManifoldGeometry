@@ -231,6 +231,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         @info "Rt-range" extrema(rt)
         eeidx = eeidx[tidx]
         curvesp = curvesp[tidx]
+        curves = curves[tidx]
         max_rt_idx = argmax(rt)
         min_rt_idx = argmin(rt)
         np_min = 10
