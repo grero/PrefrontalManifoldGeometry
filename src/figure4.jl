@@ -182,7 +182,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         curvesp = Vector{Matrix{Float64}}(undef, length(curves))
         path_length = fill(0.0, length(curves))
         path_length_tr = fill(0.0, length(curves))
-        offset = go_cue - idx0
+        offset = idx0 + (go_cue - idx0)
         if do_interpolation
             offset *= 10
         end
