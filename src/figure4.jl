@@ -163,8 +163,16 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         results = NamedTuple(Symbol.(keys(qq)) .=> values(qq))
     else
         xy2 = [7.0 -13.0] # pre-mov basin
-        w2 = 47.0
-        curvex, curvey = JLD2.load(curve_data_file,"curvex","curvey")
+        curve_data = JLD2.load(curve_data_file)
+        curvex, curvey = (curve_data["curvex"], curve_data["curvey"])
+        w2 = get(curve_data, "w2", 35.0)
+        idx0 = get(curve_data, "bump_time", 50)
+        xy2 = get(curve_data, "xe", [7.0,-13.0])
+        curvep1 = get(curve_data, "curvep1", curvex)
+        curvep2 = get(curve_data, "curvep2", curvex)
+        xy2 = permutedims(xy2)
+        go_cue = idx0 
+        @show idx0 w2 xy2
         # split into trials
         pidx = [0;findall(isnan, curvex)]
         curves = [[curvex[pp0+1:pp1-1] curvey[pp0+1:pp1-1]] for (pp0,pp1) in zip(pidx[1:end-1], pidx[2:end])]
