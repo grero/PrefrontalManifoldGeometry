@@ -418,8 +418,8 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             r²cv[r] = adjusted_r²(r²cv[r], length(curvesp), length(βcv))
             
         end
-        results = (r²0=r²0, pv0=pv0, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
-                   rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curvesp,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
+        results = (idx0=idx0, xy2=xy2, w2=w2,r²0=r²0, pv0=pv0, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
+                   rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curves,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
                    path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf)
         @info "r²plf" r²plf
         if do_save
