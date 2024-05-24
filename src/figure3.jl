@@ -523,10 +523,24 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         q = crc32c(string((:balance_positions=>true)),q)
     end
     input_args["balance_positions"] = balance_positions
+    if tmax < Inf
+        q = crc32c(string((:tmax=>tmax)),q)
+    end
+    input_args["tmax"] = tmin
+    if tmin > -Inf
+        q = crc32c(string((:tmin=>tmin)),q)
+    end
+    input_args["tmin"] = tmin
     if use_log
         q = crc32c(string((:use_log=>true)),q)
     end
     input_args["use_log"] = use_log
+
+    if use_residuals
+        q = crc32c(string((:use_residuals=>true)),q)
+    end
+    input_args["use_residuals"] = use_residuals
+
     if !isa(recording_side, Utils.BothSides)
         q = crc32c(string((:recording_side=>Symbol(recording_side))),q)
     end
@@ -579,7 +593,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
                 # TODO: Do the shuffling here (hic misce)
-                Z,L,EE, MM, SS, FL, SM,lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, use_new_energy_point_algo=use_new_energy_point_algo, kvs...);
+                Z,L,EE, MM, SS, FL, SM,lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, use_log=use_log, use_new_energy_point_algo=use_new_energy_point_algo, tmin=tmin, tmax=tmax, kvs...);
                 if subject == "J"
                     tidx = findall(label.!=9)
                 else
