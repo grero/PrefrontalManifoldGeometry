@@ -4,6 +4,7 @@ using Makie
 using GLMakie
 using StatsBase
 using DataProcessingHierarchyTools
+using Dierckx
 # for GPFA
 using NeuralAnalysis
 using PyCall
