@@ -1676,7 +1676,7 @@ function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=
 
     ax = Axis(lg[1,1])
     _keys = collect(keys(r²))
-    barplot!(ax, 1:length(_keys), [r²[k] for k in keys(r²)])
+    barplot!(ax, 1:length(_keys), [r²[k] for k in keys(r²)], color=PlotUtils.fef_color)
     ymax = maximum([r²[k] for k in _keys])
     if show_null_distr
         scatter!(ax, 1:length(_keys), [r²s[k]["percentiles"][2] for k in keys(r²)],color=:black)
