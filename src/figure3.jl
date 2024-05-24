@@ -1699,6 +1699,7 @@ function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=
         end
     end
     ax.xticks = (1:length(_keys), collect(keys(r²)))
+    ax.xticklabelrotation = -π/3
     ax.ylabel = "residual r²"
     ylims!(ax, 0.0, ymax)
 end
