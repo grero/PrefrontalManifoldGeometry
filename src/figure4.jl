@@ -728,7 +728,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		lines!(ax7, xxr, r²s, label="Surrogate")
 		ax7.xlabel = "Time from movement [au]"
 		ax7.xticklabelsvisible = false
-		axislegend(ax7,valign=:top, halign=:right, margin=(0.0, -0.0, 0.0, -20.0))
+		axislegend(ax7,valign=:top, halign=:right, margin=(0.0, -0.0, 0.0, -20.0),backgroundcolor=(:white, 0.5))
 		ax7.ylabel = "r²"
         vlines!(ax7, 0.0, color=:black, linestyle=:dot)
         # reaction time
