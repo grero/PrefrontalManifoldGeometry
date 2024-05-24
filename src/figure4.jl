@@ -734,7 +734,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
         # reaction time
         ax11 = Axis(lg4[1,3])
         _rtime =results.rt_sample[tqidx] 
-        rainclouds!(ax11, fill(1.0, length(_rtime)), _rtime)
+        rainclouds!(ax11, fill(1.0, length(_rtime)), _rtime, clouds=nothing)
         ax11.xticklabelsvisible = false
         ax11.xticksvisible = false
         ax11.bottomspinevisible = false
