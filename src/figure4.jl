@@ -666,10 +666,11 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ur[ii] = quantile(dd, 0.95)
 	end
     # residual models
-	μrr = fill(0.0,4)
-	lrr = fill(0.0,4)
-	urr = fill(0.0,4)
-	for (ii,r²) in enumerate([results.r²res_pl_on_as,results.r²res_pl_on_mp,results.r²res_as_on_pl, results.r²res_as_on_mp])
+    labels_rr = ["MP→PL","MP→AS","PL→AS", "AS→PL"]
+	μrr = fill(0.0,length(labels_rr))
+	lrr = fill!(similar(μrr), 0.0)
+	urr = fill!(similar(μrr), 0.0)
+	for (ii,r²) in enumerate([results.r²res_mp_on_pl, results.r²res_mp_on_as, results.r²res_pl_on_as,results.r²res_as_on_pl])
 		dd = fit(Beta, r²)
 		μrr[ii] = mean(dd)
 		lrr[ii] = quantile(dd, 0.05)
@@ -790,7 +791,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
         ax9 = Axis(lg4[1,3])
 		barplot!(ax9, 1:length(urr), μrr)
 		rangebars!(ax9, 1:length(urr), lrr, urr)
-		ax9.xticks=([1:length(μrr);], ["PL→AS","PL→MP", "AS→PL","AS→MP"])
+		ax9.xticks=([1:length(μrr);], labels_rr)
         ax9.xticklabelrotation = -π/3
         ax9.ylabel = "residual r²"
 
