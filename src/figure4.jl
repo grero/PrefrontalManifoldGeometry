@@ -96,7 +96,7 @@ Returns a NamedTuple with the following fields:
 function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14],n_init_points=1,
                                                curve_data_file="model_output_more_trials_longer.jld2",
                                                idx0=30,nruns=50, ntrials::Union{Int64, Vector{Int64}}=0,rseed=UInt32(1234),
-                                               go_cue=idx0, path_length_method::Symbol=:normal,
+                                               go_cue=idx0, path_length_method::Symbol=:normal,mp_start=idx0,
                                                remove_outliers=false, do_interpolation=true, do_remove_dependence=true, h0=UInt32(0),
                                                use_new_speed=false, use_new_path_length=false, use_midpoint=false)
     @show σ²0
@@ -153,6 +153,12 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     end
     if use_midpoint
         h = crc32c("use_midpoint",h)
+    end
+    if n_init_points > 1
+        h = crc32c(string(n_init_points),h)
+    end
+    if mp_start != idx0 
+        h = crc32c(string(mp_start),h)
     end
         
     q = string(h, base=16)
@@ -374,7 +380,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                 rt_tot[trial_offset+1:trial_offset+_ntrials,r] .= _rt
                 # initial position
                 # To make it as similar to the model as possible, we use factor analysis here
-                Y0 = dropdims(mean(Y[offset+1:offset+n_init_points,:,:],dims=1),dims=1)
+                Y0 = dropdims(mean(Y[mp_start:mp_start+n_init_points,:,:],dims=1),dims=1)
                 fa = MultivariateStats.fit(MultivariateStats.FactorAnalysis, Y0;maxoutdim=1,method=:em)
                 Z0[trial_offset+1:trial_offset+_ntrials,r] = permutedims(MultivariateStats.predict(fa, Y0),[2,1])
                 _rtl = log.(_rt)
@@ -738,12 +744,12 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ablines!(ax5, βpc[end], βpc[1], color="black", linestyle=:dot)
 		ax5.xlabel = "Initial (MP)"
 		ax5.ylabel = "log(rt)"
-		ax6 = Axis(lg3[1,3],xticks=WilkinsonTicks(3))
+		ax6 = Axis(lg3[1,2],xticks=WilkinsonTicks(3))
 		scatter!(ax6, path_length, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax6, βpl[end], βpl[1], color="black", linestyle=:dot)
 		ax6.xlabel = "Path length (PL)"
 		ax6.yticklabelsvisible = false
-        ax73 = Axis(lg3[1,2], xticks=WilkinsonTicks(3))
+        ax73 = Axis(lg3[1,3], xticks=WilkinsonTicks(3))
 		scatter!(ax73, avg_speed, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax73, βas[end], βas[1], color="black", linestyle=:dot)
 		ax73.xlabel = "Avg speed (AS)"
