@@ -693,7 +693,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             r²_S = fill(0.0, size(r²)...)
             @showprogress for r in 1:nruns
                 for (ss, subject) in enumerate(subjects)
-                    _Z,_L,_EE, _MM, _SS, _FL, _SM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, use_new_energy_point_algo=use_new_energy_point_algo, kvs...);
+                    _Z,_L,_EE, _MM, _SS, _FL, _SM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, use_new_energy_point_algo=use_new_energy_point_algo,tmin=tmin, tmax=tmax, kvs...);
                     if subject == "J"
                         tidx = findall(_label.!=9)
                     else
@@ -738,7 +738,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 for vv in use_varnames
                     push!(vars, allvars[vv])
                 end
-                _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β)
+                if use_residuals
+                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2][qdata["trialidx"][:,r]];exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
+                else
+                    _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals, trialidx=qdata["trialidx"][:,r])
+                end
                 β_S[:,:,r] .= _β
                 r²_S[:,r] .= _r²
             end
@@ -1197,11 +1201,15 @@ function plot(;plottype=:barplot, show_dlpfc=false)
         plot_trajectory_illustration!(lg1)
         Label(lg1[1,1,TopLeft()], "A")
         lg2 = GridLayout(fig[2,1])
-        plot_individual_trials!(lg2, "W";plottype=plottype, label=["B","C","D","E"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        plot_individual_trials!(lg2, "W";plot_joint=false, plottype=plottype, label=["B","C","D","E"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg2[1,0], "Monkey W", tellwidth=true, tellheight=false, rotation=π/2)
+        lg21 = GridLayout(lg2[1,3])
+        plot_joint_regression!(lg21,"W";show_null_distr=false)
         lg3 = GridLayout(fig[3,1])
-        plot_individual_trials!(lg3, "J";plottype=plottype, label=["F","G","H","I"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
+        plot_individual_trials!(lg3, "J";plot_joint=false, plottype=plottype, label=["F","G","H","I"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg3[1,0], "Monkey J", tellwidth=true, tellheight=false, rotation=π/2)
+        lg31 = GridLayout(lg3[1,3])
+        plot_joint_regression!(lg31,"J";show_null_distr=false)
         rowsize!(fig.layout, 1, Relative(0.2))
         fig
     end
@@ -1283,7 +1291,11 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
     ax = Axis(lg[1,2])
     offset = 1
 
-    combis = ["MP","PL","MP+PL","AS","MP+AS","PL+AS","MP+PL+AS"]
+    if plot_joint
+        combis = ["MP","PL","MP+PL","AS","MP+AS","PL+AS","MP+PL+AS"]
+    else
+        combis = ["MP","PL","AS"]
+    end
 
     for k in combis
         for (cc,a) in zip(acolor,areas) 
