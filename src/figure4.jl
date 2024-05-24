@@ -267,10 +267,15 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         r²plf = fill(0.0, nruns)
         r²asftr = fill(0.0, nruns)
         r²pcas = fill(0.0, nruns)
+        r²plas = fill(0.0, nruns)
         r²hr = fill(0.0, nruns)
         r²cv = fill(0.0, nruns)
         pvf = fill(0.0, nruns)
         fvalue = fill(0.0, nruns)
+        r²res_pl_on_mp = fill(0.0, nruns)
+        r²res_pl_on_as = fill(0.0, nruns)
+        r²res_as_on_mp = fill(0.0, nruns)
+        r²res_as_on_pl = fill(0.0, nruns)
         # per session regressions
         r² = fill(0.0, size(curvesp[1],1), length(nd), nruns)
         r²s = fill!(similar(r²), 0.0)
@@ -403,6 +408,21 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             # hierarhical
             βhr,r²hr[r], pvhr,rsshr = llsq_stats([Z0[:,r] plftr[:,r]], rtl)
             βpcas, r²pcas[r],_,_ = llsq_stats([Z0[:,r] asftr[:,r]], rtl)
+            βplas, r²plas[r],_,_ = llsq_stats([plftr[:,r] asftr[:,r]], rtl)
+
+            # residuals
+            res_mp = (β0[1]*Z0[:,r] .+ β0[2] - rtl)
+            _, r²res_pl_on_mp[r],_,_ = llsq_stats(plftr[:,r:r], res_mp)
+            _, r²res_as_on_mp[r],_,_ = llsq_stats(asftr[:,r:r], res_mp)
+
+            res_pl = βpl[1]*plftr[:,r] .+ βpl[2] - rtl
+            _, r²res_as_on_pl[r],_,_ = llsq_stats(asftr[:,r:r], res_pl)
+
+            res_as = βasf[1]*asftr[:,r] .+ βasf[2] - rtl
+            _, r²res_pl_on_as[r],_,_ = llsq_stats(plftr[:,r:r], res_as)
+
+
+
             @debug "ZO" extrema(Z0[:,r]) extrema(plftr[:,r]) rsshr rsspl
             fvalue[r],pvf[r] = ftest(rsspl,length(βpl), rsshr, length(βhr),length(rtl)) 
             #r²hr[r] = adjusted_r²(r²hr[r], ntrials, length(βhr))
@@ -418,9 +438,10 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             r²cv[r] = adjusted_r²(r²cv[r], length(curvesp), length(βcv))
             
         end
-        results = (idx0=idx0, xy2=xy2, w2=w2,r²0=r²0, pv0=pv0, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
+        results = (idx0=idx0, xy2=xy2, w2=w2,r²0=r²0, pv0=pv0, r²plas=r²plas, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
                    rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curves,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
-                   path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf)
+                   path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf,
+                   r²res_as_on_mp, r²res_as_on_pl, r²res_pl_on_mp, r²res_pl_on_as)
         @info "r²plf" r²plf
         if do_save
             JLD2.save(fname, Dict(String(k)=>results[k] for k in keys(results)))
@@ -627,15 +648,26 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 	βpl, r²pl, pvpl, rsspl = llsq_stats(repeat(path_length[tqidx],1,1), lrt)	
 	βpc, r²pc, pvpc, rsspc = llsq_stats(permutedims(z0,[2,1])[tqidx,:], lrt)
 	βas, r²as, pvas, rssas = llsq_stats(repeat(avg_speed[tqidx],1,1), lrt)	
-	@info r²pl r²pc r²as
-	μr = fill(0.0,6)
-	lr = fill(0.0,6)
-	ur = fill(0.0,6)
-	for (ii,r²) in enumerate([results.r²0,results.r²pl, results.r²hr,results.r²asftr, results.r²pcas, results.r²plas])
+
+    # single variable models
+	μr = fill(0.0,3)
+	lr = fill(0.0,3)
+	ur = fill(0.0,3)
+	for (ii,r²) in enumerate([results.r²0,results.r²pl,results.r²asftr])
 		dd = fit(Beta, r²)
 		μr[ii] = mean(dd)
 		lr[ii] = quantile(dd, 0.05)
 		ur[ii] = quantile(dd, 0.95)
+	end
+    # residual models
+	μrr = fill(0.0,4)
+	lrr = fill(0.0,4)
+	urr = fill(0.0,4)
+	for (ii,r²) in enumerate([results.r²res_pl_on_as,results.r²res_pl_on_mp,results.r²res_as_on_pl, results.r²res_as_on_mp])
+		dd = fit(Beta, r²)
+		μrr[ii] = mean(dd)
+		lrr[ii] = quantile(dd, 0.05)
+		urr[ii] = quantile(dd, 0.95)
 	end
 	zmin = -12.0
     plot_colors = Makie.wong_colors()
@@ -732,7 +764,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ax7.ylabel = "r²"
         vlines!(ax7, 0.0, color=:black, linestyle=:dot)
         # reaction time
-        ax11 = Axis(lg4[1,3])
+        ax11 = Axis(lg4[1,4])
         _rtime =results.rt_sample[tqidx] 
         rainclouds!(ax11, fill(1.0, length(_rtime)), _rtime, clouds=nothing)
         ax11.xticklabelsvisible = false
@@ -746,9 +778,16 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 
 		barplot!(ax8, 1:length(ur), μr)
 		rangebars!(ax8, 1:length(ur), lr, ur)
-		ax8.xticks=([1:length(μr);], ["MP","PL", "MP+PL","AS", "MP+AS","PL+AS"])
+		ax8.xticks=([1:length(μr);], ["MP","PL", "AS"])
         ax8.xticklabelrotation = -π/3
         ax8.ylabel = "r²"
+        ax9 = Axis(lg4[1,3])
+		barplot!(ax9, 1:length(urr), μrr)
+		rangebars!(ax9, 1:length(urr), lrr, urr)
+		ax9.xticks=([1:length(μrr);], ["PL→AS","PL→MP", "AS→PL","AS→MP"])
+        ax9.xticklabelrotation = -π/3
+        ax9.ylabel = "residual r²"
+
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
 		labels = [Label(lg1[1,1,TopLeft()], "A",padding=label_padding),
@@ -756,7 +795,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 				 Label(lg3[1,1,TopLeft()],"C",padding=label_padding),
 				 Label(lg4[1,1,TopLeft()], "D",padding=label_padding),
 				 Label(lg4[1,2,TopLeft()], "E",padding=label_padding),
-                 Label(lg4[1,3,TopLeft()], "F", padding=label_padding)]
+                 Label(lg4[1,4,TopLeft()], "F", padding=label_padding)]
 		colsize!(fig.layout, 1, Relative(0.7))
 		rowsize!(fig.layout, 1, Relative(0.8))
 		colgap!(fig.layout, 1, 10.0)
