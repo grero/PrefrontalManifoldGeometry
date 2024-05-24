@@ -280,8 +280,10 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         fvalue = fill(0.0, nruns)
         r²res_pl_on_mp = fill(0.0, nruns)
         r²res_pl_on_as = fill(0.0, nruns)
+        r²res_mp_on_as = fill(0.0, nruns)
         r²res_as_on_mp = fill(0.0, nruns)
         r²res_as_on_pl = fill(0.0, nruns)
+        r²res_mp_on_pl = fill(0.0, nruns)
         # per session regressions
         r² = fill(0.0, size(curvesp[1],1), length(nd), nruns)
         r²s = fill!(similar(r²), 0.0)
@@ -423,9 +425,11 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
 
             res_pl = βpl[1]*plftr[:,r] .+ βpl[2] - rtl
             _, r²res_as_on_pl[r],_,_ = llsq_stats(asftr[:,r:r], res_pl)
+            _, r²res_mp_on_pl[r],_,_ = llsq_stats(Z0[:,r:r], res_pl)
 
             res_as = βasf[1]*asftr[:,r] .+ βasf[2] - rtl
             _, r²res_pl_on_as[r],_,_ = llsq_stats(plftr[:,r:r], res_as)
+            _, r²res_mp_on_as[r],_,_ = llsq_stats(Z0[:,r:r], res_as)
 
 
 
@@ -447,7 +451,8 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         results = (idx0=idx0, xy2=xy2, w2=w2,r²0=r²0, pv0=pv0, r²plas=r²plas, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
                    rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curves,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
                    path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf,
-                   r²res_as_on_mp, r²res_as_on_pl, r²res_pl_on_mp, r²res_pl_on_as)
+                   r²res_as_on_mp, r²res_as_on_pl, r²res_pl_on_mp, r²res_pl_on_as, r²res_mp_on_pl=r²res_mp_on_as,
+                   r²res_mp_on_as)
         @info "r²plf" r²plf
         if do_save
             JLD2.save(fname, Dict(String(k)=>results[k] for k in keys(results)))
