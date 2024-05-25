@@ -1256,16 +1256,16 @@ function plot_individual_trials(subject::String, ;kvs...)
     end
 end
 
-function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, kvs...)
+function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, speedvar::Symbol=:SM, plot_joint=true, kvs...)
     qdataz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], kvs...)
     qdatal = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], kvs...)
-    qdatass = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:SM,:ncells,:xpos,:ypos], kvs...)
+    qdatass = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], kvs...)
 
     qdatalz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], kvs...)
-    qdatazss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:SM, :Z, :ncells,:xpos,:ypos], kvs...)
-    qdataplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :SM, :ncells,:xpos,:ypos], kvs...)
+    qdatazss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], kvs...)
+    qdataplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], kvs...)
 
-    qdatazplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :SM, :Z, :ncells,:xpos,:ypos], kvs...)
+    qdatazplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], kvs...)
     bins = qdatazss["bins"]
     bidx = searchsortedfirst(bins, t0)
 
