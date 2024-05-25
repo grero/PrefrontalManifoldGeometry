@@ -1293,6 +1293,7 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
         _r²z["MP+PL+AS"] = qdatazplss[area]["r²_shuffled"][bidx,:]
 
     end
+    @debug "Synerogy" mean((r²["fef"]["PL+AS"] - (r²["fef"]["PL"] + r²["fef"]["AS"]))./r²["fef"]["PL+AS"])
     acolor = [PlotUtils.fef_color, PlotUtils.dlpfc_color]
     
     lg2 = GridLayout(lg[1,1])
