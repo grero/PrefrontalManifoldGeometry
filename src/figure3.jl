@@ -1703,6 +1703,8 @@ function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=
         r²["PL→MP"], r²s["PL→MP"] = compute_regression_with_residuals(subject, [:L, :Z,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
         r²["AS→PL"], r²s["AS→PL"] = compute_regression_with_residuals(subject, [:SM, :L,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
         r²["PL→AS"], r²s["PL→AS"] = compute_regression_with_residuals(subject, [:L, :SM,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
+        r²["MP→PL"], r²s["MP→PL"] = compute_regression_with_residuals(subject, [:Z, :L,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
+        r²["MP→AS"], r²s["MP→AS"] = compute_regression_with_residuals(subject, [:Z, :SM,:ncells,:xpos,:ypos];t0=0.0, nuns=100,  use_midpoint=false,align=:cue, tt=65.0, shuffle_responses=false,shuffle_time=false,shuffle_trials=true,combine_subjects=true,save_all_β=true,shuffle_within_locations=true,t1=35.0, use_log=true, use_new_energy_point_algo=false)
         JLD2.save(fname, Dict("r²"=>r²,"r²s"=>r²s ))
     end
     for k in keys(r²s) 
@@ -1712,11 +1714,12 @@ function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=
 
     ax = Axis(lg[1,1])
     _keys = collect(keys(r²))
-    barplot!(ax, 1:length(_keys), [r²[k] for k in keys(r²)], color=PlotUtils.fef_color)
+    _keys = ["MP→PL","MP→AS","PL→AS","AS→PL"]
+    barplot!(ax, 1:length(_keys), [r²[k] for k in _keys], color=PlotUtils.fef_color)
     ymax = maximum([r²[k] for k in _keys])
     if show_null_distr
-        scatter!(ax, 1:length(_keys), [r²s[k]["percentiles"][2] for k in keys(r²)],color=:black)
-        rangebars!(ax, 1:length(_keys), [r²s[k]["percentiles"][1] for k in keys(r²)],[r²s[k]["percentiles"][3] for k in keys(r²)],color=:black)
+        scatter!(ax, 1:length(_keys), [r²s[k]["percentiles"][2] for k in _keys],color=:black)
+        rangebars!(ax, 1:length(_keys), [r²s[k]["percentiles"][1] for k in _keys],[r²s[k]["percentiles"][3] for k in keys(r²)],color=:black)
     else
         # just indicate significance
         for (ii,_k) in enumerate(_keys)
@@ -1734,9 +1737,10 @@ function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=
             ymax = 1.05*ymax
         end
     end
-    ax.xticks = (1:length(_keys), collect(keys(r²)))
+    ax.xticks = (1:length(_keys), _keys)
     ax.xticklabelrotation = -π/3
     ax.ylabel = "residual r²"
     ylims!(ax, 0.0, ymax)
+    ax
 end
 end #module
