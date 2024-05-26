@@ -16,10 +16,21 @@ const PMG = PrefrontalManifoldGeometry
 end
 
 @testset "Figures" begin
-    fig1 = PMG.Figure1().plot()
-    fig2 = PMG.Figure2().plot()
-    fig3 = PMG.Figure3().plot()
-    fig4 = PMG.Figure4().plot()
-    fig5 = PMG.Figure5().plot()
+    fig1 = PMG.Figure1.plot()
+    fig2 = PMG.Figure2.plot()
+    fig3 = PMG.Figure3.plot()
+    fig4 = PMG.Figure4.plot()
+    fig5 = PMG.Figure5.plot()
+end
+
+@testset "Supplementary Figures" begin
+    figs1 = PMG.FigureS1.plot()
+    figs2 = PMG.FigureS2.plot()
+    figs3 = PMG.FigureS3.plot()
+
+    figs5 = PMG.FigureS5.plot()
+    figs6 = PMG.FigureS6.plot()
+    figs7 = PMG.FigureS7.plot()
+    figs8 = PMG.FigureS8.plot()
 end
 
