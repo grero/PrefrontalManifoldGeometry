@@ -368,17 +368,23 @@ end
 """
 Compute
 """
-function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, kvs...)
+function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, use_residuals=false, kvs...)
+    #TODO: Make rt optinally be a matrix, to work with the residuals
     nbins = size(L,2)
-    nvars = length(args)+1
-    if save_all_β
-        nvars += div(nvars*(nvars-1),2) - length(exclude_pairs)
+    if use_residuals
+        nvars = 1 
+    else
+        nvars = length(args)+1
+        if save_all_β
+            nvars += div(nvars*(nvars-1),2) - length(exclude_pairs)
+        end
     end
     β = fill(NaN, nvars+1, nbins)
     Δβ = fill(NaN, nvars, nbins)
     pv = fill(NaN, nbins)
     r² = fill(NaN, nbins)
     rss = fill(NaN, nbins)
+    residuals = fill(NaN, size(L,1),nbins)
     if shuffle_trials
         sidx = shuffle(trialidx)
     else
@@ -400,6 +406,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         if do_skip
             continue
         end 
+
         # run two regression models; one without path length L and one with
         if length(args) > 0
             X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in args]...)
@@ -411,12 +418,19 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             X_with_L = [L[trialidx[_tidx],i] X_no_L]
             p1 = length(lreg_no_L.β)
             rss1 = lreg_no_L.rss
+            residuals[:,i] = lreg_no_L.residual
+            if use_residuals
+                y = lreg_no_L.residual
+                X_with_L = L[trialidx[_tidx],i:i] 
+            else
+                y = rt[sidx[_tidx]]
+            end
         else
             X_with_L = L[trialidx[_tidx],i:i] 
             p1 = 1
             rss1 = sum(abs2, rt[sidx[_tidx]] .- mean(rt[sidx[_tidx]]))
+            y = rt[sidx[_tidx]]
         end
-
 
         #lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx];do_interactions=true, exclude_pairs=[(2,3)])
         #lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx];do_interactions=true, exclude_pairs=[(2,3)])
@@ -425,7 +439,11 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             continue
         end
         try
-            lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, rt[sidx[_tidx]];do_interactions=true,exclude_pairs=exclude_pairs, kvs...)
+            if use_residuals
+                lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, y;do_interactions=false,exclude_pairs=exclude_pairs, kvs...)
+            else
+                lreg_with_L = LinearRegressionUtils.llsq_stats(X_with_L, y;do_interactions=true,exclude_pairs=exclude_pairs, kvs...)
+            end
 
             # compute the F-stat for whether adding the path length results in a significantly better fit
             n = length(rt)
@@ -457,7 +475,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             end
         end
     end
-    β,Δβ, pv, r², rss, varidx
+    β,Δβ, pv, r², rss, varidx, residuals
 end
 
 function plot_regression(β, Δβ,pv,r²,bins)
@@ -486,7 +504,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     input_args = Dict{String,Any}()
@@ -669,9 +687,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             end
             if "trialix" in keys(qdata)
                 _trialidx = qdata["trialidx"]
-                βfef,Δβfef,pvfef,r²fef,varidx = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β)
+                βfef,Δβfef,pvfef,r²fef,varidx, residuals = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
             else
-                βfef,Δβfef,pvfef,r²fef,varidx, _trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β)
+                βfef,Δβfef,pvfef,r²fef,varidx, _trialidx, residuals = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
                 qdata["trialidx"] = _trialidx
             end
             qdata[area]["β"] = βfef
@@ -1367,7 +1385,7 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
         Label(lg[1,2,TopLeft()], label[end])
     end
     colsize!(lg,1,Relative(0.7))
-
+    axes, ax
     # plot comparison fef vs dlpfc for individual as well as combinations
     #trialidx = qdata["trialidx"][:,1]
 
