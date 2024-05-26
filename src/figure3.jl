@@ -120,7 +120,7 @@ end
 
 Get data for regressing reaction time for each point in time for the specified `subject` and `area`.
 """
-function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,t1=35.0, realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, shuffle_within_locations=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, use_log=false, subtract_location_mean=false, use_new_energy_point_algo=false, kvs...)
+function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothing,String};rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,t1=35.0, realign=true, do_shuffle=false, do_shuffle_responses=false, do_shuffle_time=false, do_shuffle_trials=false, shuffle_within_locations=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, use_midpoint=false,tt=65.0, use_log=false, subtract_location_mean=false, use_new_energy_point_algo=false, tmin=-Inf, tmax=Inf, kvs...)
 
 	# Per session, per target regression, combine across to compute rv
 	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
@@ -142,7 +142,9 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
     r2j = fill(0.0, size(ppsth.counts,1),100)
     total_idx = 1
     n_tot_trials =  sum([length(rtimes[k]) for k in sessions])
-    Z = fill(0.0,n_tot_trials, size(ppsth.counts,1))
+    start_idx = searchsortedfirst(ppsth.bins, tmin)
+    end_idx = searchsortedlast(ppsth.bins, tmax)
+    Z = fill(0.0,n_tot_trials, end_idx-start_idx+1)
     L = fill!(similar(Z),NaN) 
     FL = fill!(similar(Z),NaN) 
     EE = fill!(similar(Z),NaN)
@@ -215,13 +217,13 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         end
         # compute M and V for the actual transition period
         idxt = searchsortedfirst(bins, tt) 
-        idxp = searchsortedfirst(bins, tt-Δt-window)
-        MM[offset+1:offset + _nt,idxp], V = get_projected_energy(X, map(x->x .+ (idxt-1), qidxs),_label)
+        idxp = searchsortedfirst(bins[start_idx:end_idx], tt-Δt-window)
+        MM[offset+1:offset + _nt,idxp-1], V = get_projected_energy(X, map(x->x .+ (idxt-1), qidxs),_label)
         Nv = fill(0.0, size(V,1), size(V,1)-1, size(V,2))
         for kj in axes(V,2)
             Nv[:,:,kj] = nullspace(adjoint(V[:,kj]))
         end
-        for j in 1:size(X,1)
+        for (jj,j) in enumerate(start_idx:end_idx)
             idx0 = j
             idx1 = searchsortedlast(bins, bins[j]+window)
             idxq = searchsortedlast(bins, bins[idx1]+Δt)
@@ -237,7 +239,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                         z .*= -1.0
                     end
                 end
-                Z[offset+1:offset+_nt,j]  .= z
+                Z[offset+1:offset+_nt,jj]  .= z
             catch ee
                 @warn "Error encountered in FA for bin $j session $session"
             end
@@ -275,18 +277,18 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
                 if smooth_window !== nothing
                     Xs = mapslices(x->Utils.gaussian_smooth(x, bins[_idxv], smooth_window), Xs, dims=1)
                 end
-                L[offset+j2,j] = Trajectories.compute_triangular_path_length(Xs, ip)
+                L[offset+j2,jj] = Trajectories.compute_triangular_path_length(Xs, ip)
                 s1 = sqrt(sum(abs2,(Xs[1,:]-Xs[ip,:])./δt[1]))
                 s2 = sqrt(sum(abs2, (Xs[end,:]-Xs[ip,:])./δt[2]) )
                 ss = [s1,s2]
-                SM[offset+j2,j] = mean(filter(isfinite, ss))
+                SM[offset+j2,jj] = mean(filter(isfinite, ss))
                 # energy
-                EE[offset+j2,j] = maximum(sum(abs2, Xs .- Xs[1:1,:],dims=2))
+                EE[offset+j2,jj] = maximum(sum(abs2, Xs .- Xs[1:1,:],dims=2))
                 # modified energy; projected onto the line
-                MM[offset+j2,j] = get_projected_energy(Xs, V[:,l])
+                MM[offset+j2,jj] = get_projected_energy(Xs, V[:,l])
                 # avg speed
-                SS[offset+j2,j] = mean(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
-                FL[offset+j2,j] = sum(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
+                SS[offset+j2,jj] = mean(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
+                FL[offset+j2,jj] = sum(sqrt.(sum(abs2,diff(Xs,dims=1),dims=2)))
 
 
             end
@@ -297,7 +299,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
         append!(sessionidx, fill(ii, length(_label)))
         offset += _nt
     end
-    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], SM[1:offset,:], rt, label, ncells, bins[start_index:end_idx], sessionidx
+    Z[1:offset,:], L[1:offset,:], EE[1:offset,:,], MM[1:offset,:], SS[1:offset,:], FL[1:offset,:], SM[1:offset,:], rt, label, ncells, bins[start_idx:end_idx], sessionidx
 end
 
 function compute_regression(nruns::Int64, args...;kvs...)
