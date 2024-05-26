@@ -520,7 +520,7 @@ function plot_schematic()
 end
 
 function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do_interpolation=false, use_new_path_length=true, use_new_speed=true, use_midpoint=false, 
-                curve_data_file="data/manifold_curves_2d.jld2", kvs...)
+                curve_data_file="data/manifold_curves_2d.jld2", show_residual_plots=true, kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
 	results = run_model(;redo=redo,σ²0=0.3,τ=30.0,σ²n=0.0,nd=ncells["W"],
@@ -776,7 +776,11 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ax7.ylabel = "r²"
         vlines!(ax7, 0.0, color=:black, linestyle=:dot)
         # reaction time
-        ax11 = Axis(lg4[1,4])
+        if show_residual_plots
+            ax11 = Axis(lg4[1,4])
+        else
+            ax11 = Axis(lg4[1,3])
+        end
         _rtime =results.rt_sample[tqidx] 
         rainclouds!(ax11, fill(1.0, length(_rtime)), _rtime, clouds=nothing)
         ax11.xticklabelsvisible = false
@@ -793,12 +797,14 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		ax8.xticks=([1:length(μr);], ["MP","PL", "AS"])
         ax8.xticklabelrotation = -π/3
         ax8.ylabel = "r²"
-        ax9 = Axis(lg4[1,3])
-		barplot!(ax9, 1:length(urr), μrr)
-		rangebars!(ax9, 1:length(urr), lrr, urr)
-		ax9.xticks=([1:length(μrr);], labels_rr)
-        ax9.xticklabelrotation = -π/3
-        ax9.ylabel = "residual r²"
+        if show_residual_plots
+            ax9 = Axis(lg4[1,3])
+            barplot!(ax9, 1:length(urr), μrr)
+            rangebars!(ax9, 1:length(urr), lrr, urr)
+            ax9.xticks=([1:length(μrr);], labels_rr)
+            ax9.xticklabelrotation = -π/3
+            ax9.ylabel = "residual r²"
+        end
 
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
@@ -807,7 +813,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 				 Label(lg3[1,1,TopLeft()],"C",padding=label_padding),
 				 Label(lg4[1,1,TopLeft()], "D",padding=label_padding),
 				 Label(lg4[1,2,TopLeft()], "E",padding=label_padding),
-                 Label(lg4[1,4,TopLeft()], "F", padding=label_padding)]
+                 Label(lg4[1,ifelse(show_residual_plots,4,3), TopLeft()], "F", padding=label_padding)]
 		colsize!(fig.layout, 1, Relative(0.7))
 		rowsize!(fig.layout, 1, Relative(0.8))
 		colgap!(fig.layout, 1, 10.0)
