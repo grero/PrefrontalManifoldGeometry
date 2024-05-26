@@ -1,4 +1,6 @@
 module PrefrontalManifoldGeometry
+using StatsBase
+
 include("utils.jl")
 include("plot_utils.jl")
 include("trajectories.jl")
