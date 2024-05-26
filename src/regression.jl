@@ -7,6 +7,8 @@ using Random
 
 using ..Utils
 
+export llsq_stats, ftest, adjusted_r²
+
 """
 ```julia
 function llsq_stats(X,y;kvs...debug)
