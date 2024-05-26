@@ -434,7 +434,11 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             p2 = length(lreg_with_L.β)
             F = (rss1 - rss2)/(p2-p1)
             F /= rss2/(n-p2)
-            pv[i] = 1.0 - cdf(FDist(p2-p1, n-p2), F)
+            if p2 > p1
+                pv[i] = 1.0 - cdf(FDist(p2-p1, n-p2), F)
+            else
+                pv[i] = lreg_with_L.pv
+            end
             r²[i] = lreg_with_L.r²
             if save_all_β
                 β[:,i] .= lreg_with_L.β
