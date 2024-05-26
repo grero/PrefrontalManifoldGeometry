@@ -1,3 +1,4 @@
+module TargetAndGoCue
 using LinearAlgebra
 using TimeResolvedDecoding
 using HypothesisTests
@@ -8,9 +9,10 @@ using Random
 using EventOnsetDecoding
 using ProgressMeter
 using CairoMakie
-include("utils.jl")
-include("plot_utils.jl")
-include("figure2.jl")
+
+using ..Utils
+using ..PlotUtils
+using ..Figure2
 
 # get the weights for the go-cue and movement decoders
 # train a decoder to decode target location during delay 2
@@ -285,3 +287,4 @@ function create_decoding_figure()
         fig
     end
 end
+end #module
