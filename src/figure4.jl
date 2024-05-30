@@ -1,6 +1,7 @@
 module Figure4
 using AttractorModels
 using ProgressMeter
+using Distributions
 using Makie: Point2f, Point3f
 using GLMakie
 using CRC32c
@@ -11,11 +12,19 @@ using Colors
 using Loess
 using ..Utils
 using ..PlotUtils
+using ..Trajectories
+using MultivariateStats
+using LinearAlgebra
+using StatsBase
+using Random
+using Dierckx
 
+using Makie.GeometryBasics
+
+
+using ..Regression
 
 #include("utils.jl")
-include("trajectories.jl")
-include("regression.jl")
 #include("plot_utils.jl")
 
 get_functions(;kvs...) = AttractorModels.get_attractors2(;w1=sqrt(10.0/2), w2=sqrt(45.0/2.0), wf=sqrt(5.0/2),
@@ -87,8 +96,10 @@ Returns a NamedTuple with the following fields:
 function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14],n_init_points=1,
                                                curve_data_file="model_output_more_trials_longer.jld2",
                                                idx0=30,nruns=50, ntrials::Union{Int64, Vector{Int64}}=0,rseed=UInt32(1234),
-                                               go_cue=idx0, path_length_method::Symbol=:normal,
-                                               remove_outliers=false, do_interpolation=true, do_remove_dependence=true, h0=UInt32(0))
+                                               go_cue=idx0, path_length_method::Symbol=:normal,mp_start=idx0,
+                                               remove_outliers=false, do_interpolation=true, do_remove_dependence=true, h0=UInt32(0),
+                                               use_new_speed=false, use_new_path_length=false, use_midpoint=false)
+    @show σ²0
     @assert σ²0 >= σ²n
     h = h0
     h = crc32c(string(σ²0),h)
@@ -134,6 +145,22 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     if !do_remove_dependence
         h = crc32c("keep_dependence",h)
     end
+    if use_new_speed
+        h = crc32c("use_new_speed",h)
+    end
+    if use_new_path_length
+        h = crc32c("use_new_path_length",h)
+    end
+    if use_midpoint
+        h = crc32c("use_midpoint",h)
+    end
+    if n_init_points > 1
+        h = crc32c(string(n_init_points),h)
+    end
+    if mp_start != idx0 
+        h = crc32c(string(mp_start),h)
+    end
+        
     q = string(h, base=16)
     fname = joinpath("data","model_full_space_results_$q.jld2")
     @show fname
@@ -142,18 +169,26 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         results = NamedTuple(Symbol.(keys(qq)) .=> values(qq))
     else
         xy2 = [7.0 -13.0] # pre-mov basin
-        w2 = 35.0 # pre-mov basin width
-        curvex, curvey = JLD2.load(curve_data_file,"curvex","curvey")
+        curve_data = JLD2.load(curve_data_file)
+        curvex, curvey = (curve_data["curvex"], curve_data["curvey"])
+        w2 = get(curve_data, "w2", 35.0)
+        idx0 = get(curve_data, "bump_time", 50)
+        xy2 = get(curve_data, "xe", [7.0,-13.0])
+        curvep1 = get(curve_data, "curvep1", curvex)
+        curvep2 = get(curve_data, "curvep2", curvex)
+        xy2 = permutedims(xy2)
+        go_cue = idx0 
+        @show idx0 w2 xy2
         # split into trials
-        pidx = findall(isnan, curvex)
+        pidx = [0;findall(isnan, curvex)]
         curves = [[curvex[pp0+1:pp1-1] curvey[pp0+1:pp1-1]] for (pp0,pp1) in zip(pidx[1:end-1], pidx[2:end])]
+        curvesp = [[curvep1[pp0+1:pp1-1] curvep2[pp0+1:pp1-1]] for (pp0,pp1) in zip(pidx[1:end-1], pidx[2:end])]
         # compute reaction time
         eeidx = fill(0, length(curves))
         eeidxs = fill!(similar(eeidx), 0)
-        curvesp = Vector{Matrix{Float64}}(undef, length(curves))
         path_length = fill(0.0, length(curves))
         path_length_tr = fill(0.0, length(curves))
-        offset = go_cue - idx0
+        offset = idx0 + (go_cue - idx0)
         if do_interpolation
             offset *= 10
         end
@@ -162,12 +197,10 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             if do_interpolation
                 spl = ParametricSpline(permutedims(curve[idx0:end,:], [2,1]))
                 curvesp[ii] = permutedims(Dierckx.evaluate(spl, range(extrema(spl.t)...; length=10*length(spl.t))),[2,1])
-            else
-                curvesp[ii] = curve
             end
-            d = sqrt.(dropdims(sum(abs2, curvesp[ii] .- xy2,dims=2),dims=2))
-            _eeidx = findfirst(d .< 0.01*w2)
-            if _eeidx != nothing
+            d = sqrt.(dropdims(sum(abs2, curve .- xy2,dims=2),dims=2))
+            _eeidx = findfirst(d .< sqrt(0.1*w2))
+            if _eeidx !== nothing
                 eeidx[ii] = _eeidx
                 path_length[ii] = sum(sqrt.(sum(abs2, diff(curvesp[ii][offset+1:_eeidx,:],dims=1),dims=2)))
                 path_length_tr[ii],_ = compute_triangular_path_length(curvesp[ii][offset+1:_eeidx,:], path_length_method)
@@ -204,6 +237,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         @info "Rt-range" extrema(rt)
         eeidx = eeidx[tidx]
         curvesp = curvesp[tidx]
+        curves = curves[tidx]
         max_rt_idx = argmax(rt)
         min_rt_idx = argmin(rt)
         np_min = 10
@@ -239,10 +273,17 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
         r²plf = fill(0.0, nruns)
         r²asftr = fill(0.0, nruns)
         r²pcas = fill(0.0, nruns)
+        r²plas = fill(0.0, nruns)
         r²hr = fill(0.0, nruns)
         r²cv = fill(0.0, nruns)
         pvf = fill(0.0, nruns)
         fvalue = fill(0.0, nruns)
+        r²res_pl_on_mp = fill(0.0, nruns)
+        r²res_pl_on_as = fill(0.0, nruns)
+        r²res_mp_on_as = fill(0.0, nruns)
+        r²res_as_on_mp = fill(0.0, nruns)
+        r²res_as_on_pl = fill(0.0, nruns)
+        r²res_mp_on_pl = fill(0.0, nruns)
         # per session regressions
         r² = fill(0.0, size(curvesp[1],1), length(nd), nruns)
         r²s = fill!(similar(r²), 0.0)
@@ -310,10 +351,25 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                     end
                     # add correlated noise
                     Y[:,:,i] .+= A[kk]*randn(RNG, size(A[kk],1),_ncells)
-                    plf[trial_offset+i,r] = sum(sqrt.(sum(abs2, diff(Y[offset+1:_eeidx[i],:,i],dims=1),dims=2)))
-                    plftr[trial_offset+i,r],pidx = compute_triangular_path_length(Y[offset+1:_eeidx[i],:,i],path_length_method)
+                    # transition period for this trial
+                    Ytr = Y[offset+1:_eeidx[i],:,i]
+                    if use_midpoint
+                        ip = div(_eeidx[i] - offset,2)
+                    else
+                        ip,_ = get_maximum_energy_point(Ytr)
+                    end
+                    if use_new_path_length
+                        plftr[trial_offset+i,r] = compute_triangular_path_length(Ytr, ip)
+                    else
+                        plftr[trial_offset+i,r],pidx = compute_triangular_path_length(Ytr,path_length_method)
+                    end
+                    plf[trial_offset+i,r] = sum(sqrt.(sum(abs2, diff(Ytr,dims=1),dims=2)))
                     # compute speed
-                    asftr[trial_offset+i, r] = plf[trial_offset+i,r]/(_eeidx[i]-offset+2)
+                    if use_new_speed
+                        asftr[trial_offset+i, r] = get_triangular_speed(Ytr, (offset+1):_eeidx[i], ip)
+                    else
+                        asftr[trial_offset+i, r] = plf[trial_offset+i,r]/(_eeidx[i]-offset+2)
+                    end
                 end
                 min_rt_idx = argmin(_rt)
                 Δ = plf[trial_offset + min_rt_idx,r]/np_min
@@ -326,7 +382,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
                 rt_tot[trial_offset+1:trial_offset+_ntrials,r] .= _rt
                 # initial position
                 # To make it as similar to the model as possible, we use factor analysis here
-                Y0 = dropdims(mean(Y[offset+1:offset+n_init_points,:,:],dims=1),dims=1)
+                Y0 = dropdims(mean(Y[mp_start:mp_start+n_init_points,:,:],dims=1),dims=1)
                 fa = MultivariateStats.fit(MultivariateStats.FactorAnalysis, Y0;maxoutdim=1,method=:em)
                 Z0[trial_offset+1:trial_offset+_ntrials,r] = permutedims(MultivariateStats.predict(fa, Y0),[2,1])
                 _rtl = log.(_rt)
@@ -360,6 +416,23 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             # hierarhical
             βhr,r²hr[r], pvhr,rsshr = llsq_stats([Z0[:,r] plftr[:,r]], rtl)
             βpcas, r²pcas[r],_,_ = llsq_stats([Z0[:,r] asftr[:,r]], rtl)
+            βplas, r²plas[r],_,_ = llsq_stats([plftr[:,r] asftr[:,r]], rtl)
+
+            # residuals
+            res_mp = (β0[1]*Z0[:,r] .+ β0[2] - rtl)
+            _, r²res_pl_on_mp[r],_,_ = llsq_stats(plftr[:,r:r], res_mp)
+            _, r²res_as_on_mp[r],_,_ = llsq_stats(asftr[:,r:r], res_mp)
+
+            res_pl = βpl[1]*plftr[:,r] .+ βpl[2] - rtl
+            _, r²res_as_on_pl[r],_,_ = llsq_stats(asftr[:,r:r], res_pl)
+            _, r²res_mp_on_pl[r],_,_ = llsq_stats(Z0[:,r:r], res_pl)
+
+            res_as = βasf[1]*asftr[:,r] .+ βasf[2] - rtl
+            _, r²res_pl_on_as[r],_,_ = llsq_stats(plftr[:,r:r], res_as)
+            _, r²res_mp_on_as[r],_,_ = llsq_stats(Z0[:,r:r], res_as)
+
+
+
             @debug "ZO" extrema(Z0[:,r]) extrema(plftr[:,r]) rsshr rsspl
             fvalue[r],pvf[r] = ftest(rsspl,length(βpl), rsshr, length(βhr),length(rtl)) 
             #r²hr[r] = adjusted_r²(r²hr[r], ntrials, length(βhr))
@@ -375,9 +448,11 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
             r²cv[r] = adjusted_r²(r²cv[r], length(curvesp), length(βcv))
             
         end
-        results = (r²0=r²0, pv0=pv0, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
-                   rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curvesp,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
-                   path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf)
+        results = (idx0=idx0, xy2=xy2, w2=w2,r²0=r²0, pv0=pv0, r²plas=r²plas, r²pl=r²pl, pvpl=pvpl, r²hr=r²hr, r²=r², r²s=r²s,eeidx=eeidx,
+                   rt=rt_tot, rt_orig=rt, pltr=pltr, σ²f=σ²f, curves=curves,σ²0=σ²0, σ²=σ²,Z0=Z0, Y=Yf, Ys=Ysf, rt_sample=rtf, eeidx_sample=eeidxf, runidx=ridxf,
+                   path_length=path_length, path_length_tr=path_length_tr, plf=plf, plftr=plftr, r²plf=r²plf, r²asftr=r²asftr, r²pcas=r²pcas, r²cv=r²cv, fvalue_init_pl=fvalue, pvalue_init_pl=pvf,
+                   r²res_as_on_mp, r²res_as_on_pl, r²res_pl_on_mp, r²res_pl_on_as, r²res_mp_on_pl=r²res_mp_on_as,
+                   r²res_mp_on_as)
         @info "r²plf" r²plf
         if do_save
             JLD2.save(fname, Dict(String(k)=>results[k] for k in keys(results)))
@@ -386,37 +461,106 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     results
 end
 
-function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kvs...)
+"""
+Schematic of manifold dynamics
+"""
+function plot_schematic!(ax;fontsize=10,markersize=25px)
+    with_theme(PlotUtils.plot_theme) do
+        ax.xticksvisible = false
+        ax.xticklabelsvisible = false
+        ax.yticksvisible = false
+        ax.yticklabelsvisible = false
+        ax.leftspinevisible = false
+        ax.bottomspinevisible = false
+        xp = [1.0, 2.0, 3.0, 4.0, 5.0]
+        yp = [5.0, 2.0, 3.0, 2.0, 0.5]
+        spl = Spline1D(xp,yp)
+        x = range(1.0, stop=5.0, length=100)
+        y = spl.(x)
+        v = derivative(spl, [2.4, 3.7])
+        poly!(ax, Rect(4.4, 1.4,1.1, 0.6),color=RGB(1.0, 0.8, 0.8))
+        lines!(ax, x, y,color=:black,linewidth=1.5)
+        ppoints = [(1.95, 1.6),(2.0,2.9),(3.1, 3.4), (4.2, 2.6),(4.9, 1.7), (5.3, 0.7)] 
+        scatter!(ax, ppoints,markersize=markersize,color=RGB(0.8, 0.8, 0.8))
+        u = [0.5, 0.5]
+        arrows!(ax, [2.1, 3.4],[2.3, 2.5], u,v.*u)
+        labels = text!(ax, ppoints,text=["1","2","3","4","5","6"], align=(:center, :center),fontsize=fontsize)
+        #Legend(lg[1,2], [PolyElement(color=RGB(0.8, 0.8, 0.8), points=decompose(Point2f, Circle(Point2(0.0),0.5)),marker='1')],["test"])
+        xlims!(ax, 0.9, 16.0)
+        #ax2 = Axis(lg[1,2])
+        #ax2.yticksvisible = false
+        #ax2.yticklabelsvisible = false
+        #ax2.xticksvisible = false
+        #ax2.xticklabelsvisible = false
+        #ax2.leftspinevisible = false
+        #ax2.bottomspinevisible = false
+        lpoints = reverse(collect(zip(fill(6.5, length(ppoints)), [1.0:6.0;])))
+        ax2 = ax
+        scatter!(ax2, lpoints, markersize=markersize, color=RGB(0.8, 0.8, 0.8))
+        text!(ax2, lpoints,text=["1","2","3","4","5","6"], align=(:center,:center),fontsize=fontsize)
+        text!(ax2, (lpoints[1][1]+0.4, lpoints[1][2]), text="Motor preparation (attractor state)",align=(:left, :center),fontsize=fontsize)
+        text!(ax2, (lpoints[2][1]+0.4, lpoints[2][2]), text="Go-cue signals (evidence accumulation)", align=(:left, :center), fontsize=fontsize)
+        text!(ax2, (lpoints[3][1]+0.4, lpoints[3][2]),text="Decision threshold (if crossed,\nmovement initiates after a variable time)", align=(:left, :center),fontsize=fontsize)
+        text!(ax2, (lpoints[4][1]+0.4, lpoints[4][2]), text="Transition period (length correlates with\nRT)", align=(:left, :center), fontsize=fontsize)
+        text!(ax2, (lpoints[5][1]+0.4, lpoints[5][2]), text="Execution threshold (if crossed,\nmovement initiates after a fixed time)", align=(:left, :center),fontsize=fontsize)
+        text!(ax2, (lpoints[6][1]+0.4, lpoints[6][2]), text="Post-movement activity (unrelated to\nmovement initiation)", align=(:left, :center), fontsize=fontsize)
+        #xlims!(ax2, 0.7, 10.0)
+        #ylims!(ax2, 0.5, 6.5)
+        #colsize!(lg, 1, Relative(0.3))
+    end
+end
+
+function plot_schematic()
+    with_theme(PlotUtils.plot_theme) do
+        fig = Figure(size=(500,200))
+        ax = Axis(fig[1,1])
+        plot_schematic!(ax)
+        fig
+    end
+end
+
+function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do_interpolation=false, use_new_path_length=true, use_new_speed=true, use_midpoint=false, 
+                curve_data_file="data/manifold_curves_2d.jld2", show_residual_plots=true, kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
-	w2 = 35.0
-	do_interpolation = false
-	results = run_model(;redo=redo,σ²0=1.125,τ=1.0,σ²n=0.0,nd=ncells["W"],
-                                          n_init_points=1, curve_data_file="model_output_more_trials_longer.jld2",
+	results = run_model(;redo=redo,σ²0=0.3,τ=30.0,σ²n=0.0,nd=ncells["W"],
+                                          n_init_points=1, curve_data_file=curve_data_file,
                                           idx0=1,go_cue=50, nruns=50,ntrials=_ntrials["W"],
                                           path_length_method=:normal, remove_outliers=true,
-                                          do_interpolation=false, do_remove_dependence=true, do_save=do_save,h0=h0, kvs...);
+                                          do_interpolation=do_interpolation, do_remove_dependence=false, do_save=do_save,h0=h0, 
+                                          use_new_path_length=use_new_path_length, use_new_speed=use_new_speed, use_midpoint=use_midpoint, kvs...);
+    w2 = get(results, :w2, 47.0)
+    #w2 = 45.0
 	# the function that was used to generate the trajectories
-	func,gfunc,ifunc = get_functions() 
+	func,gfunc,ifunc = get_functions(w2=sqrt(results.w2/2), ϵ2=1.5, zmin=-3.7, ϕ=0.56π) 
 
-	xx = range(-10.0, stop=20.0, length=200);
-	yy = range(-25.0, stop=5.0, length=200)
+	xx = range(-8.0, stop=20.0, length=200);
+	yy = range(-22.0, stop=5.0, length=200)
 
 	#sub-sample to 50 curves
 	#tidx = sort(shuffle(RNG, 1:length(curves))[1:50])
+    idx0 = results.idx0
 
-	if do_interpolation
-		idx0 = 50 
-	else
-		idx0 = 50
-	end
 	# compute path length and initial conditions
 	path_length = fill(0.0, size(results.Y,3))
     avg_speed = fill!(similar(path_length), 0.0)
 	for i in 1:size(results.Y,3)
 		y = results.Y[idx0+1:results.eeidx_sample[i],:,i]
-		path_length[i],dm = compute_triangular_path_length2(y)
-        avg_speed[i] = sum(sqrt.(sum(abs2,diff(y,dims=1),dims=2)))/(results.eeidx_sample[i]-idx0+2)
+        if use_midpoint
+            ip = div(results.eeidx_sample[i]-idx0,2)
+        else
+            ip,_ = get_maximum_energy_point(y)
+        end
+        if use_new_path_length
+            path_length[i] = compute_triangular_path_length(y,ip)
+        else
+            path_length[i],dm = Trajectories.compute_triangular_path_length2(y)
+        end
+        if use_new_speed
+            avg_speed[i] = get_triangular_speed(y, (idx0+1):results.eeidx_sample[i], ip)
+        else
+            avg_speed[i] = sum(sqrt.(sum(abs2,diff(y,dims=1),dims=2)))/(results.eeidx_sample[i]-idx0+2)
+        end
 	end
 	fa = MultivariateStats.fit(MultivariateStats.FactorAnalysis, results.Y[idx0,:,:];method=:em, maxoutdim=1)
 	z0 = MultivariateStats.predict(fa, results.Y[idx0,:,:])
@@ -426,7 +570,8 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 	# get curves for plotting
 	# TODO: Plot fewer paths
 	# plot 10 trials spanning the reaction time distribution
-	qidx = sortperm(results.path_length)
+	qidx = sortperm(results.path_length_tr)
+
 	flat_curves_x = Float64[] 
 	flat_curves_y = Float64[]
 	ttidx = qidx[[1,div(length(qidx),2),length(qidx)]]
@@ -434,7 +579,15 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 	icidx = Bool[]
 	ucidx = Bool[]
 	flat_colors = eltype(cm)[]
+    do_interpolate = false
 	for (ii,curve) in enumerate(results.curves)
+        # do interpolation
+        if do_interpolate
+            spl = ParametricSpline(permutedims(curve[idx0:end,:], [2,1]))
+            _curve = permutedims(Dierckx.evaluate(spl, range(extrema(spl.t)...; length=20*length(spl.t))),[2,1])
+        else
+            _curve = curve
+        end
 		append!(flat_curves_x, curve[:,1])
 		push!(flat_curves_x, NaN)
 		append!(flat_curves_y, curve[:,2])
@@ -467,15 +620,17 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 		single_cell_responses[jj] = Point2f[]
 		response_colors[jj] = eltype(colors)[]
 		for i in 1:size(results.Y,3)
-			y = results.Y[idx0-15:results.eeidx_sample[i],cidx,i]
-			x = [-results.eeidx_sample[i]+idx0-15:0;]
+			y = results.Y[idx0-25:results.eeidx_sample[i],cidx,i]
+			#x = [-results.eeidx_sample[i]+idx0-25:0;]
+            δt = results.rt_sample[i]/(results.eeidx_sample[i]-idx0+1)
+            x = range(-results.rt_sample[i]+(idx0-25)*δt, stop=0.0, length=length(y))
 			# smooth out the noise
 			model = loess(x, y, span=0.5)
 			us = range(extrema(x)...; step = 0.1)
 			vs = Loess.predict(model, us)
-			append!(single_cell_responses[jj], Point2f.(zip(us,vs)))
+			append!(single_cell_responses[jj], Point2f.(zip(x,y)))
 			push!(single_cell_responses[jj], Point2f(NaN, NaN))
-			append!(response_colors[jj], fill(colors[i], length(us)+1))
+			append!(response_colors[jj], fill(colors[i], length(x)+1))
 		end
 	end
 	# find a trial with long reaction time
@@ -504,54 +659,85 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 	βpl, r²pl, pvpl, rsspl = llsq_stats(repeat(path_length[tqidx],1,1), lrt)	
 	βpc, r²pc, pvpc, rsspc = llsq_stats(permutedims(z0,[2,1])[tqidx,:], lrt)
 	βas, r²as, pvas, rssas = llsq_stats(repeat(avg_speed[tqidx],1,1), lrt)	
-	@info r²pl r²pc r²as
-	μr = fill(0.0,5)
-	lr = fill(0.0,5)
-	ur = fill(0.0,5)
-	for (ii,r²) in enumerate([results.r²0,results.r²pl, results.r²hr,results.r²asftr, results.r²pcas])
+
+    # single variable models
+	μr = fill(0.0,3)
+	lr = fill(0.0,3)
+	ur = fill(0.0,3)
+	for (ii,r²) in enumerate([results.r²0,results.r²pl,results.r²asftr])
 		dd = fit(Beta, r²)
 		μr[ii] = mean(dd)
 		lr[ii] = quantile(dd, 0.05)
 		ur[ii] = quantile(dd, 0.95)
 	end
-	zmin = -10.0
+    # residual models
+    labels_rr = ["MP→PL","MP→AS","PL→AS", "AS→PL"]
+	μrr = fill(0.0,length(labels_rr))
+	lrr = fill!(similar(μrr), 0.0)
+	urr = fill!(similar(μrr), 0.0)
+	for (ii,r²) in enumerate([results.r²res_mp_on_pl, results.r²res_mp_on_as, results.r²res_pl_on_as,results.r²res_as_on_pl])
+		dd = fit(Beta, r²)
+		μrr[ii] = mean(dd)
+		lrr[ii] = quantile(dd, 0.05)
+		urr[ii] = quantile(dd, 0.95)
+	end
+	zmin = -12.0
     plot_colors = Makie.wong_colors()
 	with_theme(plot_theme) do
 		fig = Figure(resolution=(width,height))
 		lg1 = GridLayout()
 		fig[1,1] = lg1
-		ax1 = Axis3(lg1[1,1],azimuth=5.000607537633862, elevation=0.5089042208588803)
+        # override with custom bounding box
+        bbox = BBox(10, width-300, height-350, height-20)
+		ax1 = Axis3(fig, bbox=bbox,azimuth=5.000607537633862, elevation=0.5089042208588803,viewmode=:stretch)
+        ax1.xgridvisible = true
+        ax1.ygridvisible = true
+        ax1.zgridvisible = true
 		ax1.xticklabelsize = 12
 		ax1.yticklabelsize = 12
 		ax1.zticklabelsize = 12
+        ax1.xticklabelsvisible = false
+        ax1.yticklabelsvisible = false
+        ax1.zticklabelsvisible = false
 		ax1.zlabelvisible = false
-		surface!(ax1, xx, yy, -zmin .+ func.([[x,y] for x in xx, y in yy]), colormap=colormap("rdbu",mid=0.72))
+        surface_map = diverging_palette(30.0, 170.0, mid=0.72,d1=0.7, d2=0.7,b=1.0,c=0.7)
+		surface!(ax1, xx, yy, -zmin .+ func.([[x,y] for x in xx, y in yy]), colormap=surface_map, shading=Makie.Automatic())
 		ax1.xlabel = "Dim 1"
 		ax1.ylabel = "Dim 2"
 		# add the original paths
-		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color="black")
+		lines!(ax1, flat_curves_x[ucidx], flat_curves_y[ucidx], -zmin .+ func.([[x,y] for (x,y) in zip(flat_curves_x[ucidx], flat_curves_y[ucidx])]), color=RGB(0.7, 0.7, 0.7))
 
 		# indicate the limit of the attractor
 		lpoints = decompose(Point3f, Circle(Point2f(Xe), 0.01*w2))
 		lpoints .+= Point3f(0.0, 0.0, zmin)	
 		lines!(ax1, flat_curves_x[icidx], flat_curves_y[icidx], fill(0.0,sum(icidx)),color=flat_colors)
-		lines!(ax1, lpoints, color=plot_colors[1])
         #TODO: Plot this on the ``floor``
-        contour!(ax1, xx,yy, func.([[x,y] for x in xx, y in yy]),levels=15, colormap=colormap("rdbu",mid=0.72))
+        contour!(ax1, xx,yy, func.([[x,y] for x in xx, y in yy]),levels=15, colormap=surface_map)
 		# add panels) showing single unit responses aligned to movement onset
-        zlims!(ax1, 0.0, 10.0)
+        zlims!(ax1, 0.0, 12.0)
 		lg2 = GridLayout()
 		fig[1,2] = lg2
-		ax2 = Axis(lg2[1,1])
+        lgs = GridLayout(lg2[1,1])
+        rowsize!(lg2, 1, Relative(0.3))
+        # create a custom bbox
+        #bbox_orig = lgs.layoutobservables.suggestedbbox[]
+        #@show bbox_orig
+        #bbox = BBox(bbox_orig.origin[1]-0.1*bbox_orig.widths[1], bbox_orig.origin[1]+1.1*bbox_orig.widths[1], bbox_orig.origin[2]+bbox_orig.widths[2]-150, bbox_orig.origin[2]+bbox_orig.widths[2])
+        bbox = BBox(width-310, width-7, height-160, height-10)
+        axss = Axis(fig, bbox=bbox,backgroundcolor=(:white,0.5))
+        plot_schematic!(axss;markersize=20px)
+
+		ax2 = Axis(lg2[2,1])
 		ax2.xticklabelsvisible = false
 		lines!(ax2, single_cell_responses[1], color=response_colors[1])
-		ax3 = Axis(lg2[2,1])
+		ax3 = Axis(lg2[3,1])
 		ax3.xticklabelsvisible = false
 		lines!(ax3, single_cell_responses[2], color=response_colors[2])
-		ax4 = Axis(lg2[3,1])
+		ax4 = Axis(lg2[4,1])
 		lines!(ax4, single_cell_responses[3], color=response_colors[3])
 		for ax in [ax2,ax3,ax4]
 			vlines!(ax, 0.0, color="black")
+            ax.ylabel = "Activity [au]"
 		end
 		linkxaxes!(ax2, ax3, ax4)
 		ax4.xlabel = "Time from movement"
@@ -559,23 +745,23 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 		lg3 = GridLayout()
 		lg1[2,1] = lg3
 		rowsize!(lg1, 1, Relative(0.8))
-		ax5 = Axis(lg3[1,1])
+		ax5 = Axis(lg3[1,1], xticks=WilkinsonTicks(3))
 		scatter!(ax5, z0[:], log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax5, βpc[end], βpc[1], color="black", linestyle=:dot)
 		ax5.xlabel = "Initial (MP)"
 		ax5.ylabel = "log(rt)"
-		ax6 = Axis(lg3[1,3],xticks=LinearTicks(4))
+		ax6 = Axis(lg3[1,2],xticks=WilkinsonTicks(3))
 		scatter!(ax6, path_length, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax6, βpl[end], βpl[1], color="black", linestyle=:dot)
 		ax6.xlabel = "Path length (PL)"
 		ax6.yticklabelsvisible = false
-        ax73 = Axis(lg3[1,2], xticks=LinearTicks(4))
+        ax73 = Axis(lg3[1,3], xticks=WilkinsonTicks(3))
 		scatter!(ax73, avg_speed, log.(results.rt_sample),color=colors, markersize=7.5px)
 		ablines!(ax73, βas[end], βas[1], color="black", linestyle=:dot)
 		ax73.xlabel = "Avg speed (AS)"
 		ax73.yticklabelsvisible = false
         for _ax in [ax5, ax6, ax73]
-            _ax.xticklabelsvisible = false
+            _ax.xticklabelsvisible = true
         end
 		linkyaxes!(ax5, ax6, ax73)
 		#TODO: Add reaction time regression as a function of time
@@ -586,52 +772,55 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), kv
 		lines!(ax7, xxr, r²s, label="Surrogate")
 		ax7.xlabel = "Time from movement [au]"
 		ax7.xticklabelsvisible = false
-		axislegend(ax7,valign=:top, halign=:right, margin=(0.0, -0.0, 0.0, -20.0))
+		axislegend(ax7,valign=:top, halign=:left, margin=(0.0, -0.0, 0.0, -20.0),backgroundcolor=(:white, 0.5))
 		ax7.ylabel = "r²"
+        vlines!(ax7, 0.0, color=:black, linestyle=:dot)
         # reaction time
-        ax11 = Axis(lg4[1,3])
+        if show_residual_plots
+            ax11 = Axis(lg4[1,4])
+        else
+            ax11 = Axis(lg4[1,3])
+        end
         _rtime =results.rt_sample[tqidx] 
-        dd = StatsBase.fit(Gamma, _rtime)
-        x = sort(_rtime)
-        y = pdf.(dd,x)
-        y ./= sum(y)
-        scatter!(ax11, rand(length(tqidx)),_rtime)
-        ax112 = Axis(lg4[1,3])
-        linkyaxes!(ax11, ax112)
-        lines!(ax112, y, x, color="black")
-        ax112.xticklabelsvisible = false 
-        ax112.xticksvisible = false 
-        ax112.yticklabelsvisible = false
-        ax112.yticksvisible = false
-        ax112.bottomspinevisible = false
-        ax112.leftspinevisible = false
+        rainclouds!(ax11, fill(1.0, length(_rtime)), _rtime, clouds=nothing)
         ax11.xticklabelsvisible = false
         ax11.xticksvisible = false
         ax11.bottomspinevisible = false
         ax11.ylabel = "Reaction time"
+
 		ax8 = Axis(lg4[1,2])
         colsize!(lg4, 1, Relative(0.6))
         colsize!(lg4, 3, Relative(0.2))
 
 		barplot!(ax8, 1:length(ur), μr)
 		rangebars!(ax8, 1:length(ur), lr, ur)
-		ax8.xticks=([1:length(μr);], ["MP","PL", "MP+PL","AS", "MP+AS"])
+		ax8.xticks=([1:length(μr);], ["MP","PL", "AS"])
         ax8.xticklabelrotation = -π/3
+        ax8.ylabel = "r²"
+        if show_residual_plots
+            ax9 = Axis(lg4[1,3])
+            barplot!(ax9, 1:length(urr), μrr)
+            rangebars!(ax9, 1:length(urr), lrr, urr)
+            ax9.xticks=([1:length(μrr);], labels_rr)
+            ax9.xticklabelrotation = -π/3
+            ax9.ylabel = "residual r²"
+        end
+
 		colgap!(lg4, 1, 30.0)
 		label_padding = (0.0, 0.0, 10.0, 1.0)
 		labels = [Label(lg1[1,1,TopLeft()], "A",padding=label_padding),
-				 Label(lg2[1,1,TopLeft()], "B",padding=label_padding),
+				 Label(lg2[2,1,TopLeft()], "B",padding=label_padding),
 				 Label(lg3[1,1,TopLeft()],"C",padding=label_padding),
 				 Label(lg4[1,1,TopLeft()], "D",padding=label_padding),
 				 Label(lg4[1,2,TopLeft()], "E",padding=label_padding),
-                 Label(lg4[1,3,TopLeft()], "F", padding=label_padding)]
+                 Label(lg4[1,ifelse(show_residual_plots,4,3), TopLeft()], "F", padding=label_padding)]
 		colsize!(fig.layout, 1, Relative(0.7))
 		rowsize!(fig.layout, 1, Relative(0.8))
 		colgap!(fig.layout, 1, 10.0)
 		rowgap!(fig.layout, 1, 1.0)
 		fname = joinpath("figures","manuscript","toy_model_figure.png")
         if do_save
-            save(fname,fig;pt_per_unit=1)
+            save(fname,fig;px_per_unit=8)
         end
 		fig
 	end

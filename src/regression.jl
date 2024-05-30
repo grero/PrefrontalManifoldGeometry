@@ -1,10 +1,13 @@
+module Regression
 using MultivariateStats
 using Distributions
 using LinearAlgebra
 using StatsBase
 using Random
 
-include("utils.jl")
+using ..Utils
+
+export llsq_stats, ftest, adjusted_r²
 
 """
 ```julia
@@ -14,7 +17,7 @@ Least square regression using `MultivariateStats.llsq`, also returning r² and p
 ```
 """
 function llsq_stats(X::Matrix{T},y::Vector{T};kvs...) where T <: Real
-	β = llsq(X, y)
+	β = llsq(X, y;kvs...)
 	p1 = length(β)
 	n = length(y)
 	prt = X*β[1:end-1] .+ β[end]
@@ -27,7 +30,7 @@ function llsq_stats(X::Matrix{T},y::Vector{T};kvs...) where T <: Real
 	β, r², pv, rss1
 end
 
-adjusted_r²(r²::Float64, n::Int64, p::Real) = 1.0 - (1.0-r²)*(n-1)/(n-p)
+adjusted_r²(r²::Float64, n::Int64, p::Real) = 1.0 - (1.0-r²)*(n-1)/(n-p-1)
 
 function ftest(rss1,p1, rss2,p2,n)
     if rss1 > rss2
@@ -42,6 +45,62 @@ function ftest(rss1,p1, rss2,p2,n)
         p = p1
     end
     fv, 1-cdf(FDist(dp,n-p), fv)
+end
+
+function regress_reaction_time2(subject;rtmin=120.0, rtmax=300.0, window=35.0, align=:mov, realign=true, raw=false, do_shuffle=false, nruns=100,kvs...)
+    if raw
+        fname = joinpath("data","ppsth_fef_$(align)_raw.jld2")
+    else 
+        fname = joinpath("data","ppsth_fef_$(align).jld2")
+    end
+    ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes")
+
+	# Per session, per target regression, combine across to compute rv
+	all_sessions = Utils.DPHT.get_level_path.("session", ppsth.cellnames)
+    subjects = Utils.DPHT.get_level_name.("subject", ppsth.cellnames)
+    cidx = subjects .== subject
+	sessions = unique(all_sessions[cidx])
+	rtp = fill(0.0, 0, size(ppsth.counts,1))
+	rt = fill(0.0, 0)
+    label = fill(0,0)
+	bins = ppsth.bins
+	rtime_all = Float64[]
+    r2j = fill(0.0, size(ppsth.counts,1),100)
+    total_idx = 1
+    n_tot_trials =  sum([length(rtimes[k]) for k in sessions])
+    Z = fill(0.0,n_tot_trials, size(ppsth.counts,1))
+    offset = 0
+	for (ii, session) in enumerate(sessions)
+		X, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
+        _lrt = log.(_rtime)
+        _nt = length(_rtime)
+        for j in 1:size(X,1)
+            idx0 = j
+            idx1 = searchsortedlast(bins, bins[j]+window)
+            # project onto FA components
+            y = permutedims(dropdims(sum(X[idx0:idx1,:,:],dims=1),dims=1))
+            fa = StatsBase.fit(MultivariateStats.FactorAnalysis,y;maxoutdim=1, method=:em)
+            z =  permutedims(predict(fa, y))
+            if realign
+                # check the sign of the correlation between reaction time and activity and realign so that the relationship is positive
+                β,r², pv,rss = llsq_stats(z, _lrt)
+                if β[1] < 0.0
+                    z .*= -1.0
+                end
+            end
+            Z[offset+1:offset+_nt,j]  .= z
+            # path length
+            for j2 in 1:_nt
+                idxs = searchsortedlast(bins, bins[j]+_rtime[j2])
+                # transition period
+                X[idx0:idxs, j2, :]
+            end
+        end
+        append!(rt, _lrt)
+        append!(label, _label)
+        offset += _nt
+    end
+    Z[1:offset,:], rt, label, bins
 end
 
 """
@@ -108,8 +167,8 @@ function regress_reaction_time(;rtmin=120.0, rtmax=300.0, window=35.0, align=:mo
 	r2, bins2, percentile(rtime_all, [5,95]), r2j[:,1:total_idx]
 end
 
-function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-400.0, -50.0), rtmin=120.0, rtmax=300.0, realign=false, area="FEF", kvs...)
-    fname = joinpath("data","ppsth_$(area)_$(alignment)_raw.jld2")
+function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-400.0, -50.0), rtmin=120.0, rtmax=300.0, realign=false, area="FEF", do_center=true, kvs...)
+   fname = joinpath("data","ppsth_$(area)_$(alignment)_raw.jld2")
    ppstht, tlabelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
    # get all cells from the specified subject
    subject_index = findall(cell->DPHT.get_level_name("subject", cell)==subject, ppstht.cellnames)
@@ -123,14 +182,16 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
    lrt = Float64[]
    Yp = Float64[]
    qridx = Int64[]
+   location = Tuple{Float64,Float64}[]
    offset = 0
    for (sessionidx,session) in enumerate(sessions)
        X, labels, rtimes = get_session_data(session, ppstht, trialidxt, tlabelst, rtimest, cellidx;rtime_min=rtmin, rtime_max=rtmax,
                                                                                                    variance_stabilize=true,
                                                                                                     mean_subtract=true)
        bidx = searchsortedfirst(bins, reg_window[1]):searchsortedlast(bins, reg_window[2])
-       for location in locations[subject]
-           tidx = labels.==location
+       location_idx = fill(0, maximum(labels))
+       for (il,loc) in enumerate(locations[subject])
+           tidx = labels.==loc
            Xl = dropdims(mean(X[bidx,tidx,:],dims=1),dims=1)
            Σ = cov(Xl, dims=1)
            σ² = diag(Σ)
@@ -147,7 +208,9 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
                Y .-= mean(Y)
                # mirror
                _lrt = log.(rtimes[tidx])
-               _lrt .-= mean(_lrt)
+               if do_center
+                _lrt .-= mean(_lrt)
+               end
                if realign
                    # check the sign of the correlation between reaction time and activity and realign so that the relationship is positive
                    β,r², pv,rss = llsq_stats(Y, _lrt)
@@ -158,6 +221,7 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
                append!(lrt, _lrt)
                append!(Yp, Y[:])
                append!(qridx, offset .+ [1:length(_lrt);])
+               append!(location, fill(Utils.location_position[subject][il],length(_lrt)))
             catch ee
                if isa(ee, DomainError)
                    # failure in fit, continue to next location
@@ -170,5 +234,6 @@ function explain_rtime_variance(subject::String,alignment::Symbol;reg_window=(-4
            end
        end
    end
-   lrt, Yp, qridx
+   lrt, Yp, qridx,location
 end
+end #module

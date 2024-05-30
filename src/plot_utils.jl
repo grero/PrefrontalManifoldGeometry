@@ -11,8 +11,10 @@ plot_theme = Theme(Axis=(xticksvisible=true,
 				ygridvisible=false,
 				topspinevisible=false,
 				rightspinevisible=false,
-				xticklabelsize=14,
-				yticklabelsize=14))
+				xticklabelsize=12,
+				yticklabelsize=12,
+				titlefont=:regular,
+				))
 
 
 function make_grid!(ax)
@@ -24,6 +26,12 @@ function get_rectangular_border(x0,y0, x1,y1)
 	[Point2f(x0, y0), Point2f(x0, y1), Point2f(x1, y1), Point2f(x1, y0), Point2f(x0, y0)]
 end
 
+dlpfc_color = RGB(0.7, 0.3, 0.3)
+dlpfc_color_dark = RGB(0.7, 0.1, 0.1)
+fef_color = RGB(0.0, 0.44, 0.7)
+fef_color_dark = RGB(0.0, 0.24, 0.7)
+
+dlpfc_sequential_colormap = sequential_palette(LCHuv(dlpfc_color).h, 100; c=0.88, s=0.6, b=0.75, w=0.15, d=0.0, wcolor=RGB(1,1,0), dcolor=RGB(0,0,1))
 """
 ```julia
 function advance(traj::Matrix,i::Int)

@@ -1,6 +1,63 @@
+module Trajectories
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools
 using StatsBase
+using LinearAlgebra
+using TestItems
+
+export get_maximum_energy_point, get_triangular_speed, compute_triangular_path_length
+
+"""
+Return the point of maximum energy
+"""
+function get_maximum_energy_point(X::Matrix{T}) where T <: Real
+	# get the vector orthogonal to the vector connecting the starting and the ending point
+	v = X[end,:] - X[1,:]
+	nv = norm(v)
+	if nv == 0
+		return 0
+	end
+	v ./= nv
+	n = nullspace(adjoint(v))
+	get_maximum_energy_point(X,n), n
+end
+
+function get_maximum_energy_point(X::Matrix{T}, v::AbstractVector{T}) where T <: Real
+	get_maximum_energy_point(X, permutedims(v))
+end
+
+function get_maximum_energy_point(X::Matrix{T}, v::AbstractMatrix{T}) where T <: Real
+	ee = dropdims(sum(abs2,((X .- X[1:1,:])*v),dims=2),dims=2)
+	argmax(ee)
+end
+
+function get_triangular_speed(X::Matrix{T}, bins::AbstractVector{T2}, ip::Int64) where T <: Real where T2 <: Real
+	δt = [bins[ip]-bins[1], bins[end]-bins[ip]]
+	s1 = sqrt(sum(abs2,(X[1,:]-X[ip,:])./δt[1]))
+	s2 = sqrt(sum(abs2, (X[end,:]-X[ip,:])./δt[2]) )
+	n = 0
+	ss = 0.0
+	if isfinite(s1)
+		ss += s1
+		n += 1
+	end
+	if isfinite(s2)
+		ss += s2
+		n += 1
+	end
+	ss/n
+end
+
+@testitem "Triangular speed" begin
+	t = range(0.0, stop=2π, length=100)		
+	y = [sin.(t) t]
+	ip = PrefrontalManifoldGeometry.Trajectories.get_maximum_energy_point(y)
+	@test ip == 26 
+	ss = PrefrontalManifoldGeometry.Trajectories.get_triangular_speed(y, t, ip)
+	@test ss ≈ 0.4215354734654138
+	pl = PrefrontalManifoldGeometry.Trajectories.compute_triangular_path_length(y, ip)
+	@test pl ≈ 1.9997482553477504
+end
 
 """
 ```julia
@@ -9,10 +66,15 @@ function compute_triangular_path_length(traj::Matrix{Float64})
 Find the largest combined Euclidean distance from the first point to a point on the trajectory, and from that point to the last point.
 ```
 """
-function compute_triangular_path_length(traj::Matrix{T},method=:normal, do_shuffle=false) where T <: Real
+function compute_triangular_path_length(traj::Matrix{T},method::Symbol=:normal, do_shuffle=false) where T <: Real
 	nn = size(traj,1)
 	dm = -Inf
 	qidx = 0
+	if method == :mid
+		return compute_triangular_path_length_mid(traj)
+	elseif method == :en
+		return compute_triangular_path_length_en(traj)
+	end
 	if method == :normal
 		func = compute_triangular_path_length
 	elseif  method == :sq
@@ -72,6 +134,41 @@ function compute_triangular_path_length_sq(traj::Matrix{T},i::Int64) where T <: 
 	_d += sum(abs2, traj[i,:] - traj[end,:])
 end
 
+function compute_triangular_path_length_mid(traj::Matrix{T}) where T <: Real
+	nn = size(traj,1)
+	ip = div(nn,2)
+	compute_triangular_path_length(traj, ip+1), ip 
+end
+
+function compute_triangular_path_length_mid(traj::Array{T,3}, qidx::Vector{T2}) where T <: Real where T2 <: AbstractVector{Int64}
+	d = fill(0.0, length(qidx))
+	for (i,q) in enumerate(qidx)
+		d[i],_ = compute_triangular_path_length_mid(traj[q, i, :])
+	end
+	d
+end
+
+function compute_triangular_path_length(traj::Array{T,3}, qidx::Vector{T2}) where T <: Real where T2 <: AbstractVector{Int64}
+	d = fill(0.0, length(qidx))
+	for (i,q) in enumerate(qidx)
+		d[i],_ = compute_triangular_path_length(traj[q, i, :])
+	end
+	d
+end
+
+function compute_triangular_path_length_en(traj::Matrix{T}) where T <: Real
+	midx = argmax(dropdims(sum(abs2, traj, dims=2),dims=2))
+	compute_triangular_path_length(traj, midx), midx
+end
+
+function compute_triangular_path_length_en(traj::Array{T,3}, qidx::Vector{T2}) where T <: Real where T2 <: AbstractVector{Int64}
+	d = fill(0.0, length(qidx))
+	for (i,q) in enumerate(qidx)
+		d[i],_ = compute_triangular_path_length_en(traj[q, i, :])
+	end
+	d
+end
+
 function compute_triangular_path_length(X::Array{T,3}, qidx::Matrix{Int64}, args...;do_shuffle=false) where T <: Real
 	nn = qidx[2,:] - qidx[1,:] .+ 1
 	path_lengths = fill(0.0, length(nn))
@@ -95,8 +192,9 @@ function compute_triangular_path_length2(X::Array{T,3}, qidx::Matrix{Int64}) whe
 	path_lengths
 end
 
-function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", do_shuffle=false, kvs...)
-	fname = joinpath("data", "ppsth_fef_cue_raw.jld2")
+function get_path_length_and_rtime(subject::String, t0::Real, t1::Real ;operation=:path_length, rtmin=120.0, rtmax=300.0, area="FEF", alignment="cue", do_shuffle=false, do_center=true, kvs...)
+	@show alignment
+	fname = joinpath("data","ppsth_$(area)_$(alignment)_raw.jld2")
 	ppstht, labelst, rtimest, trialidxt = JLD2.load(fname, "ppsth","labels", "rtimes", "trialidx")
 	bins = ppstht.bins
 	subject_index = findall(cell->DPHT.get_level_name("subject", cell)==subject, ppstht.cellnames)
@@ -107,6 +205,7 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operati
     sessions = unique(all_sessions)
 	lrt = Float64[]
 	path_length = Float64[]
+	location = Tuple{Float64, Float64}[]
 	ncells = fill(0, length(sessions))
 	counts = Float64[]
 	qridx = Int64[]
@@ -137,6 +236,10 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operati
 				S = compute_triangular_path_length(Xl[:, tridx,:], qidx[:,tridx],:sq;do_shuffle=do_shuffle)
 			elseif operation == :path_length_ref
 				S = compute_ref_path_length(Xl[:,tridx,:],  qidx[:,tridx];do_shuffle=do_shuffle)
+			elseif operation == :path_length_mid
+				S = compute_triangular_path_length(Xl[:,tridx,:],  qidx[:,tridx],:mid;do_shuffle=do_shuffle)
+			elseif operation == :path_length_en
+				S = compute_triangular_path_length(Xl[:,tridx,:],  qidx[:,tridx],:en;do_shuffle=do_shuffle)
 			elseif operation == :mean_speed
 				S = fill(0.0, length(tridx))
 				for jj in 1:length(S)
@@ -153,14 +256,18 @@ function get_path_length_and_rtime(subject::String, t0::Real, t1::Real, ;operati
 			# subtract the global mean. This probably means that points will shift upwards, since the previous mean,
 			# which did not include the very short reaction time trials, would result in a higher value mean.  In others, now, we are 
 			# subtracting a lower value, which shifts the points upwards.
-			_lrt = log.(rtimel[tridx]) .- mean(log.(rtimel))
+			_lrt = log.(rtimel[tridx])
+			if do_center
+				_lrt .-= mean(log.(rtimel))
+			end
 			append!(lrt,_lrt)
 			append!(path_length, S)
 			append!(qridx, offset .+ tridx)
+			append!(location, fill(Utils.location_position[subject][ii],length(_lrt)))
 			offset += size(Xl,2)
 		end
 	end
-	path_length, lrt, qridx
+	path_length, lrt, qridx, location
 end
 
 """
@@ -181,3 +288,4 @@ function get_transition_period(bins::AbstractVector{Float64}, rtime::AbstractVec
 	end
 	qidx
 end
+end #module

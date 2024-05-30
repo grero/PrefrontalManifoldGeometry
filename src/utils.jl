@@ -1,7 +1,27 @@
 module Utils
+using TestItems
 using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 using StatsBase
+using Distributions
+
+export get_session_data, location_position, ContraLatera, IpsiLateral
+
+abstract type RecordingSide
+end
+
+struct IpsiLateral <: RecordingSide
+end
+
+struct ContraLateral <: RecordingSide
+end
+
+struct BothSides <: RecordingSide
+end
+
+struct Locations <: RecordingSide
+	loc::Vector{Int64}
+end
 
 sessions_j = ["J/20140807/session01", "J/20140828/session01", "J/20140904/session01", "J/20140905/session01"]
 sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/session04", "W/20200113/session01", "W/20200115/session03", "W/20200117/session03", "W/20200120/session01", "W/20200121/session01"]
@@ -18,6 +38,48 @@ location_mapping = Dict("W" => [2, 4, 1, 3],
 location_idx = Dict("W" => [3,9,1,7],
 					"J" => [1,2,3,4,5,6,7,8,9],
 					"P" => [1,2,3,4,5,6,7,8,9])
+
+function get_recording_side(side::IpsiLateral, subject)
+	if subject == "W" 
+		return [1,3] 
+	elseif subject == "J"
+		[1,2,3]
+	else
+		error("Unkown subject $subject")
+	end
+end
+
+
+
+function get_recording_side(side::ContraLateral, subject)
+	if lowercase(subject) == "w"
+		return [2,4]
+	elseif lowercase(subject) == "j"
+		return [7,8,9]
+	else
+		error("Unkown subject $subject")
+	end
+end
+
+get_recording_side(side::BothSides, subject) = locations[subject]
+
+get_recording_side(side::Locations, subject) = side.loc
+
+@testitem "Recording side" begin
+	location_position = PrefrontalManifoldGeometry.location_position
+	idx = PrefrontalManifoldGeometry.Utils.get_recording_side(PrefrontalManifoldGeometry.ContraLateral(), "W")
+	@test all([(x,y)->x > 0.0 for (x,y) in location_position["W"][idx]])
+
+	idx = PrefrontalManifoldGeometry.Utils.get_recording_side(PrefrontalManifoldGeometry.ContraLateral(), "J")
+	@test all([(x,y)->x > 0.0 for (x,y) in location_position["J"][idx]])
+end
+
+# physical location of each target on the screen, in (approximate) degress of visual angle
+location_position = Dict("W" => [(-10.0, -10.0),(10.0, -10.0), (-10.0, 10.0), (10.0, 10.0)],
+					     "J" => [(-10.0, 10.0),(-10.0, 0.0), (-10.0, -10.0),(0.0, 10.0),
+						         (0.0, -10.0),(10.0, 10.0),(10.0, 0.0),(10.0, -10.0)],
+						 "M" => [(0.0,0.0)] # model data
+						)
 
 areas = Dict("J" => Dict("array01" => "vFEF",
 				"array02" => "dFEF",
@@ -113,7 +175,7 @@ end
 function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,cellidx::AbstractVector{Int64}=1:size(ppsth.counts,3);rtime_min=100.0,
                                                                         rtime_max=300.0,
                                                                         mean_subtract=false,
-                                                                        variance_stabilize=false)
+                                                                        variance_stabilize=false,kvs...)
 	all_sessions = DPHT.get_level_path.("session", ppsth.cellnames[cellidx])
 	sidx = findall(all_sessions.==session)
 	if isempty(sidx)
@@ -159,5 +221,26 @@ function get_normals(traj::Matrix{T}) where T <: Real
 	nn
 end
 
-export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals
+function gaussian_smooth(X::AbstractVector{T}, bins::AbstractVector{T},σ::T) where T <: Real
+    Δ = mean(diff(bins))
+    Y = fill(0.0, length(X))
+    for i in 1:length(bins)
+        l = bins[end]-bins[i]
+        u = bins[1]-bins[i]
+        N = Truncated(Normal(0.0, σ),min(l,u) ,max(l,u))
+        Y[i] = sum(pdf.(N, bins[i] .- bins).*X*Δ)
+    end
+    Y
 end
+
+function get_keyword_args(m::Method)
+	ms = string(m)
+	idx0 = findfirst(';', ms)
+	idx1 = findlast(')', ms)
+	sig = ms[idx0+1:idx1-1]
+	vars = filter(s->!occursin("...", s), lstrip.(split(ms[idx0:idx1],",")))
+end
+
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals
+
+end #module

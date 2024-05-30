@@ -1,9 +1,14 @@
+module FigureS1
+# reaction time distributions
 using Makie
 using Colors
 using CairoMakie
+using StatsBase
+using Distributions
 
 using JLD2
 
+using ..PlotUtils
 
 function plot(;do_save=true, kvs...)
     fnamec = joinpath("data","ppsth_fef_cue_raw.jld2")
@@ -17,7 +22,7 @@ function plot(;do_save=true, kvs...)
             push!(rtimes_subject[subject], rtime)
         end
     end
-
+	colors = Makie.wong_colors()
     with_theme(plot_theme) do
 		width = 5*72
 		height = 4/3*width
@@ -25,14 +30,16 @@ function plot(;do_save=true, kvs...)
 		ax = Axis(fig[1,1])
 		ax2 = Axis(fig[2,1])
 		linkxaxes!(ax, ax2)
-		cc1 = LCHuv(ax.palette.color[][1])
-		cc2 = LCHuv(ax.palette.color[][2])
+		cc1 = LCHuv(colors[1])
+		cc2 = LCHuv(colors[2])
 		colors1 = [LCHuv(cc1.l, a*cc1.c, cc1.h) for a in range(0.5, stop=1.8,length=length(rtimes_subject["W"]))]
 
 		colors2 = [LCHuv(cc2.l, a*cc2.c, cc2.h) for a in range(0.5, stop=1.8,length=length(rtimes_subject["J"]))]
 		offset = 0
 		for (subject,colors) in zip(["W","J"],[colors1, colors2])
+			all_rt = Float64[]
 			for (color,rtime) in zip(colors, rtimes_subject[subject])
+				append!(all_rt, rtime)
 				dd = StatsBase.fit(Gamma, rtime)
 				x = sort(rtime)
 				y = pdf.(dd,x)
@@ -45,18 +52,22 @@ function plot(;do_save=true, kvs...)
 				scatter!(ax2, rtime, offset .+ 0.7*rand(length(rtime)), markersize=2.5px, color=color)
 				offset += 1
 			end
+			@show subject percentile(all_rt, [25,50,75])
 		end
 		group_color1 = [PolyElement(color = color, strokecolor = :transparent) for color in colors1] 
 		group_color2 = [PolyElement(color = color, strokecolor = :transparent) for color in colors2]
 		legend = Legend(fig[1:2,2], [group_color1, group_color2], [["" for i in 1:length(colors1)],["" for i in 1:length(colors2)]], ["Monkey W", "Monkey J"],tellwidth=false, valign=:top, halign=:right)
 		ax.ylabel = "PDF"
 		ax.xticklabelsvisible = false
+		ax.yticklabelsvisible = false
 		ax2.xlabel = "Reaction time [ms]"
-        ax2.xticks = [100.0, 200.0, 300.0]
+       #ax2.xticks = [100.0, 200.0, 300.0]
 		ax2.yticklabelsvisible = false
 		ax2.yticksvisible = false
 		ax2.leftspinevisible = false
-		ax.yticklabelsvisible = true
+		linkxaxes!(ax, ax2)
+		ax.xticksvisible = true
+		ax.bottomspinevisible = true
 		rowsize!(fig.layout, 1, Relative(0.6))
         if do_save
             fname = joinpath("figures","manuscript","reaction_time_distributions.pdf")
@@ -65,3 +76,4 @@ function plot(;do_save=true, kvs...)
 		fig
 	end
 end
+end # module
