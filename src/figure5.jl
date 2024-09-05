@@ -410,15 +410,17 @@ function plot_bimodal_analysis()
 
 	fname = joinpath("data","figure5_bimodel_analysis.jld2")
 	if isfile(fname)
-		model_bic, n_modes, mode_assignment, model_converged = JLD2.load(fname, "model_bic",
+		model_bic, n_modes, mode_assignment, model_converged,model = JLD2.load(fname, "model_bic",
 																			    "n_modes",
 																				"mode_assignment",
-																				"model_converged")
+																				"model_converged",
+																				"model")
 	else
 		model_bic = Dict{String, Vector{Float64}}()
 		n_modes = Dict{String, Vector{Int64}}()
 		mode_assignment = Dict{String, Vector{Int64}}()
 		model_converged = Dict{String, Vector{Bool}}()
+		model = Dict{String, Any}()
 		for (ll,x) in zip(["nostim", "early","mid"],[rtime_nostim, rtime_early, rtime_mid])
 			gm_3,_ = fit(GammaMixture, x, 3;niter=20_000)
 			bic_3 = bic(gm_3, x)
@@ -435,9 +437,10 @@ function plot_bimodal_analysis()
 			model_bic[ll] = [bic_3, bic_2, bic_1]
 			mode_assignment[ll] = zq
 			model_converged[ll] = [gm_3.converged, gm_2.converged, true]
+			model[ll] = best_model
 		end
 		JLD2.save(fname, Dict("model_bic"=>model_bic, "n_modes"=>n_modes,"mode_assignment"=>mode_assignment,
-						     "model_converged"=>model_converged))
+						     "model_converged"=>model_converged,"model"=>model))
 	end
 
 	@show model_converged
