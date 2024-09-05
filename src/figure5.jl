@@ -406,74 +406,63 @@ function plot_bimodal_analysis()
 
 	rtime_early = _sdata_early["rtime_stim"]
 	rtime_mid = _sdata_mid["rtime_stim"]
+	rtime_nostim = [_sdata_early["rtime_nostim"];_sdata_mid["rtime_nostim"]]
 
-	# establish bi-modality by fitting mixture of gaussians
-	x_early = rtime_early.^(1/3)
-	#gm_early_3 = GMM(3, x_early)
-	gm_early_3,_ = fit(GammaMixture, rtime_early, 3;niter=10_000)
-	#probs = gmmposterior(gm_early_3, permutedims(permutedims(x_early)))
+	fname = joinpath("data","figure5_bimodel_analysis.jld2")
+	if isfile(fname)
+		model_bic, n_modes, mode_assignment, model_converged = JLD2.load(fname, "model_bic",
+																			    "n_modes",
+																				"mode_assignment",
+																				"model_converged")
+	else
+		model_bic = Dict{String, Vector{Float64}}()
+		n_modes = Dict{String, Vector{Int64}}()
+		mode_assignment = Dict{String, Vector{Int64}}()
+		model_converged = Dict{String, Vector{Bool}}()
+		for (ll,x) in zip(["nostim", "early","mid"],[rtime_nostim, rtime_early, rtime_mid])
+			gm_3,_ = fit(GammaMixture, x, 3;niter=20_000)
+			bic_3 = bic(gm_3, x)
+			gm_2,_ = fit(GammaMixture, x, 2;niter=20_000)
+			bic_2 = bic(gm_2, x)
+			g = fit(Gamma, x)
+			bic_1 = -2*sum(logpdf.(g, x)) + 2*log(length(x))
+			best_bic, best_model_idx = findmin([bic_3, bic_2, bic_1])
+			best_model = [gm_3,gm_2,g][best_model_idx]
 
-	#bic_early_3 = bic(gm_early_3, x_early)
-	bic_early_3 = bic(gm_early_3, rtime_early)
-	#gm_early_2 = GMM(2, x_early)
-	gm_early_2,_ = fit(GammaMixture, rtime_early,2)
-	#bic_early_2 = bic(gm_early_2, x_early)
-	bic_early_2 = bic(gm_early_2, rtime_early)
-	#g_early = fit(Normal, x_early)
-	g_early = fit(Gamma, rtime_early)
-	bic_early = -2*sum(logpdf.(g_early, rtime_early)) + 2*log(length(x_early))
-	best_early_bic, best_early_model_idx = findmin([bic_early_3, bic_early_2, bic_early])
-	best_early_model = [gm_early_3, gm_early_2, g_early][best_early_model_idx]
-	# use the model with lowest bic
-	probs = posterior(best_early_model, rtime_early)
-	zq_early = [argmax(probs[i,:]) for i in axes(probs,1)]
+			probs = posterior(best_model, x)
+			zq = [argmax(probs[i,:]) for i in axes(probs,1)]
+			n_modes[ll] = [3,2,1]
+			model_bic[ll] = [bic_3, bic_2, bic_1]
+			mode_assignment[ll] = zq
+			model_converged[ll] = [gm_3.converged, gm_2.converged, true]
+		end
+		JLD2.save(fname, Dict("model_bic"=>model_bic, "n_modes"=>n_modes,"mode_assignment"=>mode_assignment,
+						     "model_converged"=>model_converged))
+	end
 
-	x_mid = rtime_mid.^(1/3)
-	#gm_mid_3 = GMM(3, x_mid)
-	gm_mid_3,_ = fit(GammaMixture, rtime_mid, 3)
-	#probs = gmmposterior(gm_mid_3, permutedims(permutedims(x_mid)))
-	probs = posterior(gm_mid_3, rtime_mid)
-	@show size(probs)
-	zq_mid = [argmax(probs[i,:]) for i in axes(probs,1)]
-	bic_mid_3 = bic(gm_mid_3, rtime_mid)
-	#gm_mid_2 = GMM(2, x_mid)
-	gm_mid_2,_ = fit(GammaMixture, rtime_mid,2)
-	bic_mid_2 = bic(gm_mid_2, rtime_mid)
-	g_mid = fit(Gamma, rtime_mid)
-	bic_mid = -2*sum(logpdf.(g_mid, x_mid)) + 2*log(length(x_mid))
-	best_mid_bic, best_mid_model_idx = findmin([bic_mid_3, bic_mid_2, bic_mid])
-	best_mid_model = [gm_mid_3, gm_mid_2, g_mid][best_early_model_idx]
-	# use the model with lowest bic
-	probs = posterior(best_mid_model, rtime_mid)
-	zq_mid = [argmax(probs[i,:]) for i in axes(probs,1)]
-
-
-
+	@show model_converged
 	# create plots of BIC for each model, for early and mid stimulation
-	colors = Makie.wong_colors()
+	colors = [to_color(:gray); Makie.wong_colors()[3:4]]
 	with_theme(plot_theme) do
 		fig = Figure()
-		ax1 = Axis(fig[1,1])
-		ax2 = Axis(fig[1,2])
-		linkyaxes!(ax1, ax2)
-		ax2.leftspinevisible = false
-		ax2.yticksvisible = false
-		ax2.yticklabelsvisible = false
-		barplot!(ax1, [1:3;], [bic_early_3, bic_early_2, bic_early],color=colors[3])
-		annotations!(ax1, ["*"], [Point2f(best_early_model_idx, best_early_bic)])
-		barplot!(ax2,[1:3;],  [bic_mid_3, bic_mid_2, bic_mid],color=colors[4])
-		annotations!(ax2, ["*"], [Point2f(best_mid_model_idx, best_mid_bic)])
-		ax1.ylabel = "BIC"
-		ax1.xticks = ([1:3;],string.([3,2,1]))
-		ax2.xticks = ([1:3;],string.([3,2,1]))
-		ax1.xlabel = "# modes"
-		ax2.xlabel = "# modes"
+		axes = [Axis(fig[1,i]) for i in 1:3]
+		for (ll,ax,cc) in zip(["nostim","early","mid"], axes,colors[1:3])
+			barplot!(ax, [1:3;], model_bic[ll],color=cc)
+			best_bic, best_model_idx = findmin(model_bic[ll])
+			annotations!(ax, ["*"], [Point2f(best_model_idx, best_bic)])
+			# adjust the y-limits so that the annotations can be seen
+			mii,mxx = extrema(model_bic[ll])
+			ymax = 1.1*mxx
+			ylims!(ax, 0.0, ymax)
+			ax.xticks = ([1:3;],string.([3,2,1]))
+			ax.xlabel = "# modes"
+		end
+		axes[1].ylabel = "BIC"
 
-		ax4 = Axis(fig[2,2])
-		scatter!(ax4, rand(length(x_mid)), rtime_mid,color=zq_mid)
-
-		ax3 = Axis(fig[2,1])
-		scatter!(ax3, rand(length(rtime_early)), rtime_early,color=zq_early)
+		axes2 = [Axis(fig[2,i]) for i in 1:3]
+		for (ll,x, ax) in zip(["nostim","early","mid"], [rtime_nostim, rtime_early, rtime_mid],axes2)
+			scatter!(ax, rand(length(x)), x,color=mode_assignment[ll])
+		end
 		fig
 	end
 end
