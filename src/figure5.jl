@@ -462,9 +462,32 @@ function plot_bimodal_analysis()
 		end
 		axes[1].ylabel = "BIC"
 
-		axes2 = [Axis(fig[2,i]) for i in 1:3]
-		for (ll,x, ax) in zip(["nostim","early","mid"], [rtime_nostim, rtime_early, rtime_mid],axes2)
-			scatter!(ax, rand(length(x)), x,color=mode_assignment[ll])
+		lg2 = [GridLayout(fig[2,i]) for i in 1:3]
+		for (ll,x, lg,cc) in zip(["nostim","early","mid"], [rtime_nostim, rtime_early, rtime_mid],lg2,colors)
+			# make one color a little brighter, one a little darker
+			q = 0.7
+			p = 1.0 -q
+			cc0 = RGB(q*cc.r, q*cc.g, q*cc.b)
+			cc1 = RGB(p + q*cc.r, p+q*cc.g, p+q*cc.b)
+			_colors = [cc0, cc1]
+			ax1 = Axis(lg[1,1])
+			ax2 = Axis(lg[1,2])
+			linkyaxes!(ax1, ax2)
+			best_model = model[ll]
+			xs = sort(x)
+			probs = component_pdf(best_model, xs)
+			for c in 1:size(probs,2)
+				lines!(ax2, probs[:,c], xs,color=_colors[c])
+			end
+			scatter!(ax1, rand(length(x)), x,color=_colors[mode_assignment[ll]])
+			colsize!(lg, 1, Relative(0.7))
+			ax2.yticksvisible = false
+			ax2.yticklabelsvisible = false
+			ax2.xticklabelsvisible = false
+			ax2.xlabel = "pdf"
+			ax1.xticksvisible = false
+			ax1.xticklabelsvisible = false
+			# TODO: Plot the distributions
 		end
 		fig
 	end
