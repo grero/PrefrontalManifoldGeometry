@@ -384,4 +384,98 @@ function plot(;show_schematic=true)
 		fig
 	end
 end
+
+function StatsBase.loglikelihood(gm::GMM, x)
+	N = [Normal(μ, σ) for (μ, σ) in zip(gm.μ, gm.Σ)]
+	sum(log.(sum(gm.w.*pdf.(N, permutedims(x)),dims=1)))
+end
+
+function StatsBase.bic(gm::GMM, x)
+	ll = loglikelihood(gm,x)
+	k = length(gm.μ) + length(gm.Σ) + length(gm.w)-1
+	n = length(x)
+	-2*ll + k*log(n)
+end
+
+function plot_bimodal_analysis()
+
+	# load saccade data for sessions with early stimulations
+    _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
+    # .. and late stimulation
+    _sdata_mid = JLD2.load("data/microstim_mid_sessions.jld2")
+
+	rtime_early = _sdata_early["rtime_stim"]
+	rtime_mid = _sdata_mid["rtime_stim"]
+
+	# establish bi-modality by fitting mixture of gaussians
+	x_early = rtime_early.^(1/3)
+	#gm_early_3 = GMM(3, x_early)
+	gm_early_3,_ = fit(GammaMixture, rtime_early, 3;niter=10_000)
+	#probs = gmmposterior(gm_early_3, permutedims(permutedims(x_early)))
+
+	#bic_early_3 = bic(gm_early_3, x_early)
+	bic_early_3 = bic(gm_early_3, rtime_early)
+	#gm_early_2 = GMM(2, x_early)
+	gm_early_2,_ = fit(GammaMixture, rtime_early,2)
+	#bic_early_2 = bic(gm_early_2, x_early)
+	bic_early_2 = bic(gm_early_2, rtime_early)
+	#g_early = fit(Normal, x_early)
+	g_early = fit(Gamma, rtime_early)
+	bic_early = -2*sum(logpdf.(g_early, rtime_early)) + 2*log(length(x_early))
+	best_early_bic, best_early_model_idx = findmin([bic_early_3, bic_early_2, bic_early])
+	best_early_model = [gm_early_3, gm_early_2, g_early][best_early_model_idx]
+	# use the model with lowest bic
+	probs = posterior(best_early_model, rtime_early)
+	zq_early = [argmax(probs[i,:]) for i in axes(probs,1)]
+
+	x_mid = rtime_mid.^(1/3)
+	#gm_mid_3 = GMM(3, x_mid)
+	gm_mid_3,_ = fit(GammaMixture, rtime_mid, 3)
+	#probs = gmmposterior(gm_mid_3, permutedims(permutedims(x_mid)))
+	probs = posterior(gm_mid_3, rtime_mid)
+	@show size(probs)
+	zq_mid = [argmax(probs[i,:]) for i in axes(probs,1)]
+	bic_mid_3 = bic(gm_mid_3, rtime_mid)
+	#gm_mid_2 = GMM(2, x_mid)
+	gm_mid_2,_ = fit(GammaMixture, rtime_mid,2)
+	bic_mid_2 = bic(gm_mid_2, rtime_mid)
+	g_mid = fit(Gamma, rtime_mid)
+	bic_mid = -2*sum(logpdf.(g_mid, x_mid)) + 2*log(length(x_mid))
+	best_mid_bic, best_mid_model_idx = findmin([bic_mid_3, bic_mid_2, bic_mid])
+	best_mid_model = [gm_mid_3, gm_mid_2, g_mid][best_early_model_idx]
+	# use the model with lowest bic
+	probs = posterior(best_mid_model, rtime_mid)
+	zq_mid = [argmax(probs[i,:]) for i in axes(probs,1)]
+
+
+
+	# create plots of BIC for each model, for early and mid stimulation
+	colors = Makie.wong_colors()
+	with_theme(plot_theme) do
+		fig = Figure()
+		ax1 = Axis(fig[1,1])
+		ax2 = Axis(fig[1,2])
+		linkyaxes!(ax1, ax2)
+		ax2.leftspinevisible = false
+		ax2.yticksvisible = false
+		ax2.yticklabelsvisible = false
+		barplot!(ax1, [1:3;], [bic_early_3, bic_early_2, bic_early],color=colors[3])
+		annotations!(ax1, ["*"], [Point2f(best_early_model_idx, best_early_bic)])
+		barplot!(ax2,[1:3;],  [bic_mid_3, bic_mid_2, bic_mid],color=colors[4])
+		annotations!(ax2, ["*"], [Point2f(best_mid_model_idx, best_mid_bic)])
+		ax1.ylabel = "BIC"
+		ax1.xticks = ([1:3;],string.([3,2,1]))
+		ax2.xticks = ([1:3;],string.([3,2,1]))
+		ax1.xlabel = "# modes"
+		ax2.xlabel = "# modes"
+
+		ax4 = Axis(fig[2,2])
+		scatter!(ax4, rand(length(x_mid)), rtime_mid,color=zq_mid)
+
+		ax3 = Axis(fig[2,1])
+		scatter!(ax3, rand(length(rtime_early)), rtime_early,color=zq_early)
+		fig
+	end
+end
+
 end
