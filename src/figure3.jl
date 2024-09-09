@@ -1231,7 +1231,7 @@ function plot_β_summary(;subjects=["J","W"], kvs...)
     end
 end
 
-function plot(;plottype=:barplot, show_dlpfc=false)
+function plot(;plottype=:barplot, show_dlpfc=false, show_residual_reg=false)
     with_theme(PlotUtils.plot_theme) do
         fig = Figure(size=(700,600))
         # shematic
@@ -1241,22 +1241,29 @@ function plot(;plottype=:barplot, show_dlpfc=false)
         lg2 = GridLayout(fig[2,1])
         plot_individual_trials!(lg2, "W";plot_joint=false, plottype=plottype, label=["B","C","D","E"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg2[1,0], "Monkey W", tellwidth=true, tellheight=false, rotation=π/2)
-        lg21 = GridLayout(lg2[1,3])
-        axw = plot_joint_regression!(lg21,"W";show_null_distr=false)
-
+        if show_residual_reg
+            lg21 = GridLayout(lg2[1,3])
+            axw = plot_joint_regression!(lg21,"W";show_null_distr=false)
+        else
+            colsize!(lg2, 2, Relative(0.15))
+        end
         lg3 = GridLayout(fig[3,1])
         plot_individual_trials!(lg3, "J";plot_joint=false, plottype=plottype, label=["F","G","H","I"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg3[1,0], "Monkey J", tellwidth=true, tellheight=false, rotation=π/2)
-        lg31 = GridLayout(lg3[1,3])
-        axj = plot_joint_regression!(lg31,"J";show_null_distr=false)
-        llj = axj.finallimits[]
-        llw = axw.finallimits[]
-        ymin = min(llj.origin[2], llw.origin[2])
-        ymax = ymin + max(llj.widths[2], llw.widths[2])
-        ylims!(axj, ymin, ymax)
-        ylims!(axw, ymin, ymax)
-        # TODO: This doesn't seem to work
-        linkyaxes!(axj, axw)
+        if show_residual_reg
+            lg31 = GridLayout(lg3[1,3])
+            axj = plot_joint_regression!(lg31,"J";show_null_distr=false)
+            llj = axj.finallimits[]
+            llw = axw.finallimits[]
+            ymin = min(llj.origin[2], llw.origin[2])
+            ymax = ymin + max(llj.widths[2], llw.widths[2])
+            ylims!(axj, ymin, ymax)
+            ylims!(axw, ymin, ymax)
+            # TODO: This doesn't seem to work
+            linkyaxes!(axj, axw)
+        else
+            colsize!(lg3, 2, Relative(0.15))
+        end
         rowsize!(fig.layout, 1, Relative(0.2))
         fig
     end
