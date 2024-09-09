@@ -1368,6 +1368,10 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
                 else
                     barplot!(ax, [offset], [mean(r²[a][k])], color=cc)
                 end
+                # adjust y-lims so that the annotation can be seen
+                if subject == "W"
+                    ylims!(ax, 0.0, 0.22)
+                end
                 text!(ax, offset, μ, text=aa, align=(:center, :bottom))
                 offset += 1
             end
