@@ -9,6 +9,9 @@ using Colors
 using CairoMakie
 using HypothesisTests
 using Distributions
+using GammaMixtures
+using GammaMixtures: GaussianMixtures
+using GaussianMixtures: GMM
 
 using ..Utils
 using ..PlotUtils
@@ -460,24 +463,33 @@ function StatsBase.bic(gm::GMM, x)
 	-2*ll + k*log(n)
 end
 
-function plot_bimodal_analysis()
+
+GammaMixtures.posterior(g::Gamma,x) = pdf(g,x)
+
+function plot_bimodal_analysis(;redo=false, nruns=100)
 
 	# load saccade data for sessions with early stimulations
     _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
+	sdata_early = NamedTuple(zip(Symbol.(keys(_sdata_early)), values(_sdata_early)))
     # .. and late stimulation
     _sdata_mid = JLD2.load("data/microstim_mid_sessions.jld2")
+	sdata_mid = NamedTuple(zip(Symbol.(keys(_sdata_mid)), values(_sdata_mid)))
 
-	rtime_early = _sdata_early["rtime_stim"]
-	rtime_mid = _sdata_mid["rtime_stim"]
-	rtime_nostim = [_sdata_early["rtime_nostim"];_sdata_mid["rtime_nostim"]]
+	classified_saccades_mid = classify_saccades(sdata_mid)
+	classified_saccades_early = classify_saccades(sdata_early)
+	rtime_early = _sdata_early["rtime_stim"][classified_saccades_early.rtidx.stim]
+	rtime_mid = _sdata_mid["rtime_stim"][classified_saccades_mid.rtidx.stim]
+	rtime_nostim = [_sdata_early["rtime_nostim"][classified_saccades_early.rtidx.nostim];_sdata_mid["rtime_nostim"][classified_saccades_mid.rtidx.nostim]]
 
 	fname = joinpath("data","figure5_bimodel_analysis.jld2")
-	if isfile(fname)
-		model_bic, n_modes, mode_assignment, model_converged,model = JLD2.load(fname, "model_bic",
+	if !redo && isfile(fname)
+		model_bic, n_modes, mode_assignment, model_converged,model,loglike,loglike_nostim = JLD2.load(fname, "model_bic",
 																			    "n_modes",
 																				"mode_assignment",
 																				"model_converged",
-																				"model")
+																				"model",
+																				"loglike",
+																				"loglike_nostim")
 	else
 		model_bic = Dict{String, Vector{Float64}}()
 		n_modes = Dict{String, Vector{Int64}}()
@@ -502,40 +514,86 @@ function plot_bimodal_analysis()
 			model_converged[ll] = [gm_3.converged, gm_2.converged, true]
 			model[ll] = best_model
 		end
+		# to check whether the overall distribution has changed, compute
+		# the loglikelihood of the reaction times from the stimulation trials using the 
+		# model fit to the non-stimulation trials 
+		loglike = Dict{String, Vector{Float64}}()
+		loglike_nostim = Dict{String, Vector{Float64}}()
+		loglike["early"] = fill(0.0, nruns)
+		loglike_nostim["early"] = fill(0.0, nruns)
+		loglike["mid"] = fill(0.0, nruns) 
+		loglike_nostim["mid"] = fill(0.0, nruns) 
+		midx = argmin(model_bic["nostim"])
+		m = n_modes["nostim"][midx]
+
+		ntot = length(rtime_nostim)
+		for (ll,x) in zip(["early","mid"],[rtime_early, rtime_mid])
+			ntest = length(x)
+			ntrain = ntot - ntest
+			for r in 1:nruns 
+				# pick a random subset of the non-stimulated trials for training
+				tridx = shuffle(1:ntot)[1:ntrain]
+				sort!(tridx)
+				teidx = setdiff(1:ntot, tridx)
+				if m == 1
+					gm = fit(Gamma, rtime_nostim[tridx])
+				else
+					gm,_ = fit(GammaMixture, rtime_nostim[tridx],m;niter=20_000)
+				end
+				# test both on remaining stim data and on th stim early
+				loglike_nostim[ll][r] = loglikelihood(gm, rtime_nostim[teidx])
+				loglike[ll][r] = loglikelihood(gm, x)
+			end
+		end
 		JLD2.save(fname, Dict("model_bic"=>model_bic, "n_modes"=>n_modes,"mode_assignment"=>mode_assignment,
-						     "model_converged"=>model_converged,"model"=>model))
+						     "model_converged"=>model_converged,"model"=>model,
+							 "loglike"=>loglike,"loglike_nostim"=>loglike_nostim))
 	end
 
-	@show model_converged
+	#limits
+	ymin,ymax = extrema([rtime_nostim;rtime_early;rtime_mid])
+	Δy = ymax-ymin 
+	ymin = ymin - 0.05*Δy
+	ymax = ymax + 0.05*Δy
 	# create plots of BIC for each model, for early and mid stimulation
 	colors = [to_color(:gray); Makie.wong_colors()[3:4]]
 	with_theme(plot_theme) do
 		fig = Figure()
-		axes = [Axis(fig[1,i]) for i in 1:3]
-		for (ll,ax,cc) in zip(["nostim","early","mid"], axes,colors[1:3])
-			barplot!(ax, [1:3;], model_bic[ll],color=cc)
+		#axes = [Axis(fig[1,i]) for i in 1:3]
+		labels = [Label(fig[1,i], ll;tellwidth=false) for (i,ll) in enumerate(["No stim","early stim", "late stim"])]
+		lg1 = [GridLayout(fig[2,i]) for i in 1:3]
+		for (ll,lg,cc) in zip(["nostim","early","mid"], lg1,colors[1:3])
+			ax = Axis(lg[1,1])
+			barplot!(ax, [1:2;], model_bic[ll][1:2].-model_bic[ll][3],color=cc)
 			best_bic, best_model_idx = findmin(model_bic[ll])
-			annotations!(ax, ["*"], [Point2f(best_model_idx, best_bic)])
-			# adjust the y-limits so that the annotations can be seen
-			mii,mxx = extrema(model_bic[ll])
-			ymax = 1.1*mxx
-			ylims!(ax, 0.0, ymax)
-			ax.xticks = ([1:3;],string.([3,2,1]))
+			ax.xticks = ([1:2;],string.([3,2]))
 			ax.xlabel = "# modes"
+			if ll in ["early","mid"]
+				# also indicate the loglikehlihood
+				ax2 = Axis(lg[2,1])
+				colsize!(lg, 1, Relative(0.8))
+				lower, mm,upper = percentile(loglike[ll],[5,50,95])
+				lower_ns, mm_ns,upper_ns = percentile(loglike_nostim[ll],[5,50,95])
+				barplot!(ax2, [1.0,2.0], [mm_ns, mm], color=[colors[1], cc])
+				rangebars!(ax2, [1.0, 2.0], [lower_ns, lower], [upper_ns, upper],color=:black)
+				ax2.ylabel = "Log-likelihood" 
+				ax2.xticksvisible = false
+				ax2.xticklabelsvisible = false
+			end
+			ax.ylabel = "ΔBIC"
 		end
-		axes[1].ylabel = "BIC"
 
-		lg2 = [GridLayout(fig[2,i]) for i in 1:3]
+		lg2 = [GridLayout(fig[3,i]) for i in 1:3]
 		for (ll,x, lg,cc) in zip(["nostim","early","mid"], [rtime_nostim, rtime_early, rtime_mid],lg2,colors)
 			# make one color a little brighter, one a little darker
 			q = 0.7
 			p = 1.0 -q
 			cc0 = RGB(q*cc.r, q*cc.g, q*cc.b)
 			cc1 = RGB(p + q*cc.r, p+q*cc.g, p+q*cc.b)
-			_colors = [cc0, cc1]
+			_colors = [cc0, cc, cc1]
 			ax1 = Axis(lg[1,1])
 			ax2 = Axis(lg[1,2])
-			linkyaxes!(ax1, ax2)
+			#linkyaxes!(ax1, ax2)
 			best_model = model[ll]
 			xs = sort(x)
 			probs = component_pdf(best_model, xs)
@@ -543,6 +601,8 @@ function plot_bimodal_analysis()
 				lines!(ax2, probs[:,c], xs,color=_colors[c])
 			end
 			scatter!(ax1, rand(length(x)), x,color=_colors[mode_assignment[ll]])
+			ylims!(ax1, ymin, ymax)
+			ylims!(ax2, ymin, ymax)
 			colsize!(lg, 1, Relative(0.7))
 			ax2.yticksvisible = false
 			ax2.yticklabelsvisible = false
