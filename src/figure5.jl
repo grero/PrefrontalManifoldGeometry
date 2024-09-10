@@ -600,7 +600,7 @@ function plot_bimodal_analysis(;redo=false, nruns=100)
 			for c in 1:size(probs,2)
 				lines!(ax2, probs[:,c], xs,color=_colors[c])
 			end
-			scatter!(ax1, rand(length(x)), x,color=_colors[mode_assignment[ll]])
+			scatter!(ax1, rand(length(x)), x,color=_colors[mode_assignment[ll]],markersize=7.5px)
 			ylims!(ax1, ymin, ymax)
 			ylims!(ax2, ymin, ymax)
 			colsize!(lg, 1, Relative(0.7))
