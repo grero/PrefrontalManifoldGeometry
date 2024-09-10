@@ -610,6 +610,9 @@ function plot_bimodal_analysis(;redo=false, nruns=100)
 			ax2.xlabel = "pdf"
 			ax1.xticksvisible = false
 			ax1.xticklabelsvisible = false
+			if ll == "nostim"
+				ax1.ylabel = "Reaction time [ms]"
+			end
 			# TODO: Plot the distributions
 		end
 		fig
