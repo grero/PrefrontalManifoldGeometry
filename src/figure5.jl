@@ -62,6 +62,69 @@ function plot_saccades!(ax, saccades::Vector{T2}, color, qcolor=color;xmin=0.0, 
     end
 end
 
+"""
+Classify saccades into evoked and fast saccades
+"""
+function classify_saccades(sdata::NamedTuple)
+	pos0 = sdata.target_pos[findfirst(pos->(pos[1] > sdata.screen_center[1])&(pos[2] == sdata.screen_center[2]), sdata.target_pos)]
+	pos0v = fill(0.0, 1,2)
+	pos0v[1,:] .= pos0
+	all_target_pos = sdata.target_pos
+	# plot thre reacction times first
+	rtime_stim = sdata.rtime_stim
+	rtime_nostim = sdata.rtime_nostim
+	rtidx_nostim = fill(true, length(rtime_nostim))
+	rtidx_stim = fill(true, length(rtime_stim))
+	evoked_saccade_idx = (stim=fill(false, length(rtime_stim)),
+						  nostim=fill(false, length(rtime_nostim)))
+	
+	fast_saccade_idx = (stim=fill(false, length(rtime_stim)),
+						  nostim=fill(false, length(rtime_nostim)))
+
+	slength_stim = fill(0.0, length(sdata.saccades_stim))
+	slength_nostim = fill(0.0, length(rtime_nostim))
+	max_q_idx_stim = fill(0, length(slength_stim))
+	max_q_idx_nostim = fill(0, length(slength_nostim))
+
+	max_q_idx = [max_q_idx_nostim, max_q_idx_stim]
+	slength = [slength_nostim, slength_stim]
+	qv = [:nostim, :stim]
+	all_target_label = [sdata.trial_label_nostim,sdata.trial_label_stim]
+	all_saccades = [sdata.saccades_nostim, sdata.saccades_stim]
+	rtidx_all = [rtidx_nostim, rtidx_stim]
+
+	tvector = [pos .- sdata.screen_center for pos in sdata.target_pos]
+
+	for (q, _slength, max_q, saccades, target_pos,rtidx) in zip(qv, slength, max_q_idx, all_saccades, all_target_label, rtidx_all)
+		for (jj,saccade) in enumerate(saccades)
+			v = sqrt.(sum(diff(saccade, dims=1).^2,dims=2))
+			w = diff(saccade, dims=1)
+			w ./= v  #normalize
+
+			v = dropdims(v, dims=2)
+			# find the largest directional change
+			# max_q[jj] = argmin(dropdims(sum(w[1:end-1,:].*w[2:end,:],dims=2),dims=2)) .+ 1
+			# use the positions closest to pos0 as max_q_idx
+			dd = dropdims(sum(abs2, saccade .- pos0v, dims=2),dims=2)
+			max_q[jj] = argmin(dd)
+			_slength[jj] = sum(v)
+			tlength = sqrt(sum(tvector[target_pos[jj]].^2))
+			_slength[jj] /= tlength
+		end
+		# only keep short saccades
+		rtidx[_slength .> 1.4] .= false
+		# identify saccades that go to the middle right location
+		qidx = [pos==pos0 for pos in all_target_pos[target_pos]]
+		# identity saccades where the end point is close to the middle right location
+		yidx = [sqrt(sum(abs2,saccade[end,:] .- pos0)) < 2*sdata.target_size for saccade in saccades]
+		evoked_saccade_idx[q][(qidx .| yidx).|(_slength .> 1.4)] .= true
+		fast_saccade_idx[q][((!).(qidx .| yidx)).&(_slength .< 1.4)] .= true
+		rtidx[qidx] .= false
+		rtidx[yidx] .= false
+	end
+	(rtidx=(nostim=rtidx_nostim, stim=rtidx_stim), evoked_saccade_idx=evoked_saccade_idx, fast_saccade_idx=fast_saccade_idx)
+end
+
 function plot_microstimulation_figure!(figlg)
     # load saccade data for sessions with early stimulations
     _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
