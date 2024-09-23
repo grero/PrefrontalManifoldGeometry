@@ -777,9 +777,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                     push!(vars, allvars[vv])
                 end
                 if use_residuals
-                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2][qdata["trialidx"][:,r]];exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
+                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2];exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
                 else
-                    _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals, trialidx=qdata["trialidx"][:,r])
+                    _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals)
                 end
                 β_S[:,:,r] .= _β
                 r²_S[:,r] .= _r²
