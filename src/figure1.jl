@@ -119,7 +119,7 @@ function plot(;do_save=true)
 		label_fontsize = 24 
 		labels = [Label(lg1[1,1,TopLeft()], "A",fontsize=label_fontsize),
 				  Label(lg2[1,1,TopLeft()], "B",fontsize=label_fontsize)]
-		fname = joinpath("figures","manuscript","figure1.pdf")
+		fname = joinpath(@__DIR__,"..", "figures","manuscript","figure1.pdf")
         if do_save
             CairoMakie.activate!()
             save(fname, fig;pt_per_unit=1)

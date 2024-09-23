@@ -130,11 +130,11 @@ end
 
 function plot_microstimulation_figure!(figlg)
     # load saccade data for sessions with early stimulations
-    _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
+    _sdata_early = JLD2.load(joinpath(@__DIR__,"..", "data/microstim_early_sessions.jld2"))
     sdata_early = NamedTuple(zip(Symbol.(keys(_sdata_early)), values(_sdata_early)))
 
     # .. and late stimulation
-    _sdata_mid = JLD2.load("data/microstim_mid_sessions.jld2")
+    _sdata_mid = JLD2.load(joinpath(@__DIR__,"..","data/microstim_mid_sessions.jld2"))
     sdata_mid = NamedTuple(zip(Symbol.(keys(_sdata_mid)), values(_sdata_mid)))
 
 	pos0 = sdata_early.target_pos[findfirst(pos->(pos[1] > sdata_early.screen_center[1])&(pos[2] == sdata_early.screen_center[2]), sdata_early.target_pos)]

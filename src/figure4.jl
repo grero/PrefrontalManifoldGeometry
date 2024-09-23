@@ -162,7 +162,7 @@ function run_model(;redo=false, do_save=true,σ²0=1.0,τ=3.0,σ²n=0.0, nd=[14]
     end
         
     q = string(h, base=16)
-    fname = joinpath("data","model_full_space_results_$q.jld2")
+    fname = joinpath(@__DIR__, "..", "data","model_full_space_results_$q.jld2")
     @show fname
     if isfile(fname) && !redo
         qq = JLD2.load(fname)

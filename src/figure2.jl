@@ -264,7 +264,7 @@ end
 
 function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float64;suffix="",kvs...)
     # get the number of locations to determine the height
-    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    fnames = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw$(suffix).jld2")
     tlabels = JLD2.load(fnames, "labels")
     ulabel = unique(tlabels)
     nl = length(ulabel)
@@ -279,7 +279,7 @@ end
 function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::Float64;rtime_min=120.0, rtime_max=300.0, suffix="", locations::Union{Nothing, Vector{Int64}}=locations[subject],
                                                                                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf),kvs...)
     #movement aligned
-    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    fnames = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw$(suffix).jld2")
     ppsths = JLD2.load(fnames, "ppsth")
     rtimess = JLD2.load(fnames, "rtimes")
     trialidxs = JLD2.load(fnames, "trialidx")
@@ -288,7 +288,7 @@ function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::
 
 
     # cue aligned
-    fnamec = joinpath("data","ppsth_fef_cue_raw$(suffix).jld2")
+    fnamec = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw$(suffix).jld2")
     ppsthc = JLD2.load(fnamec, "ppsth")
     rtimesc = JLD2.load(fnamec, "rtimes")
     trialidxc = JLD2.load(fnamec, "trialidx")
@@ -296,7 +296,7 @@ function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::
     binsc = ppsthc.bins
 
     # add target aligned here
-    fnamet = joinpath("data","ppsth_fef_target_raw$(suffix).jld2")
+    fnamet = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw$(suffix).jld2")
     ppstht = JLD2.load(fnamet, "ppsth")
     rtimest = JLD2.load(fnamet, "rtimes")
     trialidxt = JLD2.load(fnamet, "trialidx")
@@ -448,7 +448,7 @@ end
 Get the explained reaction time variance as a function of time
 """
 function get_rtime_var_per_time(;redo=false, do_save=true,kvs...)
-    fname = "rtime_var_in_time.jld2"
+    fname = joinpath(@__DIR__, "..", "rtime_var_in_time.jld2")
     if isfile(fname) && !redo
         plot_data = JLD2.load(fname, "plot_data")
     else
@@ -576,8 +576,8 @@ end
 function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=true,subject="ALL",
                               rtime_min=120.0, remove_window::Union{Nothing, Dict{Symbol, Tuple{Float64, Float64}}}=nothing, save_sample_indices::Bool=false,suffix="")
     sarea = lowercase(area)
-    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_$(sarea)_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
-    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_$(sarea)_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load(@__DIR__, "..", "data/ppsth_$(sarea)_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load(@__DIR__, "..","data/ppsth_$(sarea)_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
     cellidx = get_area_index(ppsth_mov.cellnames, area)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
@@ -761,7 +761,7 @@ end
 
 
 function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500, kvs...)
-    fname = joinpath("data","fig2_data.jld2")
+    fname = joinpath(@__DIR__, "..", "data","fig2_data.jld2")
     α = 0.001
     threshold = 0.5
     if isfile(fname) && !redo

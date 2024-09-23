@@ -105,11 +105,11 @@ end
 function load_data(subject::Union{String,Nothing}=nothing;area="fef",align=:cue, raw=false,kvs...)
     if subject == "M"
         # this is model data
-        fname = joinpath("data","ppsth_model_cue.jld2")
+        fname = joinpath(@__DIR__, "..", "data","ppsth_model_cue.jld2")
     elseif raw
-        fname = joinpath("data","ppsth_$(area)_$(align)_raw.jld2")
+        fname = joinpath(@__DIR__, "..", "data","ppsth_$(area)_$(align)_raw.jld2")
     else 
-        fname = joinpath("data","ppsth_$(area)_$(align).jld2")
+        fname = joinpath(@__DIR__, "..", "data","ppsth_$(area)_$(align).jld2")
     end
     ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes")
     return ppsth,tlabels,trialidx,rtimes
@@ -585,7 +585,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         input_args[string(k[1])] = k[2]
     end
     qs = string(q, base=16)
-    fname = "path_length_regression_$(qs).jld2"
+    fname = joinpath(@__DIR__, "..", "path_length_regression_$(qs).jld2")
     if check_only
         @show fname
         return isfile(fname)
