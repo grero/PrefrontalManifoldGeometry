@@ -111,7 +111,7 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="",yticklabelsize=14)
     #TODO: Plot all PSTH in one panel, with the raster per location stacked below
     #movement aligned
-    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    fnames = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw$(suffix).jld2")
     ppsths = JLD2.load(fnames, "ppsth")
     rtimess = JLD2.load(fnames, "rtimes")
     trialidxs = JLD2.load(fnames, "trialidx")
@@ -120,7 +120,7 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
 
 
     # cue aligned
-    fnamec = joinpath("data","ppsth_fef_cue_raw$(suffix).jld2")
+    fnamec = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw$(suffix).jld2")
     ppsthc = JLD2.load(fnamec, "ppsth")
     rtimesc = JLD2.load(fnamec, "rtimes")
     trialidxc = JLD2.load(fnamec, "trialidx")
@@ -128,7 +128,7 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     binsc = ppsthc.bins
 
     # add target aligned here
-    fnamet = joinpath("data","ppsth_fef_target_raw$(suffix).jld2")
+    fnamet = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw$(suffix).jld2")
     ppstht = JLD2.load(fnamet, "ppsth")
     rtimest = JLD2.load(fnamet, "rtimes")
     trialidxt = JLD2.load(fnamet, "trialidx")
