@@ -741,8 +741,8 @@ end
 function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=true,subject="ALL",
                               rtime_min=120.0, remove_window::Union{Nothing, Dict{Symbol, Tuple{Float64, Float64}}}=nothing, save_sample_indices::Bool=false,suffix="")
     sarea = lowercase(area)
-    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load(@__DIR__, "..", "data/ppsth_$(sarea)_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
-    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load(@__DIR__, "..","data/ppsth_$(sarea)_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load(joinpath(@__DIR__, "..", "data","ppsth_$(sarea)_mov$(suffix).jld2"),"ppsth", "labels","trialidx","rtimes")
+    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load(joinpath(@__DIR__, "..","data","ppsth_$(sarea)_cue$(suffix).jld2"),"ppsth", "labels","trialidx","rtimes")
     cellidx = get_area_index(ppsth_mov.cellnames, area)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
