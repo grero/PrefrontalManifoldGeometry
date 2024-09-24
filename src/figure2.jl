@@ -163,9 +163,19 @@ function plot_cell_classification()
         ax = Axis(fig[1,1], autolimitaspect=1.0)
         hidespines!(ax)
         hidedecorations!(ax)
-        plt = pie!(ax, [n_non_responsive, n_visual_only, n_movement_only, n_visuomovement],
+        data = [n_non_responsive, n_visual_only, n_movement_only, n_visuomovement]
+        θ = (cumsum(data) - data/2) .* 2π/sum(data)
+        r = 0.7 
+        plt = pie!(ax, data,
                         color=Makie.wong_colors()[1:4])
-        # TODO: Add labels
+        for (li,θi) in zip(["Non-responsive\n$(n_non_responsive)",
+                            "Visual\n$(n_visual_only)",
+                            "Movement\n$(n_movement_only)",
+                            "Visuomovement\n$(n_visuomovement)"],θ)
+            x = r*cos(θi)
+            y = r*sin(θi)
+            text!(ax, li, position=(x,y),align=(:center, :center))
+        end
         fig
     end
 end
