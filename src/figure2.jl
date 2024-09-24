@@ -979,23 +979,23 @@ function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500,
         showmovspine = false
         lg1 = GridLayout()
         lg[1,2] = lg1
-        plot_fef_cell!(lg1, 22,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg1, nothing, 22,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
         rowgap!(lg1, 1, 4.0)
         colgap!(lg1, 1, 4.0)
         lg2 = GridLayout()
         lg[2,2] = lg2
-        plot_fef_cell!(lg2, 3,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=true, xticklabelsvisible=true, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg2, nothing, 3,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=true, xticklabelsvisible=true, ylabelvisible=false, showmovspine=showmovspine)
         rowgap!(lg2, 1, 4.0)
         colgap!(lg2, 1, 4.0)
         lg3 = GridLayout()
         lg[1,1] = lg3
         # cue aligned
-        plot_fef_cell!(lg3, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=true, showmovspine=showmovspine)
+        plot_fef_cell!(lg3, nothing, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=true, showmovspine=showmovspine)
         rowgap!(lg3, 1, 4.0)
         colgap!(lg3, 1, 4.0)
         lg4 = GridLayout()
         lg[2,1] = lg4
-        plot_fef_cell!(lg4, 59,"J", [6];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50), ylabelvisible=true, showmovspine=showmovspine, xlabelvisible=true, xticklabelsvisible=true)
+        plot_fef_cell!(lg4, nothing, 59,"J", [6];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50), ylabelvisible=true, showmovspine=showmovspine, xlabelvisible=true, xticklabelsvisible=true)
         rowgap!(lg4, 1, 4.0)
         colgap!(lg4, 1, 4.0)
         colgap!(lg, 1, 5.0)
