@@ -14,6 +14,7 @@ using HypothesisTests
 using StatsBase
 using Printf
 using DrWatson
+using Base.Threads
 
 using ..Utils
 using ..PlotUtils
@@ -1288,15 +1289,19 @@ function plot_individual_trials(subject::String, ;kvs...)
 end
 
 function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, speedvar::Symbol=:SM, plot_joint=true, kvs...)
-    qdataz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], kvs...)
-    qdatal = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], kvs...)
-    qdatass = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], kvs...)
+    tasks = @sync begin
+        _qdataz = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], progress_offset=0, kvs...)
+        _qdatal = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], progress_offset=1, kvs...)
+        _qdatass = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], progress_offset=2, kvs...)
 
-    qdatalz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], kvs...)
-    qdatazss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], kvs...)
-    qdataplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], kvs...)
+        _qdatalz = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], progress_offset=3, kvs...)
+        _qdatazss = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=4, kvs...)
+        _qdataplss = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], progress_offset=5, kvs...)
 
-    qdatazplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], kvs...)
+        _qdatazplss = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=6, kvs...)
+        [_qdataz, _qdatal, _qdatass, _qdatalz, _qdatazss, _qdataplss, _qdatazplss]
+    end
+    qdataz, qdatal, qdatass, qdatalz, qdatazss, qdataplss, qdatazplss = fetch.(tasks)
     bins = qdatazss["bins"]
     bidx = searchsortedfirst(bins, t0)
 
