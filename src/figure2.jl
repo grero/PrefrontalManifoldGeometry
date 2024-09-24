@@ -26,6 +26,127 @@ sessions_p = ["P/20130923/session01", "P/20130927/session01", "P/20131014/sessio
 ramping_cells_j =  [22, 23, 24, 35, 52, 53, 58, 59, 60, 88, 89, 90, 91, 92, 103, 112, 113, 117]
 ramping_cells_w =  [5, 24, 47, 54, 82]
 
+"""
+    classify_cell(X::Matrix{T}, label::AbstractVector{T2},periods::Vector{Tuple{Float64, Float64}}) where T <: Real where T2 <: Integer
+
+Classify the cell whose binned activity in represented by `X` by whether it is 1) responsive and 2) selective 
+"""
+function classify_cell(X::Matrix{T}, bins::AbstractVector{T3}, label::AbstractVector{T2}, periods::Vector{Tuple{T3, T3}},baseline_idx=1) where T <: Real where T2 <: Integer where T3 <: Real
+    nbins, ntrials = size(X)
+    # check if we need to permute
+    if nbins == length(label)
+        return classify_cell(permutedims(X), bins, label, periods, baseline_idx)
+    end
+    function get_windowed(period)
+        idx0 = findfirst(x->x>=period[1], bins)
+        idx1 = findlast(x->x<period[2], bins)
+        X[idx0:idx1,:]
+    end
+
+    ulabel = unique(label)
+    sort!(ulabel)
+    baseline_period = periods[baseline_idx]
+    X0 = dropdims(mean(get_windowed(baseline_period),dims=1),dims=1)
+    is_responsive = fill(false, length(periods)-1)
+    is_selective= fill(false, length(periods)-1)
+    for (ii,period) in enumerate(periods[baseline_idx+1:end])
+        _X = dropdims(mean(get_windowed(period),dims=1),dims=1)
+        for l in ulabel
+            _tidx = label .== l
+            # responsive?
+            hh = KruskalWallisTest(X0[_tidx],_X[_tidx])
+            if pvalue(hh) < 0.05
+                is_responsive[ii] = true
+                break
+            end
+        end
+        if is_responsive[ii]
+            # selective ?
+            hh2 = KruskalWallisTest([_X[label.==l] for l in ulabel]...)
+            if pvalue(hh2) < 0.05
+                is_selective[ii] = true
+            end
+        end
+    end
+    is_responsive, is_selective
+end
+
+function classify_visual_cells()
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw.jld2")
+    ppsth = JLD2.load(fname, "ppsth")
+    tlabel = JLD2.load(fname, "labels")
+    periods = [(-300.0, 0.0), # baseline
+               (0.0, 300.0) # target presentation
+               ]
+    classify_cell(ppsth.counts, ppsth.bins, tlabel, periods)
+end
+
+function classify_movement_cells()
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw.jld2")
+    ppsth = JLD2.load(fname, "ppsth")
+    tlabel = JLD2.load(fname, "labels")
+    periods = [(-500.0, -300.0), # baseline
+               (0.0, 300.0) # target presentation
+               ]
+    classify_cell(ppsth.counts, ppsth.bins, tlabel, periods)
+end
+
+function classify_visual_and_movement_cells()
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw.jld2")
+    ppsth_mov = JLD2.load(fname, "ppsth")
+    tlabel_mov = JLD2.load(fname, "labels")
+
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw.jld2")
+    ppsth_visual = JLD2.load(fname, "ppsth")
+    tlabel_visual = JLD2.load(fname, "labels")
+
+    common_cells = intersect(ppsth_mov.cellnames, ppsth_visual.cellnames)
+    cellidx_mov = findall(in(common_cells), ppsth_mov.cellnames)
+    cellidx_visual = findall(in(common_cells), ppsth_visual.cellnames)
+
+    periods_mov = [(-300.0, -50.0), # baseline
+               (0.0, 300.0) # movement period
+               ]
+    periods_visual = [(-300.0, 0.0), # baseline
+               (0.0, 300.0) # target presentation
+               ]
+
+    is_responsive_mov, is_selective_mov = classify_cell(ppsth_mov.counts[:,:,cellidx_mov], ppsth_mov.bins, tlabel_mov[cellidx_mov], periods_mov)
+    is_responsive_visual, is_selective_visual = classify_cell(ppsth_visual.counts[:,:,cellidx_visual], ppsth_visual.bins, tlabel_visual[cellidx_visual], periods_visual)
+    (mov = (is_selective=is_selective_mov, is_responsive=is_responsive_mov),
+    visual = (is_selective=is_selective_visual, is_responsive=is_responsive_visual), cellnames=common_cells)
+end
+
+function classify_cell(X::AbstractArray{T,3}, bins, label::Vector{Vector{Int64}}, periods, args...;kvs...) where T <: Real
+    nbins, ntrials,ncells = size(X)
+    is_responsive = fill(false, length(periods)-1, ncells)
+    is_selective = fill(false, length(periods)-1, ncells)
+    for i in axes(X,3)
+        _label = label[i]
+        nt = length(_label)
+        is_responsive[:,i], is_selective[:,i] = classify_cell(X[:,1:nt,i], bins, _label, periods, args...)
+    end
+    is_responsive, is_selective
+end
+
+function test_classify_cell()
+    nt = 20
+    nbins = 3
+    X = fill(0.0, nbins, nt)
+    label = rand(1:2, nt)
+    n1 = sum(label.==1)
+    n2 = sum(label.==2)
+    X[1,:] .= 0.1*randn(nt)
+    X[2,label.==1] .= 1.0 .+ 0.1*randn(n1)
+    X[2,label.==2] .= 0.5 .+ 0.1*randn(n2)
+    X[3,label.==1] .= 0.5 .+ 0.1*randn(n1)
+    X[3,label.==2] .= 1.0 .+ 0.1*randn(n2)
+    is_responsive, is_selective = classify_cell(X, [0,1,2], label, [(0,1),(1,2), (2,3)])
+    @show is_responsive is_selective
+    @assert is_responsive == [true, true]
+    @assert is_selective == [true, true]
+end
+
 function plot_fef_cell(cellidx::Int64,args...;kvs...)
     height = 5.0*72
     if get(Dict(kvs), :show_target, false)
