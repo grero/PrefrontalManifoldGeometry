@@ -147,6 +147,29 @@ function test_classify_cell()
     @assert is_selective == [true, true]
 end
 
+function plot_cell_classification()
+    responsive_and_selective = Figure2.classify_visual_and_movement_cells()
+    non_responsive = findall((!).(responsive_and_selective.mov.is_responsive[1,:]).*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_non_responsive = length(non_responsive)
+    visual_only = findall(responsive_and_selective.visual.is_responsive[1,:].*((!).(responsive_and_selective.mov.is_responsive[1,:])))
+    n_visual_only = length(visual_only)
+    movement_only = findall(responsive_and_selective.mov.is_responsive[1,:].*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_movement_only = length(movement_only)
+    visuomovement = findall(responsive_and_selective.visual.is_responsive[1,:].*responsive_and_selective.mov.is_responsive[1,:])
+    n_visuomovement = length(visuomovement)
+
+    with_theme(plot_theme) do
+        fig = Figure()
+        ax = Axis(fig[1,1], autolimitaspect=1.0)
+        hidespines!(ax)
+        hidedecorations!(ax)
+        plt = pie!(ax, [n_non_responsive, n_visual_only, n_movement_only, n_visuomovement],
+                        color=Makie.wong_colors()[1:4])
+        # TODO: Add labels
+        fig
+    end
+end
+
 function plot_fef_cell(cellidx::Int64,args...;kvs...)
     height = 5.0*72
     if get(Dict(kvs), :show_target, false)
