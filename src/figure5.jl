@@ -259,7 +259,8 @@ function plot_microstimulation_figure!(figlg)
 		ax6.yticklabelsvisible = false
 		ax6.leftspinevisible = false
 		ax6.xticksvisible = true
-		ax6.xlabel = "% of trials"
+		ax6.yticksvisible = false
+		ax6.xlabel = "pdf"
 		# kind of fudgy
 		binsize = rt_cutoff - minimum(rtime_stim_mid[rtidx_stim_mid])
 		binsize /= 1.0
@@ -267,22 +268,34 @@ function plot_microstimulation_figure!(figlg)
 		firstbin = minimum(minimum.([rtime_stim_mid[rtidx_stim_mid],rtime_stim_early[rtidx_stim_early], rtime_nostim[rtidx_nostim]]))
 		lastbin = maximum(maximum.([rtime_stim_mid[rtidx_stim_mid],rtime_stim_early[rtidx_stim_early], rtime_nostim[rtidx_nostim]]))
 		bins = range(firstbin-binsize, stop=lastbin, step=binsize)
-		h1 = StatsBase.fit(Histogram, rtime_nostim[rtidx_nostim], bins, closed=:left)
-		h2 = StatsBase.fit(Histogram, rtime_stim_early[rtidx_stim_early], bins, closed=:left)
-		h3 = StatsBase.fit(Histogram, rtime_stim_mid[rtidx_stim_mid], bins, closed=:left)	
+		_fname = joinpath(@__DIR__, "..", "data","figure5_bimodel_analysis.jld2")
+		model_results = JLD2.load(_fname)
+		model = model_results["model"]
+		_colors = [RGB(0.8, 0.8, 0.8);Makie.wong_colors()[3:4]]
+		for (cc, (ll,x)) in enumerate(zip(["nostim", "early","mid"],[rtime_nostim[rtidx_nostim], rtime_stim_early[rtidx_stim_early],rtime_stim_mid[rtidx_stim_mid]]))
+			best_model = model[ll]
+			_color = _colors[cc] 
+			xs = sort(x)
+			Δ = diff(xs)
+			push!(Δ, mean(Δ))
+			prob = pdf(best_model, xs)
+			prob ./= sum(prob.*Δ)
+			lines!(ax6, prob, xs, color=_color,linewidth=2.0)
+			#plot_modal_analysis!(ax6, best_model, x, _color)
+		end
+		ax6.yticksvisible = false
+		#h1 = StatsBase.fit(Histogram, rtime_nostim[rtidx_nostim], bins, closed=:left)
+		#h2 = StatsBase.fit(Histogram, rtime_stim_early[rtidx_stim_early], bins, closed=:left)
+		#h3 = StatsBase.fit(Histogram, rtime_stim_mid[rtidx_stim_mid], bins, closed=:left)	
 
-		#barplot!(ax6, h1.edges[1][1:end-1], 100*h1.weights/sum(h1.weights), color=RGB(0.8, 0.8, 0.8),width=binsize, gap=0.0, direction=:x)
-		stairs!(ax6, 100*h1.weights/sum(h1.weights), h1.edges[1][1:end-1], color=RGB(0.8, 0.8, 0.8))
 		for _ax in [ax1, ax6]
 			@show median(rtime_nostim[rtidx_nostim])
 			hlines!(_ax, median(rtime_nostim[rtidx_nostim]), color=RGB(0.8, 0.8, 0.8))
 		end
-		stairs!(ax6, 100*h2.weights/sum(h2.weights), h2.edges[1][1:end-1], color=plot_colors[3])
 		for _ax in [ax2, ax6]
 			@show median(rtime_stim_early[rtidx_stim_early])
 			hlines!(_ax, median(rtime_stim_early[rtidx_stim_early]), color=plot_colors[3])
 		end
-		stairs!(ax6, 100*h3.weights/sum(h3.weights), h3.edges[1][1:end-1], color=plot_colors[4])
 		for _ax in [ax3, ax6]
 			@show median(rtime_stim_mid[rtidx_stim_mid])
 			hlines!(_ax, median(rtime_stim_mid[rtidx_stim_mid]), color=plot_colors[4])
