@@ -177,7 +177,7 @@ function plot_fef_cell(cellname, cellidx::Int64, subject::String;kvs...)
     else
         width = 0.5*height
     end
-    fig = Figure(resolution=(width,height))
+    fig = Figure(size=(width,height))
     axes = Any[]
     for l in 1:nlocations
         lg = GridLayout()
@@ -401,7 +401,7 @@ function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float
     ulabel = unique(tlabels)
     nl = length(ulabel)
     height = nl*100 
-    fig = Figure(resolution=(1500,height))
+    fig = Figure(size=(1500,height))
     lg = GridLayout()
     fig[1,1] = lg
     plot_psth_and_raster!(lg, subject, cellidx, windowsize;suffix=suffix, kvs...)
@@ -493,7 +493,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
     ulabel = unique(tlabel)
     nl = length(ulabel)
     height = nl*500/4 
-    fig = Figure(resolution=(500,height))
+    fig = Figure(size=(500,height))
     lg = GridLayout()
     fig[1,1] = lg
     plot_psth_and_raster!(lg, X, bins, tlabel, rtime, windowsize;kvs...)
@@ -772,7 +772,7 @@ end
 
 function plot_event_onset_subspaces(fname_cue, fname_mov;width=700, height=400, kvs...)
     with_theme(plot_theme) do
-        fig = Figure(resolution=(width,height))
+        fig = Figure(size=(width,height))
         lg = GridLayout()
         fig[1,1] = lg
         plot_data = plot_event_onset_subspaces!(lg, fname_cue, fname_mov;kvs...)
@@ -781,7 +781,7 @@ function plot_event_onset_subspaces(fname_cue, fname_mov;width=700, height=400, 
 end
 
 function plot_performance(f1score::Array{Float64,3},args...;kvs...)
-    fig = Figure(resolution=(500,300))
+    fig = Figure(size=(500,300))
     plot_performance!(fig, f1score, args...;kvs...)
     fig
 end
@@ -932,7 +932,7 @@ function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500,
         JLD2.save(fname, Dict("plot_data"=>plot_data, "plot_data_reg"=>plot_data_reg))
     end
     with_theme(plot_theme) do
-        fig = Figure(resolution=(width,height))
+        fig = Figure(size=(width,height))
         lg0 = GridLayout()
         fig[1,1] = lg0
         axes = [Axis(lg0[1,i]) for i in 1:2]
@@ -1051,7 +1051,7 @@ function plot_single_cell_examples(cells::Vector{Tuple{String, Int64}}, windowsi
     width = 15*2.5*72
     height = width
     with_theme(plot_theme) do
-        fig = Figure(resolution=(width,height))
+        fig = Figure(size=(width,height))
 
         # visual cells
         lg11 = GridLayout()
