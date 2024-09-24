@@ -45,7 +45,10 @@ end
 
 Plot all locations for the specified cell
 """
-function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
+function plot_fef_cell(cellname, cellidx::Int64, subject::String;kvs...)
+    if cellname !== nothing
+        subject = DPHT.get_level_name("subject",cellname)
+    end
     nlocations = length(locations[subject])
     height = 25.0*72
     if get(Dict(kvs), :show_target, false)
@@ -65,7 +68,7 @@ function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
             xticklabelsvisible = true 
             xlabelvisible = true
         end
-        ax = plot_fef_cell!(lg, cellidx, subject, collect(locations[subject][l:l]);xticklabelsvisible=xticklabelsvisible, xlabelvisible=xlabelvisible,kvs...)
+        ax = plot_fef_cell!(lg, cellname, cellidx, subject, collect(locations[subject][l:l]);xticklabelsvisible=xticklabelsvisible, xlabelvisible=xlabelvisible,kvs...)
         if ax === nothing
             return nothing
         end
@@ -107,7 +110,7 @@ function get_cell_data(alignment::String, args...;suffix="", kvs...)
     get_cell_data(ppsth, trialidx, tlabel, rtimes, args...;kvs...)
 end
 
-function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
+function plot_fef_cell!(fig, cellname::Union{Nothing,String}, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="",yticklabelsize=14)
     #TODO: Plot all PSTH in one panel, with the raster per location stacked below
     #movement aligned
@@ -135,20 +138,28 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     tlabelt = JLD2.load(fnamet, "labels")
     binst = ppstht.bins
 
-    subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsths.cellnames)
-    if cellidx > length(subject_idx)
-        return nothing
-    end
-    cellidx = subject_idx[cellidx]
-    @assert ppsths.cellnames == ppsthc.cellnames
-    # we have more cells for target aligned, so grab the subset that is also in ppsthc
-    cellidxt = findfirst(ppstht.cellnames.==ppsthc.cellnames[cellidx])
-    @assert trialidxs[cellidx] == trialidxc[cellidx]
+    if cellname === nothing
+        subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsths.cellnames)
+        if cellidx > length(subject_idx)
+            return nothing
+        end
+        cellidx = subject_idx[cellidx]
+        @assert ppsths.cellnames == ppsthc.cellnames
+        # we have more cells for target aligned, so grab the subset that is also in ppsthc
+        cellidxt = findfirst(ppstht.cellnames.==ppsthc.cellnames[cellidx])
+        @assert trialidxs[cellidx] == trialidxc[cellidx]
 
-    @assert length(trialidxt[cellidxt]) >= length(trialidxc[cellidx])
-    ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
-    @assert trialidxt[cellidxt][ttidx] == trialidxc[cellidx]
-    session = DPHT.get_level_path("session", ppsths.cellnames[cellidx])
+        @assert length(trialidxt[cellidxt]) >= length(trialidxc[cellidx])
+        ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
+        @assert trialidxt[cellidxt][ttidx] == trialidxc[cellidx]
+        session = DPHT.get_level_path("session", ppsths.cellnames[cellidx])
+    else
+        session = DPHT.get_level_path("session", cellname)
+        subject = DPHT.get_level_path("subject", cellname)
+        cellidxt = findfirst(ppstht.cellnames.==cellname)
+        cellidx = findfirst(ppsths.cellnames.==cellname)
+        ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
+    end
 
     _rtimes = rtimess[session][trialidxs[cellidx]]
     rtidx = findall(rtime_min .< _rtimes .< rtime_max)
