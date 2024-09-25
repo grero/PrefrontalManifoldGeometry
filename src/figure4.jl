@@ -818,7 +818,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		rowsize!(fig.layout, 1, Relative(0.8))
 		colgap!(fig.layout, 1, 10.0)
 		rowgap!(fig.layout, 1, 1.0)
-		fname = joinpath(@_DIR__, "..", "figures","manuscript","toy_model_figure.png")
+		fname = joinpath(@__DIR__, "..", "figures","manuscript","toy_model_figure.png")
         if do_save
             save(fname,fig;px_per_unit=8)
         end
