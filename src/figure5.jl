@@ -494,7 +494,7 @@ function plot_bimodal_analysis(;redo=false, nruns=100)
 	rtime_mid = _sdata_mid["rtime_stim"][classified_saccades_mid.rtidx.stim]
 	rtime_nostim = [_sdata_early["rtime_nostim"][classified_saccades_early.rtidx.nostim];_sdata_mid["rtime_nostim"][classified_saccades_mid.rtidx.nostim]]
 
-	fname = joinpath("data","figure5_bimodel_analysis.jld2")
+	fname = joinpath(@__DIR__, "data","figure5_bimodel_analysis.jld2")
 	if !redo && isfile(fname)
 		model_bic, n_modes, mode_assignment, model_converged,model,loglike,loglike_nostim = JLD2.load(fname, "model_bic",
 																			    "n_modes",

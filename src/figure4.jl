@@ -520,7 +520,7 @@ function plot_schematic()
 end
 
 function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do_interpolation=false, use_new_path_length=true, use_new_speed=true, use_midpoint=false, 
-                curve_data_file="data/manifold_curves_2d.jld2", show_residual_plots=true, kvs...)
+                curve_data_file=joinpath(@__DIR__, "..", "data","manifold_curves_2d.jld2"), show_residual_plots=true, kvs...)
     RNG = StableRNG(UInt32(1234))
 	Xe = [7.0, -13.0]
 	results = run_model(;redo=redo,σ²0=0.3,τ=30.0,σ²n=0.0,nd=ncells["W"],
@@ -818,7 +818,7 @@ function plot(;redo=false, width=700,height=700, do_save=true,h0=one(UInt32), do
 		rowsize!(fig.layout, 1, Relative(0.8))
 		colgap!(fig.layout, 1, 10.0)
 		rowgap!(fig.layout, 1, 1.0)
-		fname = joinpath("figures","manuscript","toy_model_figure.png")
+		fname = joinpath(@_DIR__, "..", "figures","manuscript","toy_model_figure.png")
         if do_save
             save(fname,fig;px_per_unit=8)
         end
