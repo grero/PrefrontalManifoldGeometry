@@ -193,9 +193,9 @@ function plot_cell_class_contribution()
     visuomovement = findall(responsive_and_selective.visual.is_responsive[1,:].*responsive_and_selective.mov.is_responsive[1,:])
     n_visuomovement = length(visuomovement)
 
+    celltype = [:non_responsive, :visual_only, :movement_only, :visuomovement]
     celltypeidx = Dict(:non_responsive=>non_responsive, :visual_only=>visual_only, 
                     :movement_only=>movement_only, :visuomovement=>visuomovement)
-    celltype = collect(keys(celltypeidx))
     # get the weights
     fname_cue, fname_mov = get_event_subspaces(;nruns=100)
     aww = Dict()
