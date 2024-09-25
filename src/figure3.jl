@@ -712,9 +712,9 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             end
             if "trialix" in keys(qdata)
                 _trialidx = qdata["trialidx"]
-                βfef,Δβfef,pvfef,r²fef,varidx, residuals = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
+                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
             else
-                βfef,Δβfef,pvfef,r²fef,varidx, _trialidx, residuals = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
+                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals, _trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
                 qdata["trialidx"] = _trialidx
             end
             qdata[area]["β"] = βfef
