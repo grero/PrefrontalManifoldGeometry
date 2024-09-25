@@ -1541,7 +1541,7 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
     for ii in 1:length(varnames)
        # _β,_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars[[1,ii+1]]...;exclude_pairs=exclude_pairs,save_all_β=true)
        # β0[:,ii] = _β
-        β0[2,ii] = mean(vars[1] .- β[ii].*vars[ii+1])
+        β0[2,ii] = mean(vars[1][trialidx] .- β[ii].*vars[ii+1][trialidx])
     end
     # now plot
     la = lowercase(area)
