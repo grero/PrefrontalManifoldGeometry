@@ -422,7 +422,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
             X_with_L = [L[trialidx[_tidx],i] X_no_L]
             p1 = length(lreg_no_L.β)
             rss1 = lreg_no_L.rss
-            residuals[:,i] = lreg_no_L.residual
+            residuals[1:length(lreg_no_L.residual),i] .= lreg_no_L.residual
             if use_residuals
                 y = lreg_no_L.residual
                 X_with_L = L[trialidx[_tidx],i:i] 
