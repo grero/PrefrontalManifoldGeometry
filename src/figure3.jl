@@ -1288,17 +1288,18 @@ function plot_individual_trials(subject::String, ;kvs...)
     end
 end
 
-function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, speedvar::Symbol=:SM, plot_joint=true, kvs...)
+function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, speedvar::Symbol=:SM, plot_joint=true, nruns=100, kvs...)
     tasks = @sync begin
-        _qdataz = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], progress_offset=0, kvs...)
-        _qdatal = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], progress_offset=1, kvs...)
-        _qdatass = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], progress_offset=2, kvs...)
+        #progs = [Progress(nruns, 1.0, "Regressing...";offset=i) for i in 1:7]
+        _qdataz = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], progress_offset=1, kvs...)
+        _qdatal = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], progress_offset=2, kvs...)
+        _qdatass = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], progress_offset=3, kvs...)
 
-        _qdatalz = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], progress_offset=3, kvs...)
-        _qdatazss = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=4, kvs...)
-        _qdataplss = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], progress_offset=5, kvs...)
+        _qdatalz = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], progress_offset=4, kvs...)
+        _qdatazss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=5, kvs...)
+        _qdataplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], progress_offset=6, kvs...)
 
-        _qdatazplss = @spawn compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=6, kvs...)
+        _qdatazplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=7, kvs...)
         [_qdataz, _qdatal, _qdatass, _qdatalz, _qdatazss, _qdataplss, _qdatazplss]
     end
     qdataz, qdatal, qdatass, qdatalz, qdatazss, qdataplss, qdatazplss = fetch.(tasks)
