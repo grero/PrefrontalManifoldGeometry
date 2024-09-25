@@ -1454,7 +1454,7 @@ function test_hiearchical_dependence()
     1.0 - cdf(FDist(p2-p1, n-p2), F[1])
 end
 
-function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};plotlabel::Union{Vector{String},Nothing}=nothing, β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
+function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};plotlabel::Union{Vector{String},Nothing}=nothing, β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, logscale::Vector{Symbol}=Symbol[], kvs...)
 
     vnames = Dict(:Z=>"MP", :L => "PL", :SM=>"AS")
     ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
@@ -1486,7 +1486,11 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
                 push!(use_varnames, :ncells)
             end
         else
-            push!(vars, allvars[vv])
+            if vv in logscale
+                push!(vars, log.(allvars[vv]))
+            else
+                push!(vars, allvars[vv])
+            end
             push!(use_varnames, vv)
         end
     end
@@ -1519,12 +1523,16 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
     linkyaxes!(axes...)
     for (ii,ax) in enumerate(axes)
         _tidx = sort(shuffle(1:length(trialidx))[1:min(npoints,length(trialidx))])
-        scatter!(ax,  vars[1+ii][trialidx[_tidx],1], vars[1][trialidx[_tidx]],color=acolor,markersize=5px)
-        ax.xlabel = vnames[varnames[ii]]
+        vn = varnames[ii]
+        yy = vars[1+ii][trialidx[_tidx],1]
+        fidx = findall(isfinite, yy)
+        _rt = vars[1][trialidx][_tidx][fidx]
+        scatter!(ax,  yy[fidx], _rt,color=acolor,markersize=5px)
+        ax.xlabel = vnames[vn]
         ax.xlabelvisible = xlabelvisible
-        # this is hard to interpret without the context of the other variables, so
-        # we probably don't want to show them
-        ablines!(ax, β0[end,ii], β[ii],color=:black)
+        # slightly hackish
+        _β0 = mean(_rt - β[ii]*yy)
+        ablines!(ax, _β0, β[ii],color=:black)
     end
     for ax in axes[2:end]
         ax.yticklabelsvisible = false
