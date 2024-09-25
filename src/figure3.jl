@@ -394,6 +394,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         sidx = trialidx
     end
     varidx = nothing
+    # loop over bins
     for i in axes(L,2) 
         _tidx = 1:length(trialidx)
         do_skip = false
