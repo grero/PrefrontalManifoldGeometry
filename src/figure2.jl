@@ -232,7 +232,6 @@ function plot_cell_class_contribution()
         for (i,q1) in enumerate(celltype[1:end-1])
             for (j,q2) in enumerate(celltype[i+1:end])
                 _hh = MannWhitneyUTest(aww[ll][celltypeidx[q1],:][:], aww[ll][celltypeidx[q2],:][:])
-                @show q1 q2 pvalue(_hh)
             end
         end
 
@@ -243,7 +242,10 @@ function plot_cell_class_contribution()
                 _max_values[jj,r] = maximum(_aww[celltypeidx[k],r])
             end
         end
+        l = [percentile(_max_values[jj,:], 5) for jj in axes(_max_values,1)]
+        u = [percentile(_max_values[jj,:], 95) for jj in axes(_max_values,1)]
         max_values[ll] = _max_values
+        @show ll l u
     end
     colors = Makie.wong_colors()[1:4]
     with_theme(plot_theme) do
