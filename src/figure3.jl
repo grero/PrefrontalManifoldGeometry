@@ -1742,7 +1742,7 @@ function plot_joint_regression(;kvs...)
 end 
 
 function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=true)
-    fname = "joint_regression_subjec_$(subject).jld2"
+    fname = joinpath(@__DIR__,"..", "joint_regression_subjec_$(subject).jld2")
     if !redo && isfile(fname)
         r², r²s = JLD2.load(fname, "r²", "r²s") 
     else
