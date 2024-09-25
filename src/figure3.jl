@@ -508,7 +508,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, logscale::Vector{Symbol}=Symbol[], recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, code_version=1, use_trialidx::Union{Matrix{Int64},Nothing}=nothing, areas=["fef","dlpfc"],storepatch=true, progress_offset=0, lock::Union{Nothing, Base.Threads.ReentrantLock}=nothing,prog=nothing, kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     input_args = Dict{String,Any}()
@@ -559,6 +559,13 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         q = crc32c(string((:tmin=>tmin)),q)
     end
     input_args["tmin"] = tmin
+    # check if there is overlap between logscale and requested variables
+    if !isempty(intersect(logscale, varnames))
+        q = crc32c(string((:loscale=>logscale)),q)
+        use_log = true
+    end
+    input_args["logscale"] = logscale 
+
     if use_log
         q = crc32c(string((:use_log=>true)),q)
     end
@@ -581,6 +588,15 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         q = crc32c(string(:use_new_energy_point_algo=>true),q)
     end
     input_args["use_new_energy_point_algo"] = use_new_energy_point_algo 
+    #FIXME: Hack to create a new version with the same arguments
+    # We should do with with git hash insted
+    if code_version != 1
+        q = crc32c(string(:use_new_energy_point_algo=>code_version),q)
+    end
+    if use_trialidx !== nothing
+        q = crc32c(string(:use_trialidx_sum=>sum(use_trialidx)),q)
+    end
+    input_args["trialidx"] = use_trialidx
 
     for k in kvs
         if !(k[1] == :t1 && k[2] == 0.0)
@@ -598,10 +614,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         qdata = JLD2.load(fname)
     else
         # apply git-tag
-        tag!(input_args)
+        tag!(input_args,storepatch=storepatch)
         qdata = Dict()
+        qdata["trialidx"] = use_trialidx
         bins = Float64[]
-        for area in ["fef","dlpfc"]
+        for area in areas
             qdata[area] = Dict()
             Za = Vector{Matrix{Float64}}(undef, length(subjects))
             La = Vector{Matrix{Float64}}(undef, length(subjects))
@@ -677,7 +694,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             vars = Any[lrt]
             use_varnames = Symbol[]
             for vv in varnames
-                vk = allvars[vv]
+                if vv in logscale 
+                    vk = log.(allvars[vv])
+                else
+                    vk = allvars[vv]
+                end
                 if length(unique(vk)) > 1
                     push!(vars,vk) 
                     push!(use_varnames, vv)
@@ -733,7 +754,10 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             r² = qdata[area]["r²"]
             β_S = fill(0.0, size(β)...)
             r²_S = fill(0.0, size(r²)...)
-            @showprogress for r in 1:nruns
+            if prog === nothing
+                prog = Progress(nruns, 1.0, "Regressing surrogates...";offset=progress_offset)
+            end
+            for r in 1:nruns
                 for (ss, subject) in enumerate(subjects)
                     _Z,_L,_EE, _MM, _SS, _FL, _SM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, use_new_energy_point_algo=use_new_energy_point_algo,tmin=tmin, tmax=tmax, kvs...);
                     if subject == "J"
@@ -778,7 +802,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
 
                 vars = Any[lrt]
                 for vv in use_varnames
-                    push!(vars, allvars[vv])
+                    if vv in logscale
+                        push!(vars, log.(allvars[vv]))
+                    else
+                        push!(vars, allvars[vv])
+                    end
                 end
                 if use_residuals
                     _β,_,_,_r²,_ = compute_regression(residuals, vars[2];exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
@@ -787,6 +815,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
                 end
                 β_S[:,:,r] .= _β
                 r²_S[:,r] .= _r²
+                next!(prog)
             end
             qdata[area]["β_shuffle"]=β_S
             qdata[area]["r²_shuffled"]=r²_S
