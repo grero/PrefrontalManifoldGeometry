@@ -9,6 +9,7 @@ using CRC32c
 using Colors
 using ColorSchemes
 using StatsBase
+using HypothesisTests
 const DPHT = DataProcessingHierarchyTools
 
 using ..Regression
@@ -176,6 +177,88 @@ function plot_cell_classification()
             y = r*sin(θi)
             text!(ax, li, position=(x,y),align=(:center, :center))
         end
+        fig
+    end
+end
+
+function plot_cell_class_contribution()
+    responsive_and_selective = classify_visual_and_movement_cells()
+    ncells = length(responsive_and_selective.cellnames)
+    non_responsive = findall((!).(responsive_and_selective.mov.is_responsive[1,:]).*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_non_responsive = length(non_responsive)
+    visual_only = findall(responsive_and_selective.visual.is_responsive[1,:].*((!).(responsive_and_selective.mov.is_responsive[1,:])))
+    n_visual_only = length(visual_only)
+    movement_only = findall(responsive_and_selective.mov.is_responsive[1,:].*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_movement_only = length(movement_only)
+    visuomovement = findall(responsive_and_selective.visual.is_responsive[1,:].*responsive_and_selective.mov.is_responsive[1,:])
+    n_visuomovement = length(visuomovement)
+
+    celltypeidx = Dict(:non_responsive=>non_responsive, :visual_only=>visual_only, 
+                    :movement_only=>movement_only, :visuomovement=>visuomovement)
+    celltype = collect(keys(celltypeidx))
+    # get the weights
+    fname_cue, fname_mov = get_event_subspaces(;nruns=100)
+    aww = Dict()
+    m = Dict()
+    xx = Dict()
+    yy = Dict()
+    for (ll,fname,latency,window) in zip(["cue","mov"], [fname_cue, fname_mov],[40.0, 0.0], [15.0, 35.0])
+        weights,latencies, windows = h5open(fname) do fid
+            read(fid,"weights"), read(fid, "latency"), read(fid,"window")
+        end
+        @assert size(weights,1) == size(responsive_and_selective.mov.is_responsive,2)
+        lidx = searchsortedfirst(latencies, latency, rev=true)
+        widx = searchsortedfirst(windows, window)
+
+        ww = weights[:,1,widx,lidx,1,:]
+        aww[ll] = abs.(ww)
+        l,m[ll],u = [fill(0.0, ncells) for i in 1:3]
+        for i in axes(l,1)
+            l[i],m[ll][i],u[i] = percentile(abs.(ww[i,:]), [5,50,95])
+        end
+        _ncells,nruns = size(ww)
+        _non_responsive = sort(non_responsive, by=ii->m[ll][ii])
+        _visual_only = sort(visual_only, by=ii->m[ll][ii])
+        _movement_only = sort(movement_only, by=ii->m[ll][ii])
+        _visuomovement = sort(visuomovement, by=ii->m[ll][ii])
+        sidx = [_non_responsive; _visual_only;_movement_only;_visuomovement]
+        m[ll] = m[ll][sidx]
+        xx[ll] = [fill(1, n_non_responsive*nruns);fill(2, n_visual_only*nruns);fill(3, n_movement_only*nruns);fill(4, n_visuomovement*nruns)]
+        yy[ll] = [ww[_non_responsive,:][:];ww[_visual_only,:][:];ww[_movement_only,:][:];ww[_visuomovement,:][:]]
+        hh = KruskalWallisTest([aww[ll][celltypeidx[q],:][:] for q in celltype]...)
+        @show hh
+        # pairwise comparisons
+        for (i,q1) in enumerate(celltype[1:end-1])
+            for (j,q2) in enumerate(celltype[i+1:end])
+                _hh = MannWhitneyUTest(aww[ll][celltypeidx[q1],:][:], aww[ll][celltypeidx[q2],:][:])
+                @show q1 q2 pvalue(_hh)
+            end
+        end
+    end
+    colors = Makie.wong_colors()[1:4]
+    with_theme(plot_theme) do
+        fig = Figure(size=(600,700))
+        lgs = [GridLayout(fig[1,i]) for i in 1:2]
+        for (lg,ll) in zip(lgs, ["cue","mov"])
+            ax = Axis(lg[1,1])
+            rainclouds!(ax, xx[ll], yy[ll];color=colors[xx[ll]])
+            ax.xticks = (1:4, ["non-responsive", "visual only", "movement only","visuomovement"])
+            ax.xticklabelrotation=-π/6
+            ax2 = Axis(lg[2,1]) 
+            _colors = [fill(colors[1],n_non_responsive);
+                    fill(colors[2], n_visual_only);
+                    fill(colors[3], n_movement_only);
+                    fill(colors[4], n_visuomovement);]
+            barplot!(ax2, 1:ncells, m[ll], color=_colors)
+            if ll == "cue"
+                ax.ylabel = "Decoder weight" 
+                ax2.ylabel = "Absolute decoder weight"
+            end
+            ax2.xlabel = "Cell index"
+            #rangebars!(ax2, 1:ncells, l[sidx],u[sidx])
+        end
+        label = [Label(fig[0,1], "Go-cue aligned", tellwidth=false),
+                 Label(fig[0,2], "Movement aligned", tellwidth=false)]
         fig
     end
 end
