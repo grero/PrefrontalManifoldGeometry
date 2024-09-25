@@ -202,6 +202,7 @@ function plot_cell_class_contribution()
     m = Dict()
     xx = Dict()
     yy = Dict()
+    max_values = Dict()
     for (ll,fname,latency,window) in zip(["cue","mov"], [fname_cue, fname_mov],[40.0, 0.0], [15.0, 35.0])
         weights,latencies, windows = h5open(fname) do fid
             read(fid,"weights"), read(fid, "latency"), read(fid,"window")
@@ -234,6 +235,15 @@ function plot_cell_class_contribution()
                 @show q1 q2 pvalue(_hh)
             end
         end
+
+        _aww = aww[ll]
+        _max_values = fill(0.0, length(celltype),nruns)
+        for r in 1:nruns
+            for (jj,k) in enumerate(celltype)
+                _max_values[jj,r] = maximum(_aww[celltypeidx[k],r])
+            end
+        end
+        max_values[ll] = _max_values
     end
     colors = Makie.wong_colors()[1:4]
     with_theme(plot_theme) do
@@ -242,20 +252,28 @@ function plot_cell_class_contribution()
         for (lg,ll) in zip(lgs, ["cue","mov"])
             ax = Axis(lg[1,1])
             rainclouds!(ax, xx[ll], yy[ll];color=colors[xx[ll]])
-            ax.xticks = (1:4, ["non-responsive", "visual only", "movement only","visuomovement"])
-            ax.xticklabelrotation=-π/6
-            ax2 = Axis(lg[2,1]) 
+            ax.xticklabelsvisible = false
+            ax2 = Axis(lg[3,1]) 
             _colors = [fill(colors[1],n_non_responsive);
                     fill(colors[2], n_visual_only);
                     fill(colors[3], n_movement_only);
                     fill(colors[4], n_visuomovement);]
             barplot!(ax2, 1:ncells, m[ll], color=_colors)
+            ax2.xlabel = "Cell index"
+            #rangebars!(ax2, 1:ncells, l[sidx],u[sidx])
+            ax3 = Axis(lg[2,1])
+            ax3.xticks = (1:4, ["non-responsive", "visual only", "movement only","visuomovement"])
+            ax3.xticklabelrotation=-π/6
+            nruns = size(max_values[ll],2)
+            yyp = [max_values[ll][1,:];max_values[ll][2,:];max_values[ll][3,:];max_values[ll][4,:]]
+            xxp = [fill(1, nruns);fill(2,nruns);fill(3,nruns);fill(4,nruns)]
+            rainclouds!(ax3, xxp,yyp,color=colors[xxp])
             if ll == "cue"
                 ax.ylabel = "Decoder weight" 
                 ax2.ylabel = "Absolute decoder weight"
+                ax3.ylabel = "Maximum absolute weight"
             end
-            ax2.xlabel = "Cell index"
-            #rangebars!(ax2, 1:ncells, l[sidx],u[sidx])
+        
         end
         label = [Label(fig[0,1], "Go-cue aligned", tellwidth=false),
                  Label(fig[0,2], "Movement aligned", tellwidth=false)]
