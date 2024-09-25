@@ -315,22 +315,24 @@ end
 function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     nruns = size(trialidx,2)
     nt = size(args[1],1)
-    tidx = rand(1:nt,nt)
-    _β,_Δβ, _pv, _r²,varidx = compute_regression(args...;trialidx=trialidx[:,1],kvs...)
+    _β,_Δβ, _pv, _r²,rss, varidx,_res = compute_regression(args...;trialidx=trialidx[:,1],kvs...)
     nvars,nbins = size(_β)
     β = fill(0.0, nvars,nbins,nruns)
     Δβ = fill(0.0, nvars-1,nbins,nruns)
     pv = fill(0.0, nbins,nruns)
     r² = fill(0.0, nbins, nruns)
+    rss = fill(0.0, nbins, nruns)
+    res = fill(0.0, size(_res,1), size(_res,2), nruns)
+
     β[:,:,1] = _β
     Δβ[:,:,1] = _Δβ
     pv[:,1] = _pv
     r²[:,1] = _r² 
+    _res[:,:,1] = _res
     for i in 2:nruns
-        tidx = rand(1:nt,nt)
-        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],_,_ = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
+        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],rss[:,i], _,res[:,:,i] = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
     end
-    β,Δβ, pv, r²,varidx
+    β,Δβ, pv, r²,rss, varidx, res
 end
 
 # TODO: Does this work?
