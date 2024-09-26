@@ -195,7 +195,7 @@ function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,celli
     if mean_subtract
         X .-= mean(X, dims=(1,2))
     end
-	X, _label, rtime
+	X, ppsth.bins, _label, rtime
 end
 
 """
