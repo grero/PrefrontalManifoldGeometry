@@ -4,6 +4,7 @@ using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 using StatsBase
 using Distributions
+using JLD2
 
 export get_session_data, location_position, ContraLatera, IpsiLateral
 
