@@ -589,9 +589,26 @@ function plot_bimodal_analysis(;redo=false, nruns=100,plot_loglikelihood=false)
 				loglike[ll][r] = loglikelihood(gm, x)
 			end
 		end
+		midx = argmin(model_bic["early"])
+		m = n_modes["early"]
+		# bootstrap
+		_loglike1 = fill(0.0, nruns)
+		_loglike2 = fill(0.0, nruns)
+		for r in 1:nruns
+			# train on half, test on half
+			n = length(rttime_early)
+			ntrain = div(n,2)
+			tridx = shuffle(1:n)[1:ntrain]
+			testidx = setdiff(1:n, tridx)
+			gm,_ = fit(GammaMixture, rtime_nostim[tridx],m;niter=20_000)
+			_loglike1[r] = loglikelihood(gm, rtime_early[testidx]) 
+			testidx2 = shuffle(1:length(rtime_mid))[1:length(testidx)]
+			_loglike2[r] = loglikelihood(gm, rtime_mid[testidx2]) 
+		end
 		JLD2.save(fname, Dict("model_bic"=>model_bic, "n_modes"=>n_modes,"mode_assignment"=>mode_assignment,
 						     "model_converged"=>model_converged,"model"=>model,
-							 "loglike"=>loglike,"loglike_nostim"=>loglike_nostim))
+							 "loglike"=>loglike,"loglike_nostim"=>loglike_nostim,
+							 "loglike_early_early"=>_loglike1, "loglike_early_mid"=>_loglike2))
 	end
 
 	#limits
