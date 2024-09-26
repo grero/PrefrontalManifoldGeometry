@@ -1029,7 +1029,7 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
 end
 
 
-function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500, kvs...)
+function plot(;redo=false, do_save=false,max_latency=70.0, width=900, height=500, kvs...)
     fname = joinpath(@__DIR__, "..", "data","fig2_data.jld2")
     α = 0.001
     threshold = 0.5
