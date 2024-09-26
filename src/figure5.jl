@@ -626,7 +626,6 @@ function plot_bimodal_analysis(;redo=false, nruns=100)
 			if ll == "nostim"
 				ax1.ylabel = "Reaction time [ms]"
 			end
-			# TODO: Plot the distributions
 		end
 		fig
 	end
