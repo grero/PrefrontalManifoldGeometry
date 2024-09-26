@@ -241,19 +241,27 @@ function plot_microstimulation_figure!(figlg)
 	@assert !(n21 >= nqs[2,1])
 	@assert n12 >= nqs[1,2] # this should be the only significant result
 	@assert !(n22 >= nqs[2,2])
+
+	# modal analysis
+	_fname = joinpath(@__DIR__, "..", "data","figure5_bimodel_analysis.jld2")
+	model_results = JLD2.load(_fname)
+	model = model_results["model"]
+	model_bic = model_results["model_bic"]
+
     plot_colors = Makie.wong_colors()
+	stimcolors = [RGB(0.8, 0.8, 0.8);plot_colors[3:4]]
 	with_theme(theme_minimal()) do
 		ax1 = Axis(figlg[1,1])
 		ax1.title = "No stim"
 		ax1.yticksvisible = true
 		ax1.ylabel = "Reaction time [ms]"
-		scatter!(ax1, rand(sum(rtidx_nostim)), rtime_nostim[rtidx_nostim], color=RGB(0.8, 0.8, 0.8))
+		scatter!(ax1, rand(sum(rtidx_nostim)), rtime_nostim[rtidx_nostim], color=stimcolors[1])
 		ax2 = Axis(figlg[1,2])
 		ax2.title = "Early stim"
-		scatter!(ax2, rand(sum(rtidx_stim_early)), rtime_stim_early[rtidx_stim_early], color=Cycled(3))
+		scatter!(ax2, rand(sum(rtidx_stim_early)), rtime_stim_early[rtidx_stim_early], color=stimcolors[2])
 		ax3 = Axis(figlg[1,3])
 		ax3.title = "Late stim"
-		scatter!(ax3, rand(sum(rtidx_stim_mid)), rtime_stim_mid[rtidx_stim_mid], color=Cycled(4))
+		scatter!(ax3, rand(sum(rtidx_stim_mid)), rtime_stim_mid[rtidx_stim_mid], color=stimcolors[3])
 		# plot histogras
 		ax6 = Axis(figlg[1,4])
 		ax6.yticklabelsvisible = false
@@ -268,13 +276,10 @@ function plot_microstimulation_figure!(figlg)
 		firstbin = minimum(minimum.([rtime_stim_mid[rtidx_stim_mid],rtime_stim_early[rtidx_stim_early], rtime_nostim[rtidx_nostim]]))
 		lastbin = maximum(maximum.([rtime_stim_mid[rtidx_stim_mid],rtime_stim_early[rtidx_stim_early], rtime_nostim[rtidx_nostim]]))
 		bins = range(firstbin-binsize, stop=lastbin, step=binsize)
-		_fname = joinpath(@__DIR__, "..", "data","figure5_bimodel_analysis.jld2")
-		model_results = JLD2.load(_fname)
-		model = model_results["model"]
-		_colors = [RGB(0.8, 0.8, 0.8);Makie.wong_colors()[3:4]]
+
 		for (cc, (ll,x)) in enumerate(zip(["nostim", "early","mid"],[rtime_nostim[rtidx_nostim], rtime_stim_early[rtidx_stim_early],rtime_stim_mid[rtidx_stim_mid]]))
 			best_model = model[ll]
-			_color = _colors[cc] 
+			_color = stimcolors[cc] 
 			xs = sort(x)
 			Δ = diff(xs)
 			push!(Δ, mean(Δ))
