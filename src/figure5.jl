@@ -479,7 +479,38 @@ end
 
 GammaMixtures.posterior(g::Gamma,x) = pdf(g,x)
 
-function plot_bimodal_analysis(;redo=false, nruns=100)
+function plot_modal_analysis!(ax, model, x, color;q=0.7)
+	m = median(x)
+	xs = sort(x)
+	probs = component_pdf(model, xs)
+	# find the mode of each component
+	_mode = xs[[argmax(probs[:,i]) for i in axes(probs,2)]]
+
+	# color according to deivation from the global median
+	q = _mode .- m
+	if length(_mode) == 1
+		colors = [color]
+	elseif length(_mode) == 2
+
+	else
+	end
+	# if we only have one mode, this be the median
+
+	#rescale we want to scale from q*colo.r to 1-q *q+color.r
+	rmin,rmax = (0.7*color.r, 0.3 + 0.7*color.r)
+	r = (rmax-rmin)*(q .- minimum(q))./(maximum(q) - minimum(q)) .+ rmin 
+	gmin,gmax = (0.7*color.g, 0.3 + 0.7*color.g)
+	g = (gmax-gmin)*(q .- minimum(q))./(maximum(q) - minimum(q)) .+ gmin 
+	bmin,bmax = (0.7*color.b, 0.3 + 0.7*color.b)
+	b = (bmax-bmin)*(q .- minimum(q))./(maximum(q) - minimum(q)) .+ bmin 
+	colors = [RGB(_r, _g,_b) for (_r,_g,_b) in zip(r,g,b)]
+
+	for c in axes(probs,2)
+		lines!(ax, probs[:,c], xs,color=colors[c])
+	end
+end
+
+function plot_bimodal_analysis(;redo=false, nruns=100,plot_loglikelihood=false)
 
 	# load saccade data for sessions with early stimulations
     _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
@@ -581,17 +612,19 @@ function plot_bimodal_analysis(;redo=false, nruns=100)
 			best_bic, best_model_idx = findmin(model_bic[ll])
 			ax.xticks = ([1:2;],string.([3,2]))
 			ax.xlabel = "# modes"
-			if ll in ["early","mid"]
-				# also indicate the loglikehlihood
+			if plot_loglikelihood
 				ax2 = Axis(lg[2,1])
-				colsize!(lg, 1, Relative(0.8))
-				lower, mm,upper = percentile(loglike[ll],[5,50,95])
-				lower_ns, mm_ns,upper_ns = percentile(loglike_nostim[ll],[5,50,95])
-				barplot!(ax2, [1.0,2.0], [mm_ns, mm], color=[colors[1], cc])
-				rangebars!(ax2, [1.0, 2.0], [lower_ns, lower], [upper_ns, upper],color=:black)
-				ax2.ylabel = "Log-likelihood" 
-				ax2.xticksvisible = false
-				ax2.xticklabelsvisible = false
+				if ll in ["early","mid"]
+					# also indicate the loglikehlihood
+					colsize!(lg, 1, Relative(0.8))
+					lower, mm,upper = percentile(loglike[ll],[5,50,95])
+					lower_ns, mm_ns,upper_ns = percentile(loglike_nostim[ll],[5,50,95])
+					barplot!(ax2, [1.0,2.0], [mm_ns, mm], color=[colors[1], cc])
+					rangebars!(ax2, [1.0, 2.0], [lower_ns, lower], [upper_ns, upper],color=:black)
+					ax2.ylabel = "Log-likelihood" 
+					ax2.xticksvisible = false
+					ax2.xticklabelsvisible = false
+				end
 			end
 			ax.ylabel = "ΔBIC"
 		end
@@ -627,6 +660,8 @@ function plot_bimodal_analysis(;redo=false, nruns=100)
 				ax1.ylabel = "Reaction time [ms]"
 			end
 		end
+		# tweak the row size
+		rowsize!(fig.layout, 2, Relative(0.3))
 		fig
 	end
 end
