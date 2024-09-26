@@ -9,6 +9,7 @@ using CRC32c
 using Colors
 using ColorSchemes
 using StatsBase
+using Distributions
 using HypothesisTests
 const DPHT = DataProcessingHierarchyTools
 
