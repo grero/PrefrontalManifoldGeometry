@@ -469,12 +469,12 @@ function plot_fef_cell!(fig, cellname::Union{Nothing,String}, cellidx::Int64, su
             if ww !== nothing
                 if length(ww) == 1
                     for ax in [ax1, ax2]
-                        vspan!(ax, ww/1000.0, (ww .+ windowsize)./1000.0, color=RGB(0.8, 0.8, 1.0))
+                        vspan!(ax, ww, (ww .+ windowsize), color=RGB(0.8, 0.8, 1.0))
                     end
                 else
                     xx = cat([[w,w+windowsize] for w in ww[sidx]]...,dims=1)
                     yy = cat([[i,i] for i in 1:length(ww[sidx])]...,dims=1)
-                    linesegments!(ax2, xx./1000.0,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
+                    linesegments!(ax2, xx,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
                 end
             end
             vlines!(ax1, 0.0, color="black")
