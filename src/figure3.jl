@@ -103,18 +103,6 @@ function get_regression_data(subject;area="fef", align=:cue, raw=false, kvs...)
     get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;kvs...)
 end
 
-function load_data(subject::Union{String,Nothing}=nothing;area="fef",align=:cue, raw=false,parallel_read=true, kvs...)
-    if subject == "M"
-        # this is model data
-        fname = joinpath(@__DIR__, "..", "data","ppsth_model_cue.jld2")
-    elseif raw
-        fname = joinpath(@__DIR__, "..", "data","ppsth_$(area)_$(align)_raw.jld2")
-    else 
-        fname = joinpath(@__DIR__, "..", "data","ppsth_$(area)_$(align).jld2")
-    end
-    ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes";parallel_read=parallel_read)
-    return ppsth,tlabels,trialidx,rtimes
-end
 
 """
     get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,align=:mov, realign=true, raw=false, do_shuffle=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, kvs...)
