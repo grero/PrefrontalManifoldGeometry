@@ -235,6 +235,8 @@ function plot_microstimulation_figure!(figlg)
 	n12 = sum(_rt_mid .<= q1)
 	n21 = sum(_rt_early .>= q2)
 	n22 = sum(_rt_mid .>= q2)
+	# Why are we doing this? Because we are asking, if there really was no difference
+	# between early and mid, what would be the expected number of values below the 5th percentile.
 	nq = shuffle_stim_rtimes(_rt_early, _rt_mid, q1,q2)
 	nqs = mapslices(x->percentile(x,95), nq,dims=3)
 	@assert !(n11 >= nqs[1,1])
