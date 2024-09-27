@@ -1315,15 +1315,23 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
         _qdatal = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], progress_offset=2, kvs...)
         _qdatass = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], progress_offset=3, kvs...)
 
-        _qdatalz = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], progress_offset=4, kvs...)
-        _qdatazss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=5, kvs...)
-        _qdataplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], progress_offset=6, kvs...)
+        if plot_joint
+            _qdatalz = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], progress_offset=4, kvs...)
+            _qdatazss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=5, kvs...)
+            _qdataplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], progress_offset=6, kvs...)
 
-        _qdatazplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=7, kvs...)
-        [_qdataz, _qdatal, _qdatass, _qdatalz, _qdatazss, _qdataplss, _qdatazplss]
+            _qdatazplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=7, kvs...)
+            _tasks =  [_qdataz, _qdatal, _qdatass, _qdatalz, _qdatazss, _qdataplss, _qdatazplss]
+        else
+            _tasks = [_qdataz, _qdatal, _qdatass]
+        end
     end
-    qdataz, qdatal, qdatass, qdatalz, qdatazss, qdataplss, qdatazplss = fetch.(tasks)
-    bins = qdatazss["bins"]
+    if plot_joint
+        qdataz, qdatal, qdatass, qdatalz, qdatazss, qdataplss, qdatazplss = fetch.(tasks)
+    else
+        qdataz, qdatal, qdatass = fetch.(tasks)
+    end
+    bins = qdataz["bins"]
     bidx = searchsortedfirst(bins, t0)
 
     r² = Dict()
@@ -1340,14 +1348,16 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
         _r²z["PL"] = qdatal[area]["r²_shuffled"][bidx,:]
         _r²["AS"] = qdatass[area]["r²"][bidx,:]
         _r²z["AS"] = qdatass[area]["r²_shuffled"][bidx,:]
-        _r²["MP+PL"] = qdatalz[area]["r²"][bidx,:]
-        _r²z["MP+PL"] = qdatalz[area]["r²_shuffled"][bidx,:]
-        _r²["MP+AS"] = qdatazss[area]["r²"][bidx,:]
-        _r²z["MP+AS"] = qdatazss[area]["r²_shuffled"][bidx,:]
-        _r²["PL+AS"] = qdataplss[area]["r²"][bidx,:]
-        _r²z["PL+AS"] = qdataplss[area]["r²_shuffled"][bidx,:]
-        _r²["MP+PL+AS"] = qdatazplss[area]["r²"][bidx,:]
-        _r²z["MP+PL+AS"] = qdatazplss[area]["r²_shuffled"][bidx,:]
+        if plot_joint
+            _r²["MP+PL"] = qdatalz[area]["r²"][bidx,:]
+            _r²z["MP+PL"] = qdatalz[area]["r²_shuffled"][bidx,:]
+            _r²["MP+AS"] = qdatazss[area]["r²"][bidx,:]
+            _r²z["MP+AS"] = qdatazss[area]["r²_shuffled"][bidx,:]
+            _r²["PL+AS"] = qdataplss[area]["r²"][bidx,:]
+            _r²z["PL+AS"] = qdataplss[area]["r²_shuffled"][bidx,:]
+            _r²["MP+PL+AS"] = qdatazplss[area]["r²"][bidx,:]
+            _r²z["MP+PL+AS"] = qdatazplss[area]["r²_shuffled"][bidx,:]
+        end
 
     end
     @debug "Synerogy" mean((r²["fef"]["PL+AS"] - (r²["fef"]["PL"] + r²["fef"]["AS"]))./r²["fef"]["PL+AS"])
