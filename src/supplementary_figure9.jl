@@ -1,4 +1,4 @@
-module TimeWindowDecoding
+module FigureS9
 using LinearAlgebra
 using StatsBase
 using MultivariateStats
@@ -13,11 +13,9 @@ using JLD2
 using CRC32c
 using ProgressMeter
 
-include("utils.jl")
+using ..Utils
+using ..PlotUtils
 
-plot_theme = theme_minimal()
-plot_theme.Axis.xticksvisible[] = true
-plot_theme.Axis.yticksvisible[] = true
 """
     decode_window(X::Matrix{T}, bins::AbstractVector{Float64}, window::Tuple{Float64})
 
