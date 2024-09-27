@@ -8,6 +8,7 @@ using JLD2
 
 
 using ..Utils
+using ..PlotUtils
 
 include("fa.jl")
 
