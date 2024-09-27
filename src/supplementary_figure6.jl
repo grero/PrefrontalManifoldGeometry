@@ -15,8 +15,7 @@ using Distributions
 using ..Utils
 using ..PlotUtils
 using ..Figure2
-
-include("target_and_go_cue_comparsion.jl")
+using ..TargetAndGoCue
 
 using ..Utils: sessions_j, sessions_w
 
@@ -267,7 +266,7 @@ function plot(;window=(cue=15.0, mov=35.0),latency=(cue=40.0, mov=0.0),kvs...)
         plot!(lgA, window, latency;kvs...)
         lgB = GridLayout(fig[1,2])
         Label(fig[1,2,TopLeft()], "B")
-        create_weight_correlation_figure!(lgB;legend_ontop=true)
+        TargetAndGoCue.create_weight_correlation_figure!(lgB;legend_ontop=true)
         colsize!(fig.layout, 1, Relative(0.4))
         fig
     end

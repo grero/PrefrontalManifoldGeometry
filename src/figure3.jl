@@ -14,6 +14,7 @@ using HypothesisTests
 using StatsBase
 using Printf
 using DrWatson
+using Base.Threads
 
 using ..Utils
 using ..PlotUtils
@@ -102,18 +103,6 @@ function get_regression_data(subject;area="fef", align=:cue, raw=false, kvs...)
     get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;kvs...)
 end
 
-function load_data(subject::Union{String,Nothing}=nothing;area="fef",align=:cue, raw=false,kvs...)
-    if subject == "M"
-        # this is model data
-        fname = joinpath("data","ppsth_model_cue.jld2")
-    elseif raw
-        fname = joinpath("data","ppsth_$(area)_$(align)_raw.jld2")
-    else 
-        fname = joinpath("data","ppsth_$(area)_$(align).jld2")
-    end
-    ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes")
-    return ppsth,tlabels,trialidx,rtimes
-end
 
 """
     get_regression_data(subject;area="fef", rtmin=120.0, rtmax=300.0, window=35.0, Δt=15.0,align=:mov, realign=true, raw=false, do_shuffle=false, nruns=100,smooth_window::Union{Nothing, Float64}=nothing, kvs...)
@@ -156,7 +145,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
     nnmax = 0
     warnfirst = true
 	for (ii, session) in enumerate(sessions)
-		X, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
+		X, bins, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
         _ncells = size(X,3)
         nbins = size(X,1)
         _nt = length(_rtime)
@@ -314,22 +303,24 @@ end
 function compute_regression(trialidx::Matrix{Int64}, args...;kvs...)
     nruns = size(trialidx,2)
     nt = size(args[1],1)
-    tidx = rand(1:nt,nt)
-    _β,_Δβ, _pv, _r²,varidx = compute_regression(args...;trialidx=trialidx[:,1],kvs...)
+    _β,_Δβ, _pv, _r²,rss, varidx,_res = compute_regression(args...;trialidx=trialidx[:,1],kvs...)
     nvars,nbins = size(_β)
     β = fill(0.0, nvars,nbins,nruns)
     Δβ = fill(0.0, nvars-1,nbins,nruns)
     pv = fill(0.0, nbins,nruns)
     r² = fill(0.0, nbins, nruns)
+    rss = fill(0.0, nbins, nruns)
+    res = fill(0.0, size(_res,1), size(_res,2), nruns)
+
     β[:,:,1] = _β
     Δβ[:,:,1] = _Δβ
     pv[:,1] = _pv
     r²[:,1] = _r² 
+    _res[:,:,1] = _res
     for i in 2:nruns
-        tidx = rand(1:nt,nt)
-        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],_,_ = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
+        β[:,:,i],Δβ[:,:,i],pv[:,i],r²[:,i],rss[:,i], _,res[:,:,i] = compute_regression(args...;trialidx=trialidx[:,i],kvs...)
     end
-    β,Δβ, pv, r²,varidx
+    β,Δβ, pv, r²,rss, varidx, res
 end
 
 # TODO: Does this work?
@@ -368,7 +359,7 @@ end
 """
 Compute
 """
-function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, use_residuals=false, kvs...)
+function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;vargroup=1:(1+length(vars)), trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, use_residuals=false, kvs...)
     #TODO: Make rt optinally be a matrix, to work with the residuals
     nbins = size(L,2)
     if use_residuals
@@ -391,6 +382,7 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
         sidx = trialidx
     end
     varidx = nothing
+    # loop over bins
     for i in axes(L,2) 
         _tidx = 1:length(trialidx)
         do_skip = false
@@ -409,16 +401,29 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
 
         # run two regression models; one without path length L and one with
         if length(args) > 0
-            X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in args]...)
+            vidx = findall(vargroup[2:end].>vargroup[1])
+            vargs = args[vidx]
+            X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in vargs]...)
             if size(X_no_L,1) < 10
                 continue
             end
-            _exclude_pairs = [(k-1,j-1) for (k,j) in exclude_pairs]
+            eidx = findall(vargroup .> vargroup[1])
+            feidx = in(eidx)
+            # find the excluded pairs that overlap with this group
+            _exclude_pairs = filter(pp->feidx(pp[1])&&feidx(pp[2]), exclude_pairs)
+            _exclude_pairs = [(findfirst(eidx.==k), findfirst(eidx.==j)) for (k,j) in _exclude_pairs]
             lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx[_tidx]];do_interactions=true,exclude_pairs=_exclude_pairs, kvs...)
-            X_with_L = [L[trialidx[_tidx],i] X_no_L]
+
+            largs = args[vargroup[2:end].==vargroup[1]]
+            if length(largs) > 0
+                X_with_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in largs]...)
+                X_with_L = [L[trialidx[_tidx],i] X_with_L X_no_L]
+            else
+                X_with_L = [L[trialidx[_tidx],i] X_no_L]
+            end
             p1 = length(lreg_no_L.β)
             rss1 = lreg_no_L.rss
-            residuals[:,i] = lreg_no_L.residual
+            residuals[1:length(lreg_no_L.residual),i] .= lreg_no_L.residual
             if use_residuals
                 y = lreg_no_L.residual
                 X_with_L = L[trialidx[_tidx],i:i] 
@@ -504,7 +509,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, logscale::Vector{Symbol}=Symbol[], quadratic::Vector{Symbol}=Symbol[], recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, code_version=1, use_trialidx::Union{Matrix{Int64},Nothing}=nothing, areas=["fef","dlpfc"],storepatch=true, progress_offset=0, lock::Union{Nothing, Base.Threads.ReentrantLock}=nothing,prog=nothing, kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     input_args = Dict{String,Any}()
@@ -555,6 +560,17 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         q = crc32c(string((:tmin=>tmin)),q)
     end
     input_args["tmin"] = tmin
+    # check if there is overlap between logscale and requested variables
+    if !isempty(intersect(logscale, varnames))
+        q = crc32c(string((:loscale=>logscale)),q)
+        use_log = true
+    end
+    input_args["logscale"] = logscale 
+    if !isempty(intersect(quadratic, varnames))
+        q = crc32c(string((:quadratic=>quadratic)),q)
+    end
+    input_args["quadratic"] = quadratic
+
     if use_log
         q = crc32c(string((:use_log=>true)),q)
     end
@@ -577,6 +593,15 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         q = crc32c(string(:use_new_energy_point_algo=>true),q)
     end
     input_args["use_new_energy_point_algo"] = use_new_energy_point_algo 
+    #FIXME: Hack to create a new version with the same arguments
+    # We should do with with git hash insted
+    if code_version != 1
+        q = crc32c(string(:use_new_energy_point_algo=>code_version),q)
+    end
+    if use_trialidx !== nothing
+        q = crc32c(string(:use_trialidx_sum=>sum(use_trialidx)),q)
+    end
+    input_args["trialidx"] = use_trialidx
 
     for k in kvs
         if !(k[1] == :t1 && k[2] == 0.0)
@@ -585,7 +610,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         input_args[string(k[1])] = k[2]
     end
     qs = string(q, base=16)
-    fname = "path_length_regression_$(qs).jld2"
+    fname = joinpath(@__DIR__, "..", "path_length_regression_$(qs).jld2")
     if check_only
         @show fname
         return isfile(fname)
@@ -594,10 +619,11 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         qdata = JLD2.load(fname)
     else
         # apply git-tag
-        tag!(input_args)
+        tag!(input_args,storepatch=storepatch)
         qdata = Dict()
+        qdata["trialidx"] = use_trialidx
         bins = Float64[]
-        for area in ["fef","dlpfc"]
+        for area in areas
             qdata[area] = Dict()
             Za = Vector{Matrix{Float64}}(undef, length(subjects))
             La = Vector{Matrix{Float64}}(undef, length(subjects))
@@ -612,7 +638,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             lrta = Vector{Vector{Float64}}(undef, length(subjects))
             sessionidxa = Vector{Vector{Int64}}(undef, length(subjects))
 
-            ppsth,tlabels,trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
+            ppsth,tlabels,trialidx, rtimes = Utils.load_data(nothing;area=area,raw=true, kvs...)
 
             for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
@@ -672,24 +698,47 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
             vars = Any[lrt]
             use_varnames = Symbol[]
+            exclude_pair_names = [(:xpos, :ypos)] 
+            vargroup = Int64[]
+            cg = 0
             for vv in varnames
-                vk = allvars[vv]
-                if length(unique(vk)) > 1
-                    push!(vars,vk) 
-                    push!(use_varnames, vv)
+                if vv in logscale 
+                    vk = [log.(allvars[vv])]
+                    vn =[vv]
+                    vg = [cg+1]
+                    cg = vg[1]
+                elseif vv in quadratic
+                    vk = [allvars[vv].^2.0,allvars[vv]]
+                    vn = [Symbol("$(vv)²"),vv]
+                    push!(exclude_pair_names, (vn...,))
+                    vg = cg .+ [1,1]
+                    cg = vg[1]
+                else
+                    vk = [allvars[vv]]
+                    vn = [vv]
+                    vg = [cg+1]
+                    cg = vg[1]
+                end
+                for (_vk, _vn, _vg) in zip(vk, vn,vg)
+                    if length(unique(_vk)) > 1
+                        push!(vars,_vk) 
+                        push!(use_varnames, _vn)
+                        push!(vargroup, _vg)
+                    end
                 end
             end
             qdata["varnames"] = use_varnames
-            if all(in(use_varnames).([:xpos, :ypos]))
-                exclude_pairs = [(findfirst(use_varnames.==:xpos),findfirst(use_varnames.==:ypos))]
-            else
-                exclude_pairs = Tuple{Int64, Int64}[]
+            exclude_pairs = Tuple{Int64, Int64}[]
+            for (v1,v2) in exclude_pair_names
+                if all(in(use_varnames).([v1,v2]))
+                    push!(exclude_pairs, (findfirst(use_varnames.==v1),findfirst(use_varnames.==v2)))
+                end
             end
             if "trialix" in keys(qdata)
                 _trialidx = qdata["trialidx"]
-                βfef,Δβfef,pvfef,r²fef,varidx, residuals = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
+                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals = compute_regression(_trialidx,vars...;vargroup=vargroup, exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
             else
-                βfef,Δβfef,pvfef,r²fef,varidx, _trialidx, residuals = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
+                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals, _trialidx = compute_regression(nruns,vars...;vargroup=vargroup, exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
                 qdata["trialidx"] = _trialidx
             end
             qdata[area]["β"] = βfef
@@ -729,7 +778,10 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             r² = qdata[area]["r²"]
             β_S = fill(0.0, size(β)...)
             r²_S = fill(0.0, size(r²)...)
-            @showprogress for r in 1:nruns
+            if prog === nothing
+                prog = Progress(nruns, 1.0, "Regressing surrogates...";offset=progress_offset)
+            end
+            for r in 1:nruns
                 for (ss, subject) in enumerate(subjects)
                     _Z,_L,_EE, _MM, _SS, _FL, _SM, _lrt,_label,_ncells,bins,_sessionidx = get_regression_data(ppsth,tlabels,trialidx,rtimes,subject;mean_subtract=true, variance_stabilize=true,window=50.0,use_midpoint=use_midpoint, do_shuffle=do_shuffle, do_shuffle_responses=do_shuffle_responses,do_shuffle_time=do_shuffle_time,do_shuffle_trials=do_shuffle_trials,use_log=use_log, use_new_energy_point_algo=use_new_energy_point_algo,tmin=tmin, tmax=tmax, kvs...);
                     if subject == "J"
@@ -774,15 +826,24 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
 
                 vars = Any[lrt]
                 for vv in use_varnames
-                    push!(vars, allvars[vv])
+                    # check of power
+                    if occursin("²", string(vv))
+                        _vv = Symbol(rstrip(string(vv),'²'))
+                        push!(vars, allvars[_vv].^2)
+                    elseif vv in logscale
+                        push!(vars, log.(allvars[vv]))
+                    else
+                        push!(vars, allvars[vv])
+                    end
                 end
                 if use_residuals
-                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2][qdata["trialidx"][:,r]];exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
+                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2];vargroup=vargroup, exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
                 else
-                    _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals, trialidx=qdata["trialidx"][:,r])
+                    _β,_,_,_r²,_ = compute_regression(vars...;vargroup=vargroup, exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals)
                 end
                 β_S[:,:,r] .= _β
                 r²_S[:,r] .= _r²
+                next!(prog)
             end
             qdata[area]["β_shuffle"]=β_S
             qdata[area]["r²_shuffled"]=r²_S
@@ -1231,7 +1292,7 @@ function plot_β_summary(;subjects=["J","W"], kvs...)
     end
 end
 
-function plot(;plottype=:barplot, show_dlpfc=false)
+function plot(;plottype=:barplot, show_dlpfc=false, show_residual_reg=false)
     with_theme(PlotUtils.plot_theme) do
         fig = Figure(size=(700,600))
         # shematic
@@ -1241,22 +1302,29 @@ function plot(;plottype=:barplot, show_dlpfc=false)
         lg2 = GridLayout(fig[2,1])
         plot_individual_trials!(lg2, "W";plot_joint=false, plottype=plottype, label=["B","C","D","E"],add_legend=false, xlabelvisible=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg2[1,0], "Monkey W", tellwidth=true, tellheight=false, rotation=π/2)
-        lg21 = GridLayout(lg2[1,3])
-        axw = plot_joint_regression!(lg21,"W";show_null_distr=false)
-
+        if show_residual_reg
+            lg21 = GridLayout(lg2[1,3])
+            axw = plot_joint_regression!(lg21,"W";show_null_distr=false)
+        else
+            colsize!(lg2, 2, Relative(0.15))
+        end
         lg3 = GridLayout(fig[3,1])
         plot_individual_trials!(lg3, "J";plot_joint=false, plottype=plottype, label=["F","G","H","I"],add_legend=false, shuffle_responses=false, shuffle_time=false, shuffle_trials=true, combine_subjects=true, save_all_β=true, shuffle_within_locations=true, t1=35.0, use_log=true)
         Label(lg3[1,0], "Monkey J", tellwidth=true, tellheight=false, rotation=π/2)
-        lg31 = GridLayout(lg3[1,3])
-        axj = plot_joint_regression!(lg31,"J";show_null_distr=false)
-        llj = axj.finallimits[]
-        llw = axw.finallimits[]
-        ymin = min(llj.origin[2], llw.origin[2])
-        ymax = ymin + max(llj.widths[2], llw.widths[2])
-        ylims!(axj, ymin, ymax)
-        ylims!(axw, ymin, ymax)
-        # TODO: This doesn't seem to work
-        linkyaxes!(axj, axw)
+        if show_residual_reg
+            lg31 = GridLayout(lg3[1,3])
+            axj = plot_joint_regression!(lg31,"J";show_null_distr=false)
+            llj = axj.finallimits[]
+            llw = axw.finallimits[]
+            ymin = min(llj.origin[2], llw.origin[2])
+            ymax = ymin + max(llj.widths[2], llw.widths[2])
+            ylims!(axj, ymin, ymax)
+            ylims!(axw, ymin, ymax)
+            # TODO: This doesn't seem to work
+            linkyaxes!(axj, axw)
+        else
+            colsize!(lg3, 2, Relative(0.15))
+        end
         rowsize!(fig.layout, 1, Relative(0.2))
         fig
     end
@@ -1280,17 +1348,30 @@ function plot_individual_trials(subject::String, ;kvs...)
     end
 end
 
-function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, speedvar::Symbol=:SM, plot_joint=true, kvs...)
-    qdataz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], kvs...)
-    qdatal = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], kvs...)
-    qdatass = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], kvs...)
+function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=false, plottype=:boxplot, label::Union{Nothing, Vector{String}}=nothing, add_legend=true, xlabelvisible=true, t0=0.0, speedvar::Symbol=:SM, plot_joint=true, nruns=100, kvs...)
+    tasks = @sync begin
+        #progs = [Progress(nruns, 1.0, "Regressing...";offset=i) for i in 1:7]
+        _qdataz = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:Z,:ncells,:xpos,:ypos], progress_offset=1, kvs...)
+        _qdatal = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L,:ncells,:xpos,:ypos], progress_offset=2, kvs...)
+        _qdatass = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar,:ncells,:xpos,:ypos], progress_offset=3, kvs...)
 
-    qdatalz = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], kvs...)
-    qdatazss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], kvs...)
-    qdataplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], kvs...)
+        if plot_joint
+            _qdatalz = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, :Z,:ncells,:xpos,:ypos], progress_offset=4, kvs...)
+            _qdatazss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=5, kvs...)
+            _qdataplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :ncells,:xpos,:ypos], progress_offset=6, kvs...)
 
-    qdatazplss = compute_regression(;subjects=[subject], nruns=100, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], kvs...)
-    bins = qdatazss["bins"]
+            _qdatazplss = @spawn compute_regression(;subjects=[subject], nruns=nruns, sessions=:all, varnames=[:L, speedvar, :Z, :ncells,:xpos,:ypos], progress_offset=7, kvs...)
+            _tasks =  [_qdataz, _qdatal, _qdatass, _qdatalz, _qdatazss, _qdataplss, _qdatazplss]
+        else
+            _tasks = [_qdataz, _qdatal, _qdatass]
+        end
+    end
+    if plot_joint
+        qdataz, qdatal, qdatass, qdatalz, qdatazss, qdataplss, qdatazplss = fetch.(tasks)
+    else
+        qdataz, qdatal, qdatass = fetch.(tasks)
+    end
+    bins = qdataz["bins"]
     bidx = searchsortedfirst(bins, t0)
 
     r² = Dict()
@@ -1307,14 +1388,16 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
         _r²z["PL"] = qdatal[area]["r²_shuffled"][bidx,:]
         _r²["AS"] = qdatass[area]["r²"][bidx,:]
         _r²z["AS"] = qdatass[area]["r²_shuffled"][bidx,:]
-        _r²["MP+PL"] = qdatalz[area]["r²"][bidx,:]
-        _r²z["MP+PL"] = qdatalz[area]["r²_shuffled"][bidx,:]
-        _r²["MP+AS"] = qdatazss[area]["r²"][bidx,:]
-        _r²z["MP+AS"] = qdatazss[area]["r²_shuffled"][bidx,:]
-        _r²["PL+AS"] = qdataplss[area]["r²"][bidx,:]
-        _r²z["PL+AS"] = qdataplss[area]["r²_shuffled"][bidx,:]
-        _r²["MP+PL+AS"] = qdatazplss[area]["r²"][bidx,:]
-        _r²z["MP+PL+AS"] = qdatazplss[area]["r²_shuffled"][bidx,:]
+        if plot_joint
+            _r²["MP+PL"] = qdatalz[area]["r²"][bidx,:]
+            _r²z["MP+PL"] = qdatalz[area]["r²_shuffled"][bidx,:]
+            _r²["MP+AS"] = qdatazss[area]["r²"][bidx,:]
+            _r²z["MP+AS"] = qdatazss[area]["r²_shuffled"][bidx,:]
+            _r²["PL+AS"] = qdataplss[area]["r²"][bidx,:]
+            _r²z["PL+AS"] = qdataplss[area]["r²_shuffled"][bidx,:]
+            _r²["MP+PL+AS"] = qdatazplss[area]["r²"][bidx,:]
+            _r²z["MP+PL+AS"] = qdatazplss[area]["r²_shuffled"][bidx,:]
+        end
 
     end
     @debug "Synerogy" mean((r²["fef"]["PL+AS"] - (r²["fef"]["PL"] + r²["fef"]["AS"]))./r²["fef"]["PL+AS"])
@@ -1367,6 +1450,10 @@ function plot_individual_trials!(lg, subject::String, ;npoints=100, show_dlpfc=f
                     boxplot!(ax, fill(offset,100), r²[a][k],color=cc, markersize=5px)
                 else
                     barplot!(ax, [offset], [mean(r²[a][k])], color=cc)
+                end
+                # adjust y-lims so that the annotation can be seen
+                if subject == "W"
+                    ylims!(ax, 0.0, 0.22)
                 end
                 text!(ax, offset, μ, text=aa, align=(:center, :bottom))
                 offset += 1
@@ -1438,10 +1525,10 @@ function test_hiearchical_dependence()
     1.0 - cdf(FDist(p2-p1, n-p2), F[1])
 end
 
-function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};plotlabel::Union{Vector{String},Nothing}=nothing, β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, kvs...)
+function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};plotlabel::Union{Vector{String},Nothing}=nothing, β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, logscale::Vector{Symbol}=Symbol[], kvs...)
 
     vnames = Dict(:Z=>"MP", :L => "PL", :SM=>"AS")
-    ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
+    ppsth,tlabels,_trialidx, rtimes = Utils.load_data(nothing;area=area,raw=true, kvs...)
     Z,L,EE, MM, SS, FL, SM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,_trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0, kvs...);
     bidx = searchsortedfirst(bins, t0)
     if subject == "J"
@@ -1470,7 +1557,11 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
                 push!(use_varnames, :ncells)
             end
         else
-            push!(vars, allvars[vv])
+            if vv in logscale
+                push!(vars, log.(allvars[vv]))
+            else
+                push!(vars, allvars[vv])
+            end
             push!(use_varnames, vv)
         end
     end
@@ -1488,7 +1579,7 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
     for ii in 1:length(varnames)
        # _β,_,_,_,_ = compute_regression(repeat(trialidx,1,1),vars[[1,ii+1]]...;exclude_pairs=exclude_pairs,save_all_β=true)
        # β0[:,ii] = _β
-        β0[2,ii] = mean(vars[1] .- β[ii].*vars[ii+1])
+        β0[2,ii] = mean(vars[1][trialidx] .- β[ii].*vars[ii+1][trialidx])
     end
     # now plot
     la = lowercase(area)
@@ -1503,12 +1594,16 @@ function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subjec
     linkyaxes!(axes...)
     for (ii,ax) in enumerate(axes)
         _tidx = sort(shuffle(1:length(trialidx))[1:min(npoints,length(trialidx))])
-        scatter!(ax,  vars[1+ii][trialidx[_tidx],1], vars[1][trialidx[_tidx]],color=acolor,markersize=5px)
-        ax.xlabel = vnames[varnames[ii]]
+        vn = varnames[ii]
+        yy = vars[1+ii][trialidx[_tidx],1]
+        fidx = findall(isfinite, yy)
+        _rt = vars[1][trialidx][_tidx][fidx]
+        scatter!(ax,  yy[fidx], _rt,color=acolor,markersize=5px)
+        ax.xlabel = vnames[vn]
         ax.xlabelvisible = xlabelvisible
-        # this is hard to interpret without the context of the other variables, so
-        # we probably don't want to show them
-        ablines!(ax, β0[end,ii], β[ii],color=:black)
+        # slightly hackish
+        _β0 = mean(_rt - β[ii]*yy)
+        ablines!(ax, _β0, β[ii],color=:black)
     end
     for ax in axes[2:end]
         ax.yticklabelsvisible = false
@@ -1717,7 +1812,7 @@ function plot_joint_regression(;kvs...)
 end 
 
 function plot_joint_regression!(lg, subject::String;redo=false, show_null_distr=true)
-    fname = "joint_regression_subjec_$(subject).jld2"
+    fname = joinpath(@__DIR__,"..", "joint_regression_subjec_$(subject).jld2")
     if !redo && isfile(fname)
         r², r²s = JLD2.load(fname, "r²", "r²s") 
     else

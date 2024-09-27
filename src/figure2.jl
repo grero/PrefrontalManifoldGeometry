@@ -9,6 +9,8 @@ using CRC32c
 using Colors
 using ColorSchemes
 using StatsBase
+using Distributions
+using HypothesisTests
 const DPHT = DataProcessingHierarchyTools
 
 using ..Regression
@@ -25,6 +27,262 @@ sessions_w = ["W/20200106/session02", "W/20200108/session03", "W/20200109/sessio
 sessions_p = ["P/20130923/session01", "P/20130927/session01", "P/20131014/session01", "P/20131021/session01"]
 ramping_cells_j =  [22, 23, 24, 35, 52, 53, 58, 59, 60, 88, 89, 90, 91, 92, 103, 112, 113, 117]
 ramping_cells_w =  [5, 24, 47, 54, 82]
+
+"""
+    classify_cell(X::Matrix{T}, label::AbstractVector{T2},periods::Vector{Tuple{Float64, Float64}}) where T <: Real where T2 <: Integer
+
+Classify the cell whose binned activity in represented by `X` by whether it is 1) responsive and 2) selective 
+"""
+function classify_cell(X::Matrix{T}, bins::AbstractVector{T3}, label::AbstractVector{T2}, periods::Vector{Tuple{T3, T3}},baseline_idx=1) where T <: Real where T2 <: Integer where T3 <: Real
+    nbins, ntrials = size(X)
+    # check if we need to permute
+    if nbins == length(label)
+        return classify_cell(permutedims(X), bins, label, periods, baseline_idx)
+    end
+    function get_windowed(period)
+        idx0 = findfirst(x->x>=period[1], bins)
+        idx1 = findlast(x->x<period[2], bins)
+        X[idx0:idx1,:]
+    end
+
+    ulabel = unique(label)
+    sort!(ulabel)
+    baseline_period = periods[baseline_idx]
+    X0 = dropdims(mean(get_windowed(baseline_period),dims=1),dims=1)
+    is_responsive = fill(false, length(periods)-1)
+    is_selective= fill(false, length(periods)-1)
+    for (ii,period) in enumerate(periods[baseline_idx+1:end])
+        _X = dropdims(mean(get_windowed(period),dims=1),dims=1)
+        for l in ulabel
+            _tidx = label .== l
+            # responsive?
+            hh = KruskalWallisTest(X0[_tidx],_X[_tidx])
+            if pvalue(hh) < 0.05
+                is_responsive[ii] = true
+                break
+            end
+        end
+        if is_responsive[ii]
+            # selective ?
+            hh2 = KruskalWallisTest([_X[label.==l] for l in ulabel]...)
+            if pvalue(hh2) < 0.05
+                is_selective[ii] = true
+            end
+        end
+    end
+    is_responsive, is_selective
+end
+
+function classify_visual_cells()
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw.jld2")
+    ppsth = JLD2.load(fname, "ppsth")
+    tlabel = JLD2.load(fname, "labels")
+    periods = [(-300.0, 0.0), # baseline
+               (0.0, 300.0) # target presentation
+               ]
+    classify_cell(ppsth.counts, ppsth.bins, tlabel, periods)
+end
+
+function classify_movement_cells()
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw.jld2")
+    ppsth = JLD2.load(fname, "ppsth")
+    tlabel = JLD2.load(fname, "labels")
+    periods = [(-500.0, -300.0), # baseline
+               (0.0, 300.0) # target presentation
+               ]
+    classify_cell(ppsth.counts, ppsth.bins, tlabel, periods)
+end
+
+function classify_visual_and_movement_cells()
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw.jld2")
+    ppsth_mov = JLD2.load(fname, "ppsth")
+    tlabel_mov = JLD2.load(fname, "labels")
+
+    fname = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw.jld2")
+    ppsth_visual = JLD2.load(fname, "ppsth")
+    tlabel_visual = JLD2.load(fname, "labels")
+
+    common_cells = intersect(ppsth_mov.cellnames, ppsth_visual.cellnames)
+    cellidx_mov = findall(in(common_cells), ppsth_mov.cellnames)
+    cellidx_visual = findall(in(common_cells), ppsth_visual.cellnames)
+
+    periods_mov = [(-300.0, -50.0), # baseline
+               (0.0, 300.0) # movement period
+               ]
+    periods_visual = [(-300.0, 0.0), # baseline
+               (0.0, 300.0) # target presentation
+               ]
+
+    is_responsive_mov, is_selective_mov = classify_cell(ppsth_mov.counts[:,:,cellidx_mov], ppsth_mov.bins, tlabel_mov[cellidx_mov], periods_mov)
+    is_responsive_visual, is_selective_visual = classify_cell(ppsth_visual.counts[:,:,cellidx_visual], ppsth_visual.bins, tlabel_visual[cellidx_visual], periods_visual)
+    (mov = (is_selective=is_selective_mov, is_responsive=is_responsive_mov),
+    visual = (is_selective=is_selective_visual, is_responsive=is_responsive_visual), cellnames=common_cells)
+end
+
+function classify_cell(X::AbstractArray{T,3}, bins, label::Vector{Vector{Int64}}, periods, args...;kvs...) where T <: Real
+    nbins, ntrials,ncells = size(X)
+    is_responsive = fill(false, length(periods)-1, ncells)
+    is_selective = fill(false, length(periods)-1, ncells)
+    for i in axes(X,3)
+        _label = label[i]
+        nt = length(_label)
+        is_responsive[:,i], is_selective[:,i] = classify_cell(X[:,1:nt,i], bins, _label, periods, args...)
+    end
+    is_responsive, is_selective
+end
+
+function test_classify_cell()
+    nt = 20
+    nbins = 3
+    X = fill(0.0, nbins, nt)
+    label = rand(1:2, nt)
+    n1 = sum(label.==1)
+    n2 = sum(label.==2)
+    X[1,:] .= 0.1*randn(nt)
+    X[2,label.==1] .= 1.0 .+ 0.1*randn(n1)
+    X[2,label.==2] .= 0.5 .+ 0.1*randn(n2)
+    X[3,label.==1] .= 0.5 .+ 0.1*randn(n1)
+    X[3,label.==2] .= 1.0 .+ 0.1*randn(n2)
+    is_responsive, is_selective = classify_cell(X, [0,1,2], label, [(0,1),(1,2), (2,3)])
+    @show is_responsive is_selective
+    @assert is_responsive == [true, true]
+    @assert is_selective == [true, true]
+end
+
+function plot_cell_classification()
+    responsive_and_selective = Figure2.classify_visual_and_movement_cells()
+    non_responsive = findall((!).(responsive_and_selective.mov.is_responsive[1,:]).*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_non_responsive = length(non_responsive)
+    visual_only = findall(responsive_and_selective.visual.is_responsive[1,:].*((!).(responsive_and_selective.mov.is_responsive[1,:])))
+    n_visual_only = length(visual_only)
+    movement_only = findall(responsive_and_selective.mov.is_responsive[1,:].*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_movement_only = length(movement_only)
+    visuomovement = findall(responsive_and_selective.visual.is_responsive[1,:].*responsive_and_selective.mov.is_responsive[1,:])
+    n_visuomovement = length(visuomovement)
+
+    with_theme(plot_theme) do
+        fig = Figure()
+        ax = Axis(fig[1,1], autolimitaspect=1.0)
+        hidespines!(ax)
+        hidedecorations!(ax)
+        data = [n_non_responsive, n_visual_only, n_movement_only, n_visuomovement]
+        θ = (cumsum(data) - data/2) .* 2π/sum(data)
+        r = 0.7 
+        plt = pie!(ax, data,
+                        color=Makie.wong_colors()[1:4])
+        for (li,θi) in zip(["Non-responsive\n$(n_non_responsive)",
+                            "Visual\n$(n_visual_only)",
+                            "Movement\n$(n_movement_only)",
+                            "Visuomovement\n$(n_visuomovement)"],θ)
+            x = r*cos(θi)
+            y = r*sin(θi)
+            text!(ax, li, position=(x,y),align=(:center, :center))
+        end
+        fig
+    end
+end
+
+function plot_cell_class_contribution()
+    responsive_and_selective = classify_visual_and_movement_cells()
+    ncells = length(responsive_and_selective.cellnames)
+    non_responsive = findall((!).(responsive_and_selective.mov.is_responsive[1,:]).*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_non_responsive = length(non_responsive)
+    visual_only = findall(responsive_and_selective.visual.is_responsive[1,:].*((!).(responsive_and_selective.mov.is_responsive[1,:])))
+    n_visual_only = length(visual_only)
+    movement_only = findall(responsive_and_selective.mov.is_responsive[1,:].*((!).(responsive_and_selective.visual.is_responsive[1,:])))
+    n_movement_only = length(movement_only)
+    visuomovement = findall(responsive_and_selective.visual.is_responsive[1,:].*responsive_and_selective.mov.is_responsive[1,:])
+    n_visuomovement = length(visuomovement)
+
+    celltype = [:non_responsive, :visual_only, :movement_only, :visuomovement]
+    celltypeidx = Dict(:non_responsive=>non_responsive, :visual_only=>visual_only, 
+                    :movement_only=>movement_only, :visuomovement=>visuomovement)
+    # get the weights
+    fname_cue, fname_mov = get_event_subspaces(;nruns=100)
+    aww = Dict()
+    m = Dict()
+    xx = Dict()
+    yy = Dict()
+    max_values = Dict()
+    for (ll,fname,latency,window) in zip(["cue","mov"], [fname_cue, fname_mov],[40.0, 0.0], [15.0, 35.0])
+        weights,latencies, windows = h5open(fname) do fid
+            read(fid,"weights"), read(fid, "latency"), read(fid,"window")
+        end
+        @assert size(weights,1) == size(responsive_and_selective.mov.is_responsive,2)
+        lidx = searchsortedfirst(latencies, latency, rev=true)
+        widx = searchsortedfirst(windows, window)
+
+        ww = weights[:,1,widx,lidx,1,:]
+        aww[ll] = abs.(ww)
+        l,m[ll],u = [fill(0.0, ncells) for i in 1:3]
+        for i in axes(l,1)
+            l[i],m[ll][i],u[i] = percentile(abs.(ww[i,:]), [5,50,95])
+        end
+        _ncells,nruns = size(ww)
+        _non_responsive = sort(non_responsive, by=ii->m[ll][ii])
+        _visual_only = sort(visual_only, by=ii->m[ll][ii])
+        _movement_only = sort(movement_only, by=ii->m[ll][ii])
+        _visuomovement = sort(visuomovement, by=ii->m[ll][ii])
+        sidx = [_non_responsive; _visual_only;_movement_only;_visuomovement]
+        m[ll] = m[ll][sidx]
+        xx[ll] = [fill(1, n_non_responsive*nruns);fill(2, n_visual_only*nruns);fill(3, n_movement_only*nruns);fill(4, n_visuomovement*nruns)]
+        yy[ll] = [ww[_non_responsive,:][:];ww[_visual_only,:][:];ww[_movement_only,:][:];ww[_visuomovement,:][:]]
+        hh = KruskalWallisTest([aww[ll][celltypeidx[q],:][:] for q in celltype]...)
+        @show hh
+        # pairwise comparisons
+        for (i,q1) in enumerate(celltype[1:end-1])
+            for (j,q2) in enumerate(celltype[i+1:end])
+                _hh = MannWhitneyUTest(aww[ll][celltypeidx[q1],:][:], aww[ll][celltypeidx[q2],:][:])
+            end
+        end
+
+        _aww = aww[ll]
+        _max_values = fill(0.0, length(celltype),nruns)
+        for r in 1:nruns
+            for (jj,k) in enumerate(celltype)
+                _max_values[jj,r] = maximum(_aww[celltypeidx[k],r])
+            end
+        end
+        l = [percentile(_max_values[jj,:], 5) for jj in axes(_max_values,1)]
+        u = [percentile(_max_values[jj,:], 95) for jj in axes(_max_values,1)]
+        max_values[ll] = _max_values
+        @show ll l u
+    end
+    colors = Makie.wong_colors()[1:4]
+    with_theme(plot_theme) do
+        fig = Figure(size=(600,700))
+        lgs = [GridLayout(fig[1,i]) for i in 1:2]
+        for (lg,ll) in zip(lgs, ["cue","mov"])
+            ax = Axis(lg[1,1])
+            rainclouds!(ax, xx[ll], yy[ll];color=colors[xx[ll]])
+            ax.xticklabelsvisible = false
+            ax2 = Axis(lg[3,1]) 
+            _colors = [fill(colors[1],n_non_responsive);
+                    fill(colors[2], n_visual_only);
+                    fill(colors[3], n_movement_only);
+                    fill(colors[4], n_visuomovement);]
+            barplot!(ax2, 1:ncells, m[ll], color=_colors)
+            ax2.xlabel = "Cell index"
+            #rangebars!(ax2, 1:ncells, l[sidx],u[sidx])
+            ax3 = Axis(lg[2,1])
+            ax3.xticks = (1:4, ["non-responsive", "visual only", "movement only","visuomovement"])
+            ax3.xticklabelrotation=-π/6
+            nruns = size(max_values[ll],2)
+            yyp = [max_values[ll][1,:];max_values[ll][2,:];max_values[ll][3,:];max_values[ll][4,:]]
+            xxp = [fill(1, nruns);fill(2,nruns);fill(3,nruns);fill(4,nruns)]
+            rainclouds!(ax3, xxp,yyp,color=colors[xxp])
+            if ll == "cue"
+                ax.ylabel = "Decoder weight" 
+                ax2.ylabel = "Absolute decoder weight"
+                ax3.ylabel = "Maximum absolute weight"
+            end
+        
+        end
+        label = [Label(fig[0,1], "Go-cue aligned", tellwidth=false),
+                 Label(fig[0,2], "Movement aligned", tellwidth=false)]
+        fig
+    end
+end
 
 function plot_fef_cell(cellidx::Int64,args...;kvs...)
     height = 5.0*72
@@ -45,7 +303,10 @@ end
 
 Plot all locations for the specified cell
 """
-function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
+function plot_fef_cell(cellname, cellidx::Int64, subject::String;kvs...)
+    if cellname !== nothing
+        subject = DPHT.get_level_name("subject",cellname)
+    end
     nlocations = length(locations[subject])
     height = 25.0*72
     if get(Dict(kvs), :show_target, false)
@@ -53,7 +314,7 @@ function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
     else
         width = 0.5*height
     end
-    fig = Figure(resolution=(width,height))
+    fig = Figure(size=(width,height))
     axes = Any[]
     for l in 1:nlocations
         lg = GridLayout()
@@ -65,7 +326,7 @@ function plot_fef_cell(cellidx::Int64, subject::String;kvs...)
             xticklabelsvisible = true 
             xlabelvisible = true
         end
-        ax = plot_fef_cell!(lg, cellidx, subject, collect(locations[subject][l:l]);xticklabelsvisible=xticklabelsvisible, xlabelvisible=xlabelvisible,kvs...)
+        ax = plot_fef_cell!(lg, cellname, cellidx, subject, collect(locations[subject][l:l]);xticklabelsvisible=xticklabelsvisible, xlabelvisible=xlabelvisible,kvs...)
         if ax === nothing
             return nothing
         end
@@ -107,11 +368,11 @@ function get_cell_data(alignment::String, args...;suffix="", kvs...)
     get_cell_data(ppsth, trialidx, tlabel, rtimes, args...;kvs...)
 end
 
-function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
+function plot_fef_cell!(fig, cellname::Union{Nothing,String}, cellidx::Int64, subject::String, locations::Union{Vector{Int64}, Nothing}=nothing;rtime_min=120, rtime_max=300, windowsize=35.0, latency=0.0, latency_ref=:mov, 
                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf), show_target=false, ylabelvisible=true, xlabelvisible=true, xticklabelsvisible=true,showmovspine=true,suffix="",yticklabelsize=14)
     #TODO: Plot all PSTH in one panel, with the raster per location stacked below
     #movement aligned
-    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    fnames = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw$(suffix).jld2")
     ppsths = JLD2.load(fnames, "ppsth")
     rtimess = JLD2.load(fnames, "rtimes")
     trialidxs = JLD2.load(fnames, "trialidx")
@@ -120,7 +381,7 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
 
 
     # cue aligned
-    fnamec = joinpath("data","ppsth_fef_cue_raw$(suffix).jld2")
+    fnamec = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw$(suffix).jld2")
     ppsthc = JLD2.load(fnamec, "ppsth")
     rtimesc = JLD2.load(fnamec, "rtimes")
     trialidxc = JLD2.load(fnamec, "trialidx")
@@ -128,27 +389,35 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
     binsc = ppsthc.bins
 
     # add target aligned here
-    fnamet = joinpath("data","ppsth_fef_target_raw$(suffix).jld2")
+    fnamet = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw$(suffix).jld2")
     ppstht = JLD2.load(fnamet, "ppsth")
     rtimest = JLD2.load(fnamet, "rtimes")
     trialidxt = JLD2.load(fnamet, "trialidx")
     tlabelt = JLD2.load(fnamet, "labels")
     binst = ppstht.bins
 
-    subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsths.cellnames)
-    if cellidx > length(subject_idx)
-        return nothing
-    end
-    cellidx = subject_idx[cellidx]
-    @assert ppsths.cellnames == ppsthc.cellnames
-    # we have more cells for target aligned, so grab the subset that is also in ppsthc
-    cellidxt = findfirst(ppstht.cellnames.==ppsthc.cellnames[cellidx])
-    @assert trialidxs[cellidx] == trialidxc[cellidx]
+    if cellname === nothing
+        subject_idx = findall(c->DPHT.get_level_name("subject",c)==subject,ppsths.cellnames)
+        if cellidx > length(subject_idx)
+            return nothing
+        end
+        cellidx = subject_idx[cellidx]
+        @assert ppsths.cellnames == ppsthc.cellnames
+        # we have more cells for target aligned, so grab the subset that is also in ppsthc
+        cellidxt = findfirst(ppstht.cellnames.==ppsthc.cellnames[cellidx])
+        @assert trialidxs[cellidx] == trialidxc[cellidx]
 
-    @assert length(trialidxt[cellidxt]) >= length(trialidxc[cellidx])
-    ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
-    @assert trialidxt[cellidxt][ttidx] == trialidxc[cellidx]
-    session = DPHT.get_level_path("session", ppsths.cellnames[cellidx])
+        @assert length(trialidxt[cellidxt]) >= length(trialidxc[cellidx])
+        ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
+        @assert trialidxt[cellidxt][ttidx] == trialidxc[cellidx]
+        session = DPHT.get_level_path("session", ppsths.cellnames[cellidx])
+    else
+        session = DPHT.get_level_path("session", cellname)
+        subject = DPHT.get_level_path("subject", cellname)
+        cellidxt = findfirst(ppstht.cellnames.==cellname)
+        cellidx = findfirst(ppsths.cellnames.==cellname)
+        ttidx = findall(in(trialidxc[cellidx]), trialidxt[cellidxt])
+    end
 
     _rtimes = rtimess[session][trialidxs[cellidx]]
     rtidx = findall(rtime_min .< _rtimes .< rtime_max)
@@ -200,12 +469,12 @@ function plot_fef_cell!(fig, cellidx::Int64, subject::String, locations::Union{V
             if ww !== nothing
                 if length(ww) == 1
                     for ax in [ax1, ax2]
-                        vspan!(ax, ww/1000.0, (ww .+ windowsize)./1000.0, color=RGB(0.8, 0.8, 1.0))
+                        vspan!(ax, ww, (ww .+ windowsize), color=RGB(0.8, 0.8, 1.0))
                     end
                 else
                     xx = cat([[w,w+windowsize] for w in ww[sidx]]...,dims=1)
                     yy = cat([[i,i] for i in 1:length(ww[sidx])]...,dims=1)
-                    linesegments!(ax2, xx./1000.0,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
+                    linesegments!(ax2, xx,yy, color=RGB(0.8, 0.8, 1.0), linewidth=3.0)
                 end
             end
             vlines!(ax1, 0.0, color="black")
@@ -264,12 +533,12 @@ end
 
 function plot_psth_and_raster(subject::String, cellidx::Int64, windowsize::Float64;suffix="",kvs...)
     # get the number of locations to determine the height
-    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    fnames = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw$(suffix).jld2")
     tlabels = JLD2.load(fnames, "labels")
     ulabel = unique(tlabels)
     nl = length(ulabel)
     height = nl*100 
-    fig = Figure(resolution=(1500,height))
+    fig = Figure(size=(1500,height))
     lg = GridLayout()
     fig[1,1] = lg
     plot_psth_and_raster!(lg, subject, cellidx, windowsize;suffix=suffix, kvs...)
@@ -279,7 +548,7 @@ end
 function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::Float64;rtime_min=120.0, rtime_max=300.0, suffix="", locations::Union{Nothing, Vector{Int64}}=locations[subject],
                                                                                     tmin=(cue=-Inf, mov=-Inf,target=-Inf), tmax=(cue=Inf, mov=Inf, target=Inf),kvs...)
     #movement aligned
-    fnames = joinpath("data","ppsth_fef_mov_raw$(suffix).jld2")
+    fnames = joinpath(@__DIR__, "..", "data","ppsth_fef_mov_raw$(suffix).jld2")
     ppsths = JLD2.load(fnames, "ppsth")
     rtimess = JLD2.load(fnames, "rtimes")
     trialidxs = JLD2.load(fnames, "trialidx")
@@ -288,7 +557,7 @@ function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::
 
 
     # cue aligned
-    fnamec = joinpath("data","ppsth_fef_cue_raw$(suffix).jld2")
+    fnamec = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw$(suffix).jld2")
     ppsthc = JLD2.load(fnamec, "ppsth")
     rtimesc = JLD2.load(fnamec, "rtimes")
     trialidxc = JLD2.load(fnamec, "trialidx")
@@ -296,7 +565,7 @@ function plot_psth_and_raster!(lg, subject::String, cellidx::Int64, windowsize::
     binsc = ppsthc.bins
 
     # add target aligned here
-    fnamet = joinpath("data","ppsth_fef_target_raw$(suffix).jld2")
+    fnamet = joinpath(@__DIR__, "..", "data","ppsth_fef_target_raw$(suffix).jld2")
     ppstht = JLD2.load(fnamet, "ppsth")
     rtimest = JLD2.load(fnamet, "rtimes")
     trialidxt = JLD2.load(fnamet, "trialidx")
@@ -361,7 +630,7 @@ function plot_psth_and_raster(X::Matrix{T}, bins::AbstractVector{T},tlabel::Vect
     ulabel = unique(tlabel)
     nl = length(ulabel)
     height = nl*500/4 
-    fig = Figure(resolution=(500,height))
+    fig = Figure(size=(500,height))
     lg = GridLayout()
     fig[1,1] = lg
     plot_psth_and_raster!(lg, X, bins, tlabel, rtime, windowsize;kvs...)
@@ -448,7 +717,7 @@ end
 Get the explained reaction time variance as a function of time
 """
 function get_rtime_var_per_time(;redo=false, do_save=true,kvs...)
-    fname = "rtime_var_in_time.jld2"
+    fname = joinpath(@__DIR__, "..", "rtime_var_in_time.jld2")
     if isfile(fname) && !redo
         plot_data = JLD2.load(fname, "plot_data")
     else
@@ -576,8 +845,8 @@ end
 function get_event_subspaces(;nruns=100,area="FEF",redo=false,combine_locations=true,subject="ALL",
                               rtime_min=120.0, remove_window::Union{Nothing, Dict{Symbol, Tuple{Float64, Float64}}}=nothing, save_sample_indices::Bool=false,suffix="")
     sarea = lowercase(area)
-    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load("data/ppsth_$(sarea)_mov$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
-    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load("data/ppsth_$(sarea)_cue$(suffix).jld2","ppsth", "labels","trialidx","rtimes")
+    ppsth_mov,labels_mov, trialidx_mov, rtimes_mov = JLD2.load(joinpath(@__DIR__, "..", "data","ppsth_$(sarea)_mov$(suffix).jld2"),"ppsth", "labels","trialidx","rtimes")
+    ppsth_cue,labels_cue, trialidx_cue, rtimes_cue = JLD2.load(joinpath(@__DIR__, "..","data","ppsth_$(sarea)_cue$(suffix).jld2"),"ppsth", "labels","trialidx","rtimes")
     cellidx = get_area_index(ppsth_mov.cellnames, area)
     @assert get_area_index(ppsth_cue.cellnames, area) == cellidx
 
@@ -640,7 +909,7 @@ end
 
 function plot_event_onset_subspaces(fname_cue, fname_mov;width=700, height=400, kvs...)
     with_theme(plot_theme) do
-        fig = Figure(resolution=(width,height))
+        fig = Figure(size=(width,height))
         lg = GridLayout()
         fig[1,1] = lg
         plot_data = plot_event_onset_subspaces!(lg, fname_cue, fname_mov;kvs...)
@@ -649,7 +918,7 @@ function plot_event_onset_subspaces(fname_cue, fname_mov;width=700, height=400, 
 end
 
 function plot_performance(f1score::Array{Float64,3},args...;kvs...)
-    fig = Figure(resolution=(500,300))
+    fig = Figure(size=(500,300))
     plot_performance!(fig, f1score, args...;kvs...)
     fig
 end
@@ -760,8 +1029,8 @@ function plot_event_onset_subspaces!(lg0, fname_cue, fname_mov;max_latency=Inf, 
 end
 
 
-function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500, kvs...)
-    fname = joinpath("data","fig2_data.jld2")
+function plot(;redo=false, do_save=false,max_latency=70.0, width=900, height=500, kvs...)
+    fname = joinpath(@__DIR__, "..", "data","fig2_data.jld2")
     α = 0.001
     threshold = 0.5
     if isfile(fname) && !redo
@@ -800,7 +1069,7 @@ function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500,
         JLD2.save(fname, Dict("plot_data"=>plot_data, "plot_data_reg"=>plot_data_reg))
     end
     with_theme(plot_theme) do
-        fig = Figure(resolution=(width,height))
+        fig = Figure(size=(width,height))
         lg0 = GridLayout()
         fig[1,1] = lg0
         axes = [Axis(lg0[1,i]) for i in 1:2]
@@ -847,23 +1116,23 @@ function plot(;redo=false, do_save=false,max_latency=Inf, width=900, height=500,
         showmovspine = false
         lg1 = GridLayout()
         lg[1,2] = lg1
-        plot_fef_cell!(lg1, 22,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg1, nothing, 22,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=false, showmovspine=showmovspine)
         rowgap!(lg1, 1, 4.0)
         colgap!(lg1, 1, 4.0)
         lg2 = GridLayout()
         lg[2,2] = lg2
-        plot_fef_cell!(lg2, 3,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=true, xticklabelsvisible=true, ylabelvisible=false, showmovspine=showmovspine)
+        plot_fef_cell!(lg2, nothing, 3,"J", [6];windowsize=35.0, latency=0.0, latency_ref=:mov, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=true, xticklabelsvisible=true, ylabelvisible=false, showmovspine=showmovspine)
         rowgap!(lg2, 1, 4.0)
         colgap!(lg2, 1, 4.0)
         lg3 = GridLayout()
         lg[1,1] = lg3
         # cue aligned
-        plot_fef_cell!(lg3, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=true, showmovspine=showmovspine)
+        plot_fef_cell!(lg3, nothing, 28,"W", [2];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50),xlabelvisible=false, xticklabelsvisible=false, ylabelvisible=true, showmovspine=showmovspine)
         rowgap!(lg3, 1, 4.0)
         colgap!(lg3, 1, 4.0)
         lg4 = GridLayout()
         lg[2,1] = lg4
-        plot_fef_cell!(lg4, 59,"J", [6];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50), ylabelvisible=true, showmovspine=showmovspine, xlabelvisible=true, xticklabelsvisible=true)
+        plot_fef_cell!(lg4, nothing, 59,"J", [6];windowsize=15.0, latency=50.0, latency_ref=:cue, tmin=(cue=-100, mov=-250), tmax=(cue=250, mov=50), ylabelvisible=true, showmovspine=showmovspine, xlabelvisible=true, xticklabelsvisible=true)
         rowgap!(lg4, 1, 4.0)
         colgap!(lg4, 1, 4.0)
         colgap!(lg, 1, 5.0)
@@ -919,7 +1188,7 @@ function plot_single_cell_examples(cells::Vector{Tuple{String, Int64}}, windowsi
     width = 15*2.5*72
     height = width
     with_theme(plot_theme) do
-        fig = Figure(resolution=(width,height))
+        fig = Figure(size=(width,height))
 
         # visual cells
         lg11 = GridLayout()

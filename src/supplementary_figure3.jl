@@ -63,7 +63,7 @@ function find_orthogonal_subpspaces(;redo=false, do_pca=false,shuffle_trials=fal
             read(fid, "sigma1"), read(fid, "sigma2"), read(fid, "sigma3"), read(fid, "mu1"), read(fid,"mu2"), read(fid, "mu3"), read(fid, "bins")
         end
     else
-        ppstht, labelst, rtimest = JLD2.load(joinpath("data","ppsth_fef_cue.jld2"), "ppsth", "labels","rtimes")
+        ppstht, labelst, rtimest = JLD2.load(joinpath(@__DIR__, "..", "data","ppsth_fef_cue.jld2"), "ppsth", "labels","rtimes")
         X = ppstht.counts
         bins = ppstht.bins
         label = Vector{Vector{Int64}}(undef, length(labelst))
@@ -280,7 +280,7 @@ function plot(;do_save=true, kvs...)
         Label(lg2[2,1,TopLeft()], "D", padding=labelpadding)
         CSIAnalysis.plot!(lg2;per_percentile_threshold=false)
         if do_save
-            fname = joinpath("figures","manuscript","orthogonal_subspaces.pdf")
+            fname = joinpath(@__DIR__, "..", "figures","manuscript","orthogonal_subspaces.pdf")
             save(fname, fig;pt_per_unit=1)
         end
         fig

@@ -4,6 +4,7 @@ using DataProcessingHierarchyTools
 const DPHT = DataProcessingHierarchyTools 
 using StatsBase
 using Distributions
+using JLD2
 
 export get_session_data, location_position, ContraLatera, IpsiLateral
 
@@ -195,7 +196,7 @@ function get_session_data(session::String, ppsth, trialidx, tlabel, rtimes,celli
     if mean_subtract
         X .-= mean(X, dims=(1,2))
     end
-	X, _label, rtime
+	X, ppsth.bins, _label, rtime
 end
 
 """
@@ -241,6 +242,19 @@ function get_keyword_args(m::Method)
 	vars = filter(s->!occursin("...", s), lstrip.(split(ms[idx0:idx1],",")))
 end
 
-export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals
+function load_data(subject::Union{String,Nothing}=nothing;area="fef",align=:cue, raw=false,parallel_read=true, kvs...)
+    if subject == "M"
+        # this is model data
+        fname = joinpath(@__DIR__, "..", "data","ppsth_model_cue.jld2")
+    elseif raw
+        fname = joinpath(@__DIR__, "..", "data","ppsth_$(area)_$(align)_raw.jld2")
+    else 
+        fname = joinpath(@__DIR__, "..", "data","ppsth_$(area)_$(align).jld2")
+    end
+    ppsth,tlabels,trialidx, rtimes = JLD2.load(fname, "ppsth","labels","trialidx","rtimes";parallel_read=parallel_read)
+    return ppsth,tlabels,trialidx,rtimes
+end
+
+export get_area_index, get_session_data, rebin2, sessions_j, session_w, ncells, _ntrials, locations, location_mapping, location_idx, get_normals, load_data
 
 end #module

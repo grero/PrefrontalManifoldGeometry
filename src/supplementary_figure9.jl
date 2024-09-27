@@ -1,4 +1,4 @@
-module TimeWindowDecoding
+module FigureS9
 using LinearAlgebra
 using StatsBase
 using MultivariateStats
@@ -13,11 +13,9 @@ using JLD2
 using CRC32c
 using ProgressMeter
 
-include("utils.jl")
+using ..Utils
+using ..PlotUtils
 
-plot_theme = theme_minimal()
-plot_theme.Axis.xticksvisible[] = true
-plot_theme.Axis.yticksvisible[] = true
 """
     decode_window(X::Matrix{T}, bins::AbstractVector{Float64}, window::Tuple{Float64})
 
@@ -144,8 +142,6 @@ function plot(bins, posteriors, windows::Vector{Tuple{Float64, Float64}})
         end
         for ax in axes[1:end-1]
             ax.xticklabelsvisible = false
-            ax.xticksvisible = false
-            ax.bottomspinevisible = false
         end
         ax = axes[end]
         ax.xlabel = "Time from movement [ms]"
@@ -154,7 +150,7 @@ function plot(bins, posteriors, windows::Vector{Tuple{Float64, Float64}})
     end
 end
 
-plot(;kvs...) = plot([(-35.0, 0.0), (-70.0, -35.0), (-105.0, -70.0), (-140.0, -105.0)];kvs... )
+plot(;q0=UInt32(1), width=604, height=300) = plot([(-35.0, 0.0), (-70.0, -35.0), (-105.0, -70.0), (-140.0, -105.0)];q0=q0, width=width,height=height)
 plot2(;kvs...) = plot2([(-35.0, 0.0), (-70.0, -35.0), (-105.0, -70.0), (-140.0, -105.0)];kvs... )
 
 function plot(windows::Vector{Tuple{Float64, Float64}};q0=zero(UInt32), kvs...)
@@ -236,7 +232,7 @@ function plot2(windows::Vector{Tuple{Float64, Float64}};q0=zero(UInt32), width=3
             μ[:,i] = dropdims(mean(_μ,dims=2),dims=2)
             σ[:,i] = dropdims(mean(_σ,dims=2),dims=2)
             #scatter!(ax2, (i-1) .+ 0.8*rand(size(Xv,2)), Xv[1,:],markersize=10px)
-            color = ax2.palette.color[][i]
+            color = Makie.wong_colors()[i]
             scatter!(ax2, window[1]-0.5*w .+ 0.8*w*rand(length(x1)), x1 .+ μ[1,i],markersize=8px,color=color)
             scatter!(ax2, window[1]-0.5*w .+ 0.8*w*rand(length(x2)), x2 .+ μ[2,i],markersize=8px,color=color)
             errorbars!(ax2, [window[1]], [μ[1,i]], [σ[1,i]],color="black")

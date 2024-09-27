@@ -26,4 +26,6 @@ include("supplementary_figure5.jl")
 include("supplementary_figure6.jl")
 include("supplementary_figure7.jl")
 include("supplementary_figure8.jl")
+include("supplementary_figure9.jl")
+include("supplementary_figure12.jl")
 end

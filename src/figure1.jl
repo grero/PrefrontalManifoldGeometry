@@ -99,7 +99,7 @@ function task_figure!(lg;kvs...)
 end
 
 function plot(;do_save=true)
-    img = load(joinpath("figures","manuscript","electrodes_on_brain.png"))
+    img = load(joinpath(@__DIR__, "..", "figures","manuscript","electrodes_on_brain.png"))
 	# grap the width and heigth from the QUARTO ENV variable
 	width = parse(Float64, get(ENV, "QUARTO_FIG_WIDTH", "15"))*72
 	height = parse(Float64, get(ENV, "QUARTO_FIG_HEIGHT","15"))*72
@@ -119,7 +119,7 @@ function plot(;do_save=true)
 		label_fontsize = 24 
 		labels = [Label(lg1[1,1,TopLeft()], "A",fontsize=label_fontsize),
 				  Label(lg2[1,1,TopLeft()], "B",fontsize=label_fontsize)]
-		fname = joinpath("figures","manuscript","figure1.pdf")
+		fname = joinpath(@__DIR__,"..", "figures","manuscript","figure1.pdf")
         if do_save
             CairoMakie.activate!()
             save(fname, fig;pt_per_unit=1)

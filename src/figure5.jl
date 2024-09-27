@@ -9,6 +9,9 @@ using Colors
 using CairoMakie
 using HypothesisTests
 using Distributions
+using GammaMixtures
+using GammaMixtures: GaussianMixtures
+using GaussianMixtures: GMM
 
 using ..Utils
 using ..PlotUtils
@@ -62,13 +65,76 @@ function plot_saccades!(ax, saccades::Vector{T2}, color, qcolor=color;xmin=0.0, 
     end
 end
 
+"""
+Classify saccades into evoked and fast saccades
+"""
+function classify_saccades(sdata::NamedTuple)
+	pos0 = sdata.target_pos[findfirst(pos->(pos[1] > sdata.screen_center[1])&(pos[2] == sdata.screen_center[2]), sdata.target_pos)]
+	pos0v = fill(0.0, 1,2)
+	pos0v[1,:] .= pos0
+	all_target_pos = sdata.target_pos
+	# plot thre reacction times first
+	rtime_stim = sdata.rtime_stim
+	rtime_nostim = sdata.rtime_nostim
+	rtidx_nostim = fill(true, length(rtime_nostim))
+	rtidx_stim = fill(true, length(rtime_stim))
+	evoked_saccade_idx = (stim=fill(false, length(rtime_stim)),
+						  nostim=fill(false, length(rtime_nostim)))
+	
+	fast_saccade_idx = (stim=fill(false, length(rtime_stim)),
+						  nostim=fill(false, length(rtime_nostim)))
+
+	slength_stim = fill(0.0, length(sdata.saccades_stim))
+	slength_nostim = fill(0.0, length(rtime_nostim))
+	max_q_idx_stim = fill(0, length(slength_stim))
+	max_q_idx_nostim = fill(0, length(slength_nostim))
+
+	max_q_idx = [max_q_idx_nostim, max_q_idx_stim]
+	slength = [slength_nostim, slength_stim]
+	qv = [:nostim, :stim]
+	all_target_label = [sdata.trial_label_nostim,sdata.trial_label_stim]
+	all_saccades = [sdata.saccades_nostim, sdata.saccades_stim]
+	rtidx_all = [rtidx_nostim, rtidx_stim]
+
+	tvector = [pos .- sdata.screen_center for pos in sdata.target_pos]
+
+	for (q, _slength, max_q, saccades, target_pos,rtidx) in zip(qv, slength, max_q_idx, all_saccades, all_target_label, rtidx_all)
+		for (jj,saccade) in enumerate(saccades)
+			v = sqrt.(sum(diff(saccade, dims=1).^2,dims=2))
+			w = diff(saccade, dims=1)
+			w ./= v  #normalize
+
+			v = dropdims(v, dims=2)
+			# find the largest directional change
+			# max_q[jj] = argmin(dropdims(sum(w[1:end-1,:].*w[2:end,:],dims=2),dims=2)) .+ 1
+			# use the positions closest to pos0 as max_q_idx
+			dd = dropdims(sum(abs2, saccade .- pos0v, dims=2),dims=2)
+			max_q[jj] = argmin(dd)
+			_slength[jj] = sum(v)
+			tlength = sqrt(sum(tvector[target_pos[jj]].^2))
+			_slength[jj] /= tlength
+		end
+		# only keep short saccades
+		rtidx[_slength .> 1.4] .= false
+		# identify saccades that go to the middle right location
+		qidx = [pos==pos0 for pos in all_target_pos[target_pos]]
+		# identity saccades where the end point is close to the middle right location
+		yidx = [sqrt(sum(abs2,saccade[end,:] .- pos0)) < 2*sdata.target_size for saccade in saccades]
+		evoked_saccade_idx[q][(qidx .| yidx).|(_slength .> 1.4)] .= true
+		fast_saccade_idx[q][((!).(qidx .| yidx)).&(_slength .< 1.4)] .= true
+		rtidx[qidx] .= false
+		rtidx[yidx] .= false
+	end
+	(rtidx=(nostim=rtidx_nostim, stim=rtidx_stim), evoked_saccade_idx=evoked_saccade_idx, fast_saccade_idx=fast_saccade_idx)
+end
+
 function plot_microstimulation_figure!(figlg)
     # load saccade data for sessions with early stimulations
-    _sdata_early = JLD2.load("data/microstim_early_sessions.jld2")
+    _sdata_early = JLD2.load(joinpath(@__DIR__,"..", "data/microstim_early_sessions.jld2"))
     sdata_early = NamedTuple(zip(Symbol.(keys(_sdata_early)), values(_sdata_early)))
 
     # .. and late stimulation
-    _sdata_mid = JLD2.load("data/microstim_mid_sessions.jld2")
+    _sdata_mid = JLD2.load(joinpath(@__DIR__,"..","data/microstim_mid_sessions.jld2"))
     sdata_mid = NamedTuple(zip(Symbol.(keys(_sdata_mid)), values(_sdata_mid)))
 
 	pos0 = sdata_early.target_pos[findfirst(pos->(pos[1] > sdata_early.screen_center[1])&(pos[2] == sdata_early.screen_center[2]), sdata_early.target_pos)]
@@ -161,7 +227,7 @@ function plot_microstimulation_figure!(figlg)
 	#fit Gamma distribution to nostim reaction times
 	Γ = fit(Gamma, _rt_nostim)
 	@show Γ
-	# compare number of points below 1st percentile 
+	# compare number of points below 5t hpercentile 
 	q1,q2 = percentile(Γ, [5.0,95.0])
 	@show q1,q2
 	rt_cutoff = q1
@@ -169,31 +235,42 @@ function plot_microstimulation_figure!(figlg)
 	n12 = sum(_rt_mid .<= q1)
 	n21 = sum(_rt_early .>= q2)
 	n22 = sum(_rt_mid .>= q2)
+	# Why are we doing this? Because we are asking, if there really was no difference
+	# between early and mid, what would be the expected number of values below the 5th percentile.
 	nq = shuffle_stim_rtimes(_rt_early, _rt_mid, q1,q2)
 	nqs = mapslices(x->percentile(x,95), nq,dims=3)
 	@assert !(n11 >= nqs[1,1])
 	@assert !(n21 >= nqs[2,1])
 	@assert n12 >= nqs[1,2] # this should be the only significant result
 	@assert !(n22 >= nqs[2,2])
+
+	# modal analysis
+	_fname = joinpath(@__DIR__, "..", "data","figure5_bimodel_analysis.jld2")
+	model_results = JLD2.load(_fname)
+	model = model_results["model"]
+	model_bic = model_results["model_bic"]
+
     plot_colors = Makie.wong_colors()
+	stimcolors = [RGB(0.8, 0.8, 0.8);plot_colors[3:4]]
 	with_theme(theme_minimal()) do
 		ax1 = Axis(figlg[1,1])
 		ax1.title = "No stim"
 		ax1.yticksvisible = true
 		ax1.ylabel = "Reaction time [ms]"
-		scatter!(ax1, rand(sum(rtidx_nostim)), rtime_nostim[rtidx_nostim], color=RGB(0.8, 0.8, 0.8))
+		scatter!(ax1, rand(sum(rtidx_nostim)), rtime_nostim[rtidx_nostim], color=stimcolors[1])
 		ax2 = Axis(figlg[1,2])
 		ax2.title = "Early stim"
-		scatter!(ax2, rand(sum(rtidx_stim_early)), rtime_stim_early[rtidx_stim_early], color=Cycled(3))
+		scatter!(ax2, rand(sum(rtidx_stim_early)), rtime_stim_early[rtidx_stim_early], color=stimcolors[2])
 		ax3 = Axis(figlg[1,3])
 		ax3.title = "Late stim"
-		scatter!(ax3, rand(sum(rtidx_stim_mid)), rtime_stim_mid[rtidx_stim_mid], color=Cycled(4))
+		scatter!(ax3, rand(sum(rtidx_stim_mid)), rtime_stim_mid[rtidx_stim_mid], color=stimcolors[3])
 		# plot histogras
 		ax6 = Axis(figlg[1,4])
 		ax6.yticklabelsvisible = false
 		ax6.leftspinevisible = false
 		ax6.xticksvisible = true
-		ax6.xlabel = "% of trials"
+		ax6.yticksvisible = false
+		ax6.xlabel = "pdf"
 		# kind of fudgy
 		binsize = rt_cutoff - minimum(rtime_stim_mid[rtidx_stim_mid])
 		binsize /= 1.0
@@ -201,22 +278,31 @@ function plot_microstimulation_figure!(figlg)
 		firstbin = minimum(minimum.([rtime_stim_mid[rtidx_stim_mid],rtime_stim_early[rtidx_stim_early], rtime_nostim[rtidx_nostim]]))
 		lastbin = maximum(maximum.([rtime_stim_mid[rtidx_stim_mid],rtime_stim_early[rtidx_stim_early], rtime_nostim[rtidx_nostim]]))
 		bins = range(firstbin-binsize, stop=lastbin, step=binsize)
-		h1 = StatsBase.fit(Histogram, rtime_nostim[rtidx_nostim], bins, closed=:left)
-		h2 = StatsBase.fit(Histogram, rtime_stim_early[rtidx_stim_early], bins, closed=:left)
-		h3 = StatsBase.fit(Histogram, rtime_stim_mid[rtidx_stim_mid], bins, closed=:left)	
 
-		#barplot!(ax6, h1.edges[1][1:end-1], 100*h1.weights/sum(h1.weights), color=RGB(0.8, 0.8, 0.8),width=binsize, gap=0.0, direction=:x)
-		stairs!(ax6, 100*h1.weights/sum(h1.weights), h1.edges[1][1:end-1], color=RGB(0.8, 0.8, 0.8))
+		for (cc, (ll,x)) in enumerate(zip(["nostim", "early","mid"],[rtime_nostim[rtidx_nostim], rtime_stim_early[rtidx_stim_early],rtime_stim_mid[rtidx_stim_mid]]))
+			best_model = model[ll]
+			_color = stimcolors[cc] 
+			xs = sort(x)
+			Δ = diff(xs)
+			push!(Δ, mean(Δ))
+			prob = pdf(best_model, xs)
+			prob ./= sum(prob.*Δ)
+			lines!(ax6, prob, xs, color=_color,linewidth=2.0)
+			#plot_modal_analysis!(ax6, best_model, x, _color)
+		end
+		ax6.yticksvisible = false
+		#h1 = StatsBase.fit(Histogram, rtime_nostim[rtidx_nostim], bins, closed=:left)
+		#h2 = StatsBase.fit(Histogram, rtime_stim_early[rtidx_stim_early], bins, closed=:left)
+		#h3 = StatsBase.fit(Histogram, rtime_stim_mid[rtidx_stim_mid], bins, closed=:left)	
+
 		for _ax in [ax1, ax6]
 			@show median(rtime_nostim[rtidx_nostim])
 			hlines!(_ax, median(rtime_nostim[rtidx_nostim]), color=RGB(0.8, 0.8, 0.8))
 		end
-		stairs!(ax6, 100*h2.weights/sum(h2.weights), h2.edges[1][1:end-1], color=plot_colors[3])
 		for _ax in [ax2, ax6]
 			@show median(rtime_stim_early[rtidx_stim_early])
 			hlines!(_ax, median(rtime_stim_early[rtidx_stim_early]), color=plot_colors[3])
 		end
-		stairs!(ax6, 100*h3.weights/sum(h3.weights), h3.edges[1][1:end-1], color=plot_colors[4])
 		for _ax in [ax3, ax6]
 			@show median(rtime_stim_mid[rtidx_stim_mid])
 			hlines!(_ax, median(rtime_stim_mid[rtidx_stim_mid]), color=plot_colors[4])
@@ -382,6 +468,52 @@ function plot(;show_schematic=true)
 		end
 		plot_microstimulation_figure!(lg2)
 		fig
+	end
+end
+
+function StatsBase.loglikelihood(gm::GMM, x)
+	N = [Normal(μ, σ) for (μ, σ) in zip(gm.μ, gm.Σ)]
+	sum(log.(sum(gm.w.*pdf.(N, permutedims(x)),dims=1)))
+end
+
+function StatsBase.bic(gm::GMM, x)
+	ll = loglikelihood(gm,x)
+	k = length(gm.μ) + length(gm.Σ) + length(gm.w)-1
+	n = length(x)
+	-2*ll + k*log(n)
+end
+
+
+GammaMixtures.posterior(g::Gamma,x) = pdf(g,x)
+
+function plot_modal_analysis!(ax, model, x, color;q=0.7)
+	m = median(x)
+	xs = sort(x)
+	probs = component_pdf(model, xs)
+	# find the mode of each component
+	_mode = xs[[argmax(probs[:,i]) for i in axes(probs,2)]]
+
+	# color according to deivation from the global median
+	q = _mode .- m
+	if length(_mode) == 1
+		colors = [color]
+	elseif length(_mode) == 2
+
+	else
+	end
+	# if we only have one mode, this be the median
+
+	#rescale we want to scale from q*colo.r to 1-q *q+color.r
+	rmin,rmax = (0.7*color.r, 0.3 + 0.7*color.r)
+	r = (rmax-rmin)*(q .- minimum(q))./(maximum(q) - minimum(q)) .+ rmin 
+	gmin,gmax = (0.7*color.g, 0.3 + 0.7*color.g)
+	g = (gmax-gmin)*(q .- minimum(q))./(maximum(q) - minimum(q)) .+ gmin 
+	bmin,bmax = (0.7*color.b, 0.3 + 0.7*color.b)
+	b = (bmax-bmin)*(q .- minimum(q))./(maximum(q) - minimum(q)) .+ bmin 
+	colors = [RGB(_r, _g,_b) for (_r,_g,_b) in zip(r,g,b)]
+
+	for c in axes(probs,2)
+		lines!(ax, probs[:,c], xs,color=colors[c])
 	end
 end
 end
