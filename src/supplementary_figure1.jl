@@ -11,7 +11,7 @@ using JLD2
 using ..PlotUtils
 
 function plot(;do_save=true, kvs...)
-    fnamec = joinpath("data","ppsth_fef_cue_raw.jld2")
+    fnamec = joinpath(@__DIR__, "..", "data","ppsth_fef_cue_raw.jld2")
     rtimes = JLD2.load(fnamec, "rtimes")
     rtimes_subject = Dict{String,Vector{Vector{Float64}}}()
     for subject in ["J","W"]
@@ -70,7 +70,7 @@ function plot(;do_save=true, kvs...)
 		ax.bottomspinevisible = true
 		rowsize!(fig.layout, 1, Relative(0.6))
         if do_save
-            fname = joinpath("figures","manuscript","reaction_time_distributions.pdf")
+            fname = joinpath(@__DIR__, "..", "figures","manuscript","reaction_time_distributions.pdf")
             save(fname, fig;pt_per_unit=1)
         end
 		fig
