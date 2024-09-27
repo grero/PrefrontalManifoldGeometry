@@ -150,7 +150,7 @@ function plot(bins, posteriors, windows::Vector{Tuple{Float64, Float64}})
     end
 end
 
-plot(;kvs...) = plot([(-35.0, 0.0), (-70.0, -35.0), (-105.0, -70.0), (-140.0, -105.0)];kvs... )
+plot(;q0=UInt32(1), width=604, height=300) = plot([(-35.0, 0.0), (-70.0, -35.0), (-105.0, -70.0), (-140.0, -105.0)];q0=q0, width=width,height=height)
 plot2(;kvs...) = plot2([(-35.0, 0.0), (-70.0, -35.0), (-105.0, -70.0), (-140.0, -105.0)];kvs... )
 
 function plot(windows::Vector{Tuple{Float64, Float64}};q0=zero(UInt32), kvs...)
