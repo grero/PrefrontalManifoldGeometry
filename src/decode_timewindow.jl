@@ -144,8 +144,6 @@ function plot(bins, posteriors, windows::Vector{Tuple{Float64, Float64}})
         end
         for ax in axes[1:end-1]
             ax.xticklabelsvisible = false
-            ax.xticksvisible = false
-            ax.bottomspinevisible = false
         end
         ax = axes[end]
         ax.xlabel = "Time from movement [ms]"
