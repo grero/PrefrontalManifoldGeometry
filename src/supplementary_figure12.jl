@@ -1,5 +1,5 @@
 module FigureS12
-using JD2
+using JLD2
 using GammaMixtures
 using CairoMakie
 using Distributions
