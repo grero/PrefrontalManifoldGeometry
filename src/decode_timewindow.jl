@@ -236,7 +236,7 @@ function plot2(windows::Vector{Tuple{Float64, Float64}};q0=zero(UInt32), width=3
             μ[:,i] = dropdims(mean(_μ,dims=2),dims=2)
             σ[:,i] = dropdims(mean(_σ,dims=2),dims=2)
             #scatter!(ax2, (i-1) .+ 0.8*rand(size(Xv,2)), Xv[1,:],markersize=10px)
-            color = ax2.palette.color[][i]
+            color = Makie.wong_colors()[i]
             scatter!(ax2, window[1]-0.5*w .+ 0.8*w*rand(length(x1)), x1 .+ μ[1,i],markersize=8px,color=color)
             scatter!(ax2, window[1]-0.5*w .+ 0.8*w*rand(length(x2)), x2 .+ μ[2,i],markersize=8px,color=color)
             errorbars!(ax2, [window[1]], [μ[1,i]], [σ[1,i]],color="black")
