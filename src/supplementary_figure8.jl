@@ -14,7 +14,7 @@ using ..PlotUtils
 include("fa.jl")
 
 function plot()
-    fname = joinpath("data","supfig5.data.jld2")
+    fname = joinpath(@__DIR__, "..", "data","supfig5.data.jld2")
     if isfile(fname)
         @show fname
         r²j, r²w, Y, lrt, d_shared = JLD2.load(fname, "r²j", "r²w", "Y", "lrt", "d_shared")
