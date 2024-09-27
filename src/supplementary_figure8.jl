@@ -51,7 +51,7 @@ function plot()
         d_shared = filter(!ismissing, d_shared) 
         counts = countmap(d_shared)
         x_values = sort(collect(keys(counts)))
-        subject="whiskey"
+        subject="W"
         sessionidx = 4
         location=2
 
