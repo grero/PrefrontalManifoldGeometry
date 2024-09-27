@@ -1528,7 +1528,7 @@ end
 function plot_individual_trials!(lg, trialidx::Vector{Int64},area::String,subject::String, varnames::Vector{Symbol};plotlabel::Union{Vector{String},Nothing}=nothing, β::Union{Nothing, Vector{Float64}}=nothing, npoints=length(trialidx), xlabelvisible=true, recording_side::Utils.RecordingSide=Utils.BothSides(), t0=0.0, sessions=:all, logscale::Vector{Symbol}=Symbol[], kvs...)
 
     vnames = Dict(:Z=>"MP", :L => "PL", :SM=>"AS")
-    ppsth,tlabels,_trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
+    ppsth,tlabels,_trialidx, rtimes = Utils.load_data(nothing;area=area,raw=true, kvs...)
     Z,L,EE, MM, SS, FL, SM, lrt,label,ncells,bins,sessionidx = get_regression_data(ppsth,tlabels,_trialidx, rtimes, subject; mean_subtract=true, variance_stabilize=true,window=50.0, kvs...);
     bidx = searchsortedfirst(bins, t0)
     if subject == "J"
