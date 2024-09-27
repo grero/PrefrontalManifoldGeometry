@@ -128,7 +128,7 @@ function plot()
         colsize!(fig.layout, 1, Relative(0.3))
         labels = [Label(fig[1,1, TopLeft()], "A"),
                 Label(fig[1,2, TopLeft()], "B")]
-        fname = joinpath("figures","manuscript","khanna_analysis.pdf")
+        fname = joinpath(@__DIR__, "..", "figures","manuscript","khanna_analysis.pdf")
         save(fname, fig)
 	    fig
     end
