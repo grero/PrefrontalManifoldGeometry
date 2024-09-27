@@ -359,7 +359,7 @@ end
 """
 Compute
 """
-function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, use_residuals=false, kvs...)
+function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, args...;vargroup=1:(1+length(vars)), trialidx=1:size(L,1),shuffle_trials=false,exclude_pairs::Vector{Tuple{Int64,Int64}}=Tuple{Int64,Int64}[],save_all_β=false, use_residuals=false, kvs...)
     #TODO: Make rt optinally be a matrix, to work with the residuals
     nbins = size(L,2)
     if use_residuals
@@ -401,13 +401,26 @@ function compute_regression(rt::AbstractVector{Float64}, L::Matrix{Float64}, arg
 
         # run two regression models; one without path length L and one with
         if length(args) > 0
-            X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in args]...)
+            vidx = findall(vargroup[2:end].>vargroup[1])
+            vargs = args[vidx]
+            X_no_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in vargs]...)
             if size(X_no_L,1) < 10
                 continue
             end
-            _exclude_pairs = [(k-1,j-1) for (k,j) in exclude_pairs]
+            eidx = findall(vargroup .> vargroup[1])
+            feidx = in(eidx)
+            # find the excluded pairs that overlap with this group
+            _exclude_pairs = filter(pp->feidx(pp[1])&&feidx(pp[2]), exclude_pairs)
+            _exclude_pairs = [(findfirst(eidx.==k), findfirst(eidx.==j)) for (k,j) in _exclude_pairs]
             lreg_no_L = LinearRegressionUtils.llsq_stats(X_no_L, rt[sidx[_tidx]];do_interactions=true,exclude_pairs=_exclude_pairs, kvs...)
-            X_with_L = [L[trialidx[_tidx],i] X_no_L]
+
+            largs = args[vargroup[2:end].==vargroup[1]]
+            if length(largs) > 0
+                X_with_L = hcat([ndims(Z)== 2 ? Z[trialidx[_tidx],i] : Z[trialidx[_tidx]] for Z in largs]...)
+                X_with_L = [L[trialidx[_tidx],i] X_with_L X_no_L]
+            else
+                X_with_L = [L[trialidx[_tidx],i] X_no_L]
+            end
             p1 = length(lreg_no_L.β)
             rss1 = lreg_no_L.rss
             residuals[1:length(lreg_no_L.residual),i] .= lreg_no_L.residual
@@ -719,12 +732,13 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             for (v1,v2) in exclude_pair_names
                 if all(in(use_varnames).([v1,v2]))
                     push!(exclude_pairs, (findfirst(use_varnames.==v1),findfirst(use_varnames.==v2)))
+                end
             end
             if "trialix" in keys(qdata)
                 _trialidx = qdata["trialidx"]
-                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals = compute_regression(_trialidx,vars...;exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
+                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals = compute_regression(_trialidx,vars...;vargroup=vargroup, exclude_pairs=exclude_pairs,save_all_β=save_all_β, use_residuals=use_residuals)
             else
-                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals, _trialidx = compute_regression(nruns,vars...;exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
+                βfef,Δβfef,pvfef,r²fef,rss, varidx, residuals, _trialidx = compute_regression(nruns,vars...;vargroup=vargroup, exclude_pairs=exclude_pairs, save_all_β=save_all_β, use_residuals=use_residuals)
                 qdata["trialidx"] = _trialidx
             end
             qdata[area]["β"] = βfef
@@ -812,16 +826,20 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
 
                 vars = Any[lrt]
                 for vv in use_varnames
-                    if vv in logscale
+                    # check of power
+                    if occursin("²", string(vv))
+                        _vv = Symbol(rstrip(string(vv),'²'))
+                        push!(vars, allvars[_vv].^2)
+                    elseif vv in logscale
                         push!(vars, log.(allvars[vv]))
                     else
                         push!(vars, allvars[vv])
                     end
                 end
                 if use_residuals
-                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2];exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
+                    _β,_,_,_r²,_ = compute_regression(residuals, vars[2];vargroup=vargroup, exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=false)
                 else
-                    _β,_,_,_r²,_ = compute_regression(vars...;exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals)
+                    _β,_,_,_r²,_ = compute_regression(vars...;vargroup=vargroup, exclude_pairs=exclude_pairs,shuffle_trials=false,save_all_β=save_all_β, use_residuals=use_residuals)
                 end
                 β_S[:,:,r] .= _β
                 r²_S[:,r] .= _r²
