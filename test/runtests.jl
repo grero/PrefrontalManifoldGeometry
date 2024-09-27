@@ -48,6 +48,7 @@ end
     figs6 = PMG.FigureS6.plot()
     figs7 = PMG.FigureS7.plot()
     figs8 = PMG.FigureS8.plot()
+    figs9 = PMG.FigureS9.plot()
     figs12 = PMG.FigureS12.plot()
 end
 
