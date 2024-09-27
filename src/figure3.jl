@@ -145,7 +145,7 @@ function get_regression_data(ppsth,tlabels,trialidx,rtimes,subject::Union{Nothin
     nnmax = 0
     warnfirst = true
 	for (ii, session) in enumerate(sessions)
-		X, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
+		X, bins, _label, _rtime = Utils.get_session_data(session,ppsth, trialidx, tlabels, rtimes;rtime_min=rtmin,rtime_max=rtmax,kvs...)
         _ncells = size(X,3)
         nbins = size(X,1)
         _nt = length(_rtime)
@@ -625,7 +625,7 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             lrta = Vector{Vector{Float64}}(undef, length(subjects))
             sessionidxa = Vector{Vector{Int64}}(undef, length(subjects))
 
-            ppsth,tlabels,trialidx, rtimes = load_data(nothing;area=area,raw=true, kvs...)
+            ppsth,tlabels,trialidx, rtimes = Utils.load_data(nothing;area=area,raw=true, kvs...)
 
             for (ss, subject) in enumerate(subjects)
                 # load the data here so we don't have to do it more than once
