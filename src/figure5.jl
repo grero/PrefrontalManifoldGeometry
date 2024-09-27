@@ -227,7 +227,7 @@ function plot_microstimulation_figure!(figlg)
 	#fit Gamma distribution to nostim reaction times
 	Γ = fit(Gamma, _rt_nostim)
 	@show Γ
-	# compare number of points below 1st percentile 
+	# compare number of points below 5t hpercentile 
 	q1,q2 = percentile(Γ, [5.0,95.0])
 	@show q1,q2
 	rt_cutoff = q1
