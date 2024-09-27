@@ -496,7 +496,7 @@ function plot_regression(β, Δβ,pv,r²,bins)
     end
 end
 
-function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, logscale::Vector{Symbol}=Symbol[], recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, code_version=1, use_trialidx::Union{Matrix{Int64},Nothing}=nothing, areas=["fef","dlpfc"],storepatch=true, progress_offset=0, lock::Union{Nothing, Base.Threads.ReentrantLock}=nothing,prog=nothing, kvs...)
+function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos], subjects=["J","W"], sessions::Union{Vector{Int64},Symbol}=:all, locations::Union{Symbol, Vector{Int64}}=:all, combine_subjects=false, tt=65.0,nruns=100, use_midpoint=false, shuffle_responses=false,shuffle_time=false, shuffle_trials=false, check_only=false, save_all_β=false, balance_positions=false, use_log=false, logscale::Vector{Symbol}=Symbol[], quadratic::Vector{Symbol}=Symbol[], recording_side::Utils.RecordingSide=Utils.BothSides(),use_new_energy_point_algo=false, tmin=-Inf,tmax=Inf, use_residuals=false, code_version=1, use_trialidx::Union{Matrix{Int64},Nothing}=nothing, areas=["fef","dlpfc"],storepatch=true, progress_offset=0, lock::Union{Nothing, Base.Threads.ReentrantLock}=nothing,prog=nothing, kvs...)
     # TODO: Add option for combining regression for both animals
     q = UInt32(0)
     input_args = Dict{String,Any}()
@@ -553,6 +553,10 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
         use_log = true
     end
     input_args["logscale"] = logscale 
+    if !isempty(intersect(quadratic, varnames))
+        q = crc32c(string((:quadratic=>quadratic)),q)
+    end
+    input_args["quadratic"] = quadratic
 
     if use_log
         q = crc32c(string((:use_log=>true)),q)
@@ -681,22 +685,40 @@ function compute_regression(;redo=false, varnames=[:L, :Z, :ncells, :xpos, :ypos
             #vars = [lrt[tidx], L[tidx,:], Z[tidx,:], EE[tidx,:], MM[tidx,:], xpos, ypos] 
             vars = Any[lrt]
             use_varnames = Symbol[]
+            exclude_pair_names = [(:xpos, :ypos)] 
+            vargroup = Int64[]
+            cg = 0
             for vv in varnames
                 if vv in logscale 
-                    vk = log.(allvars[vv])
+                    vk = [log.(allvars[vv])]
+                    vn =[vv]
+                    vg = [cg+1]
+                    cg = vg[1]
+                elseif vv in quadratic
+                    vk = [allvars[vv].^2.0,allvars[vv]]
+                    vn = [Symbol("$(vv)²"),vv]
+                    push!(exclude_pair_names, (vn...,))
+                    vg = cg .+ [1,1]
+                    cg = vg[1]
                 else
-                    vk = allvars[vv]
+                    vk = [allvars[vv]]
+                    vn = [vv]
+                    vg = [cg+1]
+                    cg = vg[1]
                 end
-                if length(unique(vk)) > 1
-                    push!(vars,vk) 
-                    push!(use_varnames, vv)
+                for (_vk, _vn, _vg) in zip(vk, vn,vg)
+                    if length(unique(_vk)) > 1
+                        push!(vars,_vk) 
+                        push!(use_varnames, _vn)
+                        push!(vargroup, _vg)
+                    end
                 end
             end
             qdata["varnames"] = use_varnames
-            if all(in(use_varnames).([:xpos, :ypos]))
-                exclude_pairs = [(findfirst(use_varnames.==:xpos),findfirst(use_varnames.==:ypos))]
-            else
-                exclude_pairs = Tuple{Int64, Int64}[]
+            exclude_pairs = Tuple{Int64, Int64}[]
+            for (v1,v2) in exclude_pair_names
+                if all(in(use_varnames).([v1,v2]))
+                    push!(exclude_pairs, (findfirst(use_varnames.==v1),findfirst(use_varnames.==v2)))
             end
             if "trialix" in keys(qdata)
                 _trialidx = qdata["trialidx"]
