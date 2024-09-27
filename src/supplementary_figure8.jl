@@ -5,6 +5,7 @@ using Makie
 using CairoMakie
 using Colors
 using JLD2
+using StatsBase
 
 
 using ..Utils
